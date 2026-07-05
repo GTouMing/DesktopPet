@@ -1,22 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="EntryPointsManager">
-    <list size="1">
-      <item index="0" class="java.lang.String" itemvalue="android.annotation.SuppressLint" />
-    </list>
-  </component>
-  <component name="ExternalStorageConfigurationManager" enabled="true" />
   <component name="FrameworkDetectionExcludesConfiguration">
-    <file type="web" url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/audioplayers_android-5.2.1/android" />
-    <file type="web" url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/file_picker-8.3.7/android" />
-    <file type="web" url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/floating_window_android-1.1.1/android" />
-    <file type="web" url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/flutter_plugin_android_lifecycle-2.0.34/android" />
-    <file type="web" url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/jni-1.0.0/android" />
-    <file type="web" url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/jni_flutter-1.0.1/android" />
-    <file type="web" url="file://$PROJECT_DIR$/desktop_pet/android" />
-    <file type="web" url="file://$PROJECT_DIR$/../../SDK/Flutter/3.41.9/flutter/packages/flutter_tools/gradle" />
     <type id="android" />
-  </component>
-  <component name="ProjectRootManager" version="2">
-    <output url="file://$PROJECT_DIR$/out" />
   </component>
 </project>
