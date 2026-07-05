@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="GradleMigrationSettings" migrationVersion="1" />
+  <component name="GradleSettings">
+    <option name="linkedExternalProjectsSettings">
+      <GradleProjectSettings>
+        <compositeConfiguration>
+          <compositeBuild compositeDefinitionSource="SCRIPT">
+            <builds>
+              <build path="$PROJECT_DIR$/../../SDK/Flutter/3.41.9/flutter/packages/flutter_tools/gradle" name="gradle">
+                <projects>
+                  <project path="$PROJECT_DIR$/../../SDK/Flutter/3.41.9/flutter/packages/flutter_tools/gradle" />
+                </projects>
+              </build>
+            </builds>
+          </compositeBuild>
+        </compositeConfiguration>
+        <option name="externalProjectPath" value="$PROJECT_DIR$/desktop_pet/android" />
+        <option name="gradleJvm" value="#JAVA_HOME" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/audioplayers_android-5.3.0/android" />
+            <option value="$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/file_picker-8.3.7/android" />
+            <option value="$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/flutter_plugin_android_lifecycle-2.0.35/android" />
+            <option value="$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/jni-1.0.0/android" />
+            <option value="$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/jni_flutter-1.0.1/android" />
+            <option value="$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/mmkv_android-2.4.0/android" />
+            <option value="$PROJECT_DIR$/desktop_pet/android" />
+            <option value="$PROJECT_DIR$/desktop_pet/android/app" />
+            <option value="$PROJECT_DIR$/../../SDK/Flutter/3.41.9/flutter/packages/flutter_tools/gradle" />
+          </set>
+        </option>
+      </GradleProjectSettings>
+    </option>
+  </component>
+</project>

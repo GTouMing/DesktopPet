@@ -1,0 +1,24 @@
+<component name="libraryTable">
+  <library name="Flutter Plugins" type="FlutterPluginsLibraryType">
+    <CLASSES>
+      <root url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/path_provider_linux-2.2.1" />
+      <root url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/jni_flutter-1.0.1" />
+      <root url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/file_picker-8.3.7" />
+      <root url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/path_provider_windows-2.3.0" />
+      <root url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/path_provider_foundation-2.6.0" />
+      <root url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/system_tray-2.0.3" />
+      <root url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/hotkey_manager-0.1.8" />
+      <root url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/flutter_overlay_window-0.4.5" />
+      <root url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/path_provider-2.1.5" />
+      <root url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/screen_retriever-0.1.9" />
+      <root url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/path_provider_android-2.3.1" />
+      <root url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/desktop_multi_window-0.3.0" />
+      <root url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/jni-1.0.0" />
+      <root url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/audioplayers_web-5.2.0" />
+      <root url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/audioplayers-6.6.0" />
+      <root url="file://$PROJECT_DIR$/../../.pub_cache/hosted/pub.dev/window_manager-0.3.9" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

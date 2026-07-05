@@ -1,0 +1,22 @@
+适用于 .NET Framework MSBuild 版本 18.6.3+84d3e95b4
+
+  Performing download step (git clone) for 'mmkv-populate'
+  Error removing directory "F:/IDEA.etc/DesktopPet/desktop_pet/build/windows/x64/_deps/mmkv-src".
+  CMake Error at mmkv-subbuild/mmkv-populate-prefix/tmp/mmkv-populate-gitclone.cmake:30 (message):
+    Failed to remove directory:
+    'F:/IDEA.etc/DesktopPet/desktop_pet/build/windows/x64/_deps/mmkv-src'
+
+
+F:\Microsoft Visual Studio.etc\MSBuild\Microsoft\VC\v180\Microsoft.CppCommon.targets(254,5): error MSB8066: “F:\IDEA.etc\DesktopPet\desktop_pet\build\windows\x64\_deps\mmkv-subbuild\CMakeFiles\3c8b1769c18de3624575491ffcff6447\mmkv-populate-download.rule;F:\IDEA.etc\DesktopPet\desktop_pet\build\windows\x64\_deps\mmkv-subbuild\CMakeFiles\3c8b1769c18de3624575491ffcff6447\mmkv-populate-update.rule;F:\IDEA.etc\DesktopPet\desktop_pet\build\windows\x64\_deps\mmkv-subbuild\CMakeFiles\3c8b1769c18de3624575491ffcff6447\mmkv-populate-patch.rule;F:\IDEA.etc\DesktopPet\desktop_pet\build\windows\x64\_deps\mmkv-subbuild\CMakeFiles\3c8b1769c18de3624575491ffcff6447\mmkv-populate-configure.rule;F:\IDEA.etc\DesktopPet\desktop_pet\build\windows\x64\_deps\mmkv-subbuild\CMakeFiles\3c8b1769c18de3624575491ffcff6447\mmkv-populate-build.rule;F:\IDEA.etc\DesktopPet\desktop_pet\build\windows\x64\_deps\mmkv-subbuild\CMakeFiles\3c8b1769c18de3624575491ffcff6447\mmkv-populate-install.rule;F:\IDEA.etc\DesktopPet\desktop_pet\build\windows\x64\_deps\mmkv-subbuild\CMakeFiles\3c8b1769c18de3624575491ffcff6447\mmkv-populate-test.rule;F:\IDEA.etc\DesktopPet\desktop_pet\build\windows\x64\_deps\mmkv-subbuild\CMakeFiles\f4a4e53f25bffb6ccde5ac2ea8fe4c20\mmkv-populate-complete.rule;F:\IDEA.etc\DesktopPet\desktop_pet\build\windows\x64\_deps\mmkv-subbuild\CMakeFiles\d6310d55ffdbd66ec8f571bba9c799c6\mmkv-populate.rule”的自定义生成已退出，代码为 1。 [F:\IDEA.etc\DesktopPet\desktop_pet\build\windows\x64\_deps\mmkv-subbuild\mmkv-populate.vcxproj]
+
+CMake Error at F:/Microsoft Visual Studio.etc/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-4.2/Modules/FetchContent.cmake:1928 (message):
+  Build step for mmkv failed: 1
+Call Stack (most recent call first):
+  F:/Microsoft Visual Studio.etc/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-4.2/Modules/FetchContent.cmake:1619 (__FetchContent_populateSubbuild)
+  F:/Microsoft Visual Studio.etc/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-4.2/Modules/FetchContent.cmake:2155:EVAL:2 (__FetchContent_doPopulation)
+  F:/Microsoft Visual Studio.etc/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-4.2/Modules/FetchContent.cmake:2155 (cmake_language)
+  F:/Microsoft Visual Studio.etc/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-4.2/Modules/FetchContent.cmake:2394 (__FetchContent_Populate)
+  flutter/ephemeral/.plugin_symlinks/mmkv_win32/windows/CMakeLists.txt:28 (FetchContent_MakeAvailable)
+
+
+Unable to generate build files

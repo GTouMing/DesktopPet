@@ -1,0 +1,13 @@
+{
+  "@@locale": "zh",
+  "appName": "My Flutter App",
+  "greetingMessage": "Hello {username}!",
+  "@greetingMessage": {
+    "description": "A welcome message for the user",
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  }
+}

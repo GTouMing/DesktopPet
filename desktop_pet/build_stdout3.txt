@@ -1,0 +1,3 @@
+Building Windows application...                                 
+Building Windows application...                                   556.9s
+√ Built build\windows\x64\runner\Release\desktop_pet.exe
