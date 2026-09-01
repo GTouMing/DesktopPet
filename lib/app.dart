@@ -1,31 +1,48 @@
 import 'dart:io';
 
+import 'package:desktop_pet/ui/android/pet_overlay.dart';
+import 'package:desktop_pet/ui/windows/pet_overlay.dart';
 import 'package:flutter/material.dart';
 
-import 'ui/android/main_screen.dart';
-import 'ui/android/settings_screen.dart';
-import 'ui/windows/settings_screen.dart';
+import 'desktop_pet.dart';
+import 'ui/common/main_screen.dart';
+import 'ui/widgets/window_frame.dart';
+
+class MainApp extends StatelessWidget {
+  const MainApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    ensureSupport();
+
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorSchemeSeed: Colors.pink,
+        useMaterial3: true,
+      ),
+      home: const MainScreen(),
+      builder: (context, child) {
+        return Platform.isWindows
+            ? WindowFrame(child: child!)
+            : child!;
+      },
+    );
+  }
+}
 
 class PetApp extends StatelessWidget {
   const PetApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    if (!Platform.isAndroid && !Platform.isWindows) {
-      throw UnsupportedError(
-        'Unsupported platform: ${Platform.operatingSystem}',
-      );
-    }
+    ensureSupport();
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: Colors.red,
-        useMaterial3: true,
-      ),
       home: Platform.isAndroid
-          ? const MainScreen()
-          : const WindowsSettingsScreen(),
+          ? const AndroidPetOverlay()
+          : const WindowsPetOverlay(),
     );
   }
 }

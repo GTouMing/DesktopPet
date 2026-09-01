@@ -5,10 +5,11 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   audioplayers_windows
   desktop_multi_window
-  hotkey_manager
+  flutter_alone
   mmkv_win32
-  screen_retriever
+  screen_retriever_windows
   system_tray
+  win32hooks
   window_manager
 )
 

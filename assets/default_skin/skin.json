@@ -17,91 +17,97 @@
   "states": {
     "idle": {
       "animation": "idle",
-      "repeatCount": "infinite",
-      "transitions": [
-        { "trigger": "timer",  "target": "perWalk",  "minMs": 15000, "maxMs": 15000 },
-        { "trigger": "timer",  "target": "sleep", "afterMs": 120000 },
-        { "trigger": "click",  "target": "happy" },
-        { "trigger": "eat",    "target": "eat" },
-        { "trigger": "drag",   "target": "drag" },
-        { "trigger": "window", "target": "sleep", "match": "chrome,firefox,edge,brave,opera,safari,YouTube,Netflix,bilibili" },
-        {"trigger": "window", "target": "game-idle","match": "MONSTER HUNTER:WORLD"}
-      ]
+      "transitions": {
+        "perWalk":    { "limitTimer": { "minMs": 15000, "maxMs": 15000 } },
+        "sleep":      { "waitTimer": { "afterMs": 120000 }, "hotkey": { "key": "s", "modifiers": ["ctrl", "alt"] } },
+        "happy":      { "click": {} },
+        "eat":        { "eat": {} },
+        "drag":       { "drag": {} },
+        "walkToEdge": { "hotkey": { "key": "k", "modifiers": ["ctrl", "alt"] } }
+      }
     },
-    "game-idle": {
-      "animation": "idle",
-      "repeatCount": "infinite",
-      "transitions": [
-        {"trigger": "click", "target": "idle"},
-        { "trigger": "drag",   "target": "drag" }
-      ]
-    },
+
     "perWalk": {
       "animation": "idle",
       "behavior": "moveToTarget",
-      "repeatCount": "infinite",
-      "transitions": [
-        {"trigger": "moveRight", "target": "walk"},
-        {"trigger": "moveLeft", "target": "walk-mirror"}
-      ]
-
+      "transitions": {
+        "walk":        { "moveRight": {} },
+        "walk-mirror": { "moveLeft": {} },
+        "sleep":    { "drag": {} }
+      }
     },
+
+    "walkToEdge": {
+      "animation": "walk",
+      "behavior": "moveToTarget",
+      "targetPos": { "x": 1920, "y": 1080 },
+      "transitions": {
+        "EdgeIdle": { "arrived": {} }
+      }
+    },
+
+    "EdgeIdle": {
+      "animation": "idle",
+      "offsetY": 50,
+      "transitions": {
+        "perWalk": { "hotkey": { "key": "k", "modifiers": ["ctrl", "alt"] } },
+        "drag":    { "drag": {} }
+      }
+    },
+
     "walk": {
       "animation": "walk",
-      "repeatCount": "infinite",
       "behavior": "moveToTarget",
       "scaleY": "1 - 0.05*(1 - cos(2*PI*t))",
-      "transitions": [
-        { "trigger": "arrived", "target": "idle" },
-        { "trigger": "click",   "target": "happy" },
-        { "trigger": "drag",    "target": "drag" }
-      ]
+      "transitions": {
+        "idle":  { "arrived": {} },
+        "happy": { "click": {} },
+        "drag":  { "drag": {} }
+      }
     },
     "walk-mirror": {
       "animation": "walk",
-      "repeatCount": "infinite",
       "behavior": "moveToTarget",
       "mirrorH": true,
       "scaleY": "1 - 0.05*(1 - cos(2*PI*t))",
-      "transitions": [
-        { "trigger": "arrived", "target": "idle" },
-        { "trigger": "click",   "target": "happy" },
-        { "trigger": "drag",    "target": "drag" }
-      ]
+      "transitions": {
+        "idle":  { "arrived": {} },
+        "happy": { "click": {} },
+        "drag":  { "drag": {} }
+      }
     },
+
     "sleep": {
       "animation": "sleep",
-      "repeatCount": "infinite",
-      "transitions": [
-        {"trigger": "timer", "target": "idle", "afterMs": 12000},
-        { "trigger": "click", "target": "idle" },
-        { "trigger": "eat",   "target": "idle" },
-        { "trigger": "drag",  "target": "drag" }
-      ]
+      "transitions": {
+        "idle": { "waitTimer": { "afterMs": 12000 }, "click": {} },
+        "drag": { "drag": {} }
+      }
     },
     "happy": {
       "animation": "happy",
-      "transitions": [
-        { "trigger": "click", "target": "happy" },
-        { "trigger": "drag", "target": "drag" },
-        { "trigger": "complete", "target": "idle"}
-      ]
+      "playCount": 1,
+      "transitions": {
+        "happy": { "click": {} },
+        "drag":  { "drag": {} },
+        "idle":  { "complete": {} }
+      }
     },
     "eat": {
       "animation": "eat",
-      "transitions": [
-        { "trigger": "drag", "target": "drag" },
-        { "trigger": "complete", "target": "idle"}
-      ]
+      "playCount": 1,
+      "transitions": {
+        "drag": { "drag": {} },
+        "idle": { "complete": {} }
+      }
     },
     "drag": {
       "animation": "drag",
-      "repeatCount": "infinite",
       "rotation": "sin(t * PI * 2) * 0.1",
       "offsetX": "sin(t * PI * 4) * 3",
-      "transitions": [
-        { "trigger": "arrived", "target": "idle" }
-      ]
+      "transitions": {
+        "idle": { "arrived": {} }
+      }
     }
   }
 }

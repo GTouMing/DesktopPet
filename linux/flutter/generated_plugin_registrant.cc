@@ -8,9 +8,9 @@
 
 #include <audioplayers_linux/audioplayers_linux_plugin.h>
 #include <desktop_multi_window/desktop_multi_window_plugin.h>
-#include <hotkey_manager/hotkey_manager_plugin.h>
+#include <flutter_alone/flutter_alone_plugin.h>
 #include <mmkv_linux/mmkv_linux_plugin.h>
-#include <screen_retriever/screen_retriever_plugin.h>
+#include <screen_retriever_linux/screen_retriever_linux_plugin.h>
 #include <system_tray/system_tray_plugin.h>
 #include <window_manager/window_manager_plugin.h>
 
@@ -21,15 +21,15 @@ void fl_register_plugins(FlPluginRegistry* registry) {
   g_autoptr(FlPluginRegistrar) desktop_multi_window_registrar =
       fl_plugin_registry_get_registrar_for_plugin(registry, "DesktopMultiWindowPlugin");
   desktop_multi_window_plugin_register_with_registrar(desktop_multi_window_registrar);
-  g_autoptr(FlPluginRegistrar) hotkey_manager_registrar =
-      fl_plugin_registry_get_registrar_for_plugin(registry, "HotkeyManagerPlugin");
-  hotkey_manager_plugin_register_with_registrar(hotkey_manager_registrar);
+  g_autoptr(FlPluginRegistrar) flutter_alone_registrar =
+      fl_plugin_registry_get_registrar_for_plugin(registry, "FlutterAlonePlugin");
+  flutter_alone_plugin_register_with_registrar(flutter_alone_registrar);
   g_autoptr(FlPluginRegistrar) mmkv_linux_registrar =
       fl_plugin_registry_get_registrar_for_plugin(registry, "MmkvLinuxPlugin");
   mmkv_linux_plugin_register_with_registrar(mmkv_linux_registrar);
-  g_autoptr(FlPluginRegistrar) screen_retriever_registrar =
-      fl_plugin_registry_get_registrar_for_plugin(registry, "ScreenRetrieverPlugin");
-  screen_retriever_plugin_register_with_registrar(screen_retriever_registrar);
+  g_autoptr(FlPluginRegistrar) screen_retriever_linux_registrar =
+      fl_plugin_registry_get_registrar_for_plugin(registry, "ScreenRetrieverLinuxPlugin");
+  screen_retriever_linux_plugin_register_with_registrar(screen_retriever_linux_registrar);
   g_autoptr(FlPluginRegistrar) system_tray_registrar =
       fl_plugin_registry_get_registrar_for_plugin(registry, "SystemTrayPlugin");
   system_tray_plugin_register_with_registrar(system_tray_registrar);

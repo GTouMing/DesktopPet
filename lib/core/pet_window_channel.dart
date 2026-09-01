@@ -9,7 +9,7 @@ import 'constants.dart';
 /// 桌宠子窗口跨引擎通信通道。
 ///
 /// 主窗口写入 MMKV 后，通过此通道向所有桌宠子窗口推送
-/// `settings_updated` 或 `lock_updated` 消息，触发即时刷新。
+/// `settings_updated`消息，触发即时刷新。
 ///
 /// - Windows：使用 desktop_multi_window 跨引擎通信
 /// - Android：通过原生层向各悬浮窗引擎推送
@@ -33,12 +33,6 @@ class PetWindowChannel {
     }
   }
 
-  /// 向所有桌宠子窗口推送锁定状态变更通知。
-  static void notifyLockUpdated() {
-    if (!Platform.isWindows) return;
-    _notifyDmw('lock_updated');
-  }
-
   static Future<void> _notifyDmw(String method) async {
     try {
       final all = await dmw.WindowController.getAll();
@@ -47,7 +41,7 @@ class PetWindowChannel {
         // 排除主窗口和空参数
         if (arg == mainOrSetting) continue;
         try {
-          ctrl.invokeMethod(method);
+          await ctrl.invokeMethod(method);
         } catch (_) {
           // 单窗口失败不影响其他
         }

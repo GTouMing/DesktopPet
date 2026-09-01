@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:ui';
 
 /// Abstract interface for platform-specific pet window management.
@@ -7,7 +6,9 @@ abstract class WindowController {
   /// On Android this is the overlayId; on Windows this is the window identifier.
   String get id;
 
-  Future<void> init();
+  /// 初始化单个桌宠窗口。
+  Future<void> petInit();
+
   Future<void> show();
   Future<void> hide();
   Future<void> setIgnoreMouseEvents(bool ignore);
@@ -35,12 +36,4 @@ abstract class WindowController {
   /// - Windows：使用 [windowManager.startDragging]（发送 WM_SYSCOMMAND）
   /// - Android：使用 [MultiFloatingWindowAndroid.startDragging]
   Future<void> startDragging();
-
-  /// 获取当前前台/活动窗口的标题。仅 Windows 平台有效。
-  /// 不支持时返回 `null`（Android 等平台）。
-  String? getForegroundWindowTitle() => null;
-
-  /// 前台窗口标题变更事件流。仅 Windows 平台有效（无轮询，通过 WinEvent hook）。
-  /// 不支持时返回 `null`（Android 等平台）。
-  Stream<String>? get onForegroundWindowTitle => null;
 }

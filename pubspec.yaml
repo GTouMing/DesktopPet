@@ -5,7 +5,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.11.5
+  sdk: ^3.12.2
 
 dependencies:
   flutter:
@@ -25,9 +25,11 @@ dependencies:
   archive: ^4.0.9
   file_picker: ^11.0.2
   image: ^4.2.0
-  hotkey_manager: ^0.2.3
+  win32: ^5.0.0
+  win32hooks: ^1.0.0
   ffi: ^2.0.0
   desktop_multi_window: ^0.3.0
+  flutter_alone: ^4.1.0
   audioplayers: ^6.1.0
   cupertino_icons: ^1.0.8
   styled_widget: ^0.4.1

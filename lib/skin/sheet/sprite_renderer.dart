@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'sprite_sheet_generator.dart';
 
-/// 纯帧渲染器，仅负责从精灵图集绘制指定帧，不做任何变换。
+/// 帧图片渲染器。
 class SpriteRenderer extends CustomPainter {
   final SpriteSheetData sheet;
   final int currentFrame;

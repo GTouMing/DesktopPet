@@ -1,52 +1,72 @@
+import 'dart:math';
+
 import 'package:flutter/cupertino.dart';
 
 import '../expression.dart';
-import '../../core/constants.dart';
 
-/// A transition rule: when [trigger] fires, go to [target] state.
+/// A transition rule: when its trigger fires with all conditions met,
+/// transition to the target state that owns this rule.
 class TransitionRule {
   final String trigger;
-  final String target;
+
+  /// 方位：仅在 `moveAroundScreen` 行为时检查。
+  final String? alignment;
+
+  /// 移动方向。
+  final String? direction;
+
   final int? afterMs;
   final int? minMs;
   final int? maxMs;
   final String? match; // for "window": comma-separated window title patterns
+  final String? key; // for "hotkey": physical key name, e.g. "h"
+  final List<String> modifiers; // for "hotkey": ["alt"], ["ctrl","shift"]
 
   const TransitionRule({
     required this.trigger,
-    required this.target,
+    this.alignment,
+    this.direction,
     this.afterMs,
     this.minMs,
     this.maxMs,
     this.match,
+    this.key,
+    this.modifiers = const [],
   });
 
   factory TransitionRule.fromJson(Map<String, dynamic> json) => TransitionRule(
     trigger: json['trigger'] as String,
-    target: json['target'] as String,
+    alignment: json['alignment'] as String?,
+    direction: json['direction'] as String?,
     match: json['match'] as String?,
+    key: json['key'] as String?,
+    modifiers: (json['modifiers'] as List<dynamic>?)
+        ?.map((e) => e.toString())
+        .toList() ?? [],
     afterMs: json['afterMs'] as int?,
     minMs: json['minMs'] as int?,
     maxMs: json['maxMs'] as int?,
   );
-}
 
-/// Timer configuration registered on a [StateDef] during JSON parsing.
-///
-/// Extracted from [TransitionRule]s whose [trigger] is `"timer"`, so the
-/// state machine can pre-scan and schedule them without re-parsing every time.
-class StateTimer {
-  final String target;
-  final int? afterMs;
-  final int? minMs;
-  final int? maxMs;
+  Duration get delay {
+    if (afterMs != null) return Duration(milliseconds: afterMs!);
+    if (minMs != null && maxMs != null) {
+      final range = maxMs! - minMs!;
+      if (range <= 0) return Duration(milliseconds: minMs!);
+      return Duration(milliseconds: minMs! + _random.nextInt(range));
+    }
+    if (minMs != null) return Duration(milliseconds: minMs!);
+    return Duration(milliseconds: maxMs ?? 0);
+  }
 
-  const StateTimer({
-    required this.target,
-    this.afterMs,
-    this.minMs,
-    this.maxMs,
-  });
+  /// 生成复合键标识：`key+mod1+mod2` 排序后拼接，如 `"h+alt"`。
+  static String compositeKey(String key, List<String> modifiers) {
+    final parts = [key.toLowerCase(), ...modifiers.map((m) => m.toLowerCase())];
+    parts.sort();
+    return parts.join('+');
+  }
+
+  static final _random = Random();
 }
 
 /// A state definition from JSON: animation, repeatCount, behavior, transitions.
@@ -54,14 +74,20 @@ class StateDef {
   final String name;
   final String animation;
 
-  /// 重复次数。
+  /// 播放次数。
   ///
   /// 取值：
-  /// - `-1`  — 无限循环（对应 JSON 中的 `"infinite"`）
-  /// - `0`   — 播放一次（不重复）
-  /// - `N>0` — 播放一次后再重复 N 次，共播放 N+1 次
-  final int repeatCount;
-  final String? behavior;    // "moveToTarget" | null
+  /// - `0`  — 无限循环（默认，JSON 未写明时即为 0）
+  /// - `N>0` — 播放 N 次
+  final int playCount;
+
+  /// 行为目标坐标。
+  ///
+  /// - `null`  → 随机坐标
+  /// - `Offset(x, y)` 且 x,y ≥ 0 → 固定坐标
+  final Offset? targetPos;
+
+  final String? behavior;    // "moveToTarget" | "moveAroundScreen" | null
   final String? audio;       // audio file path
   final double audioVolume;
   final bool mirrorH;     // flip horizontally when moving left
@@ -71,13 +97,25 @@ class StateDef {
   final String offsetX;
   final String offsetY;
   final String opacity;
-  final List<TransitionRule> transitions;
-  final List<StateTimer> timers;
+
+  /// 过渡规则，以目标状态名为 key，值为 `触发器名 → 规则` 的内层 Map。
+  ///
+  /// JSON 格式：
+  /// ```json
+  /// "transitions": {
+  ///   "targetState": {
+  ///     "moveRight": { "alignment": "top" },
+  ///     "arrived": {}
+  ///   }
+  /// }
+  /// ```
+  final Map<String, Map<String, TransitionRule>> transitions;
 
   const StateDef({
     required this.name,
     required this.animation,
-    this.repeatCount = 0,
+    this.playCount = 0,
+    this.targetPos,
     this.behavior,
     this.audio,
     this.audioVolume = 1.0,
@@ -88,61 +126,60 @@ class StateDef {
     this.offsetX = '0.0',
     this.offsetY = '0.0',
     this.opacity = '1.0',
-    this.transitions = const [],
-    this.timers = const [],
+    this.transitions = const {},
   });
 
-  /// 是否为无限循环。
-  bool get isInfinite => repeatCount < 0;
+  /// 是否无限循环（playCount == 0）。
+  bool get isInfinite => playCount == 0;
 
   factory StateDef.fromJson(String name, Map<String, dynamic> json) {
-    // 解析 repeatCount：接受 "infinite"、数字，以及旧的 bool loop
-    int repeatCount = 0;
-    final raw = json['repeatCount'];
-    if (raw is String && raw == 'infinite') {
-      repeatCount = -1;
-    } else if (raw is num) {
-      repeatCount = raw.toInt().clamp(0, 999999);
+    final Map<String, Map<String, TransitionRule>> transitions = {};
+    final transRaw = json['transitions'];
+    if (transRaw is Map) {
+      for (final targetEntry in transRaw.entries) {
+        final triggerRaw = targetEntry.value;
+        if (triggerRaw is! Map) continue;
+        final inner = <String, TransitionRule>{};
+        for (final trigEntry in triggerRaw.entries) {
+          final t = trigEntry.key;
+          final v = trigEntry.value as Map<String, dynamic>;
+          inner[t] = TransitionRule(
+            trigger: t,
+            alignment: v['alignment'] as String?,
+            afterMs: v['afterMs'] as int?,
+            minMs: v['minMs'] as int?,
+            maxMs: v['maxMs'] as int?,
+            key: v['key'] as String?,
+            modifiers: (v['modifiers'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ?? [],
+          );
+        }
+        transitions[targetEntry.key] = inner;
+      }
     }
-
-    final transList = (json['transitions'] as List<dynamic>?)
-        ?.map((t) => TransitionRule.fromJson(t as Map<String, dynamic>))
-        .toList() ?? [];
-
-    // 提取 timer 触发器注册为 StateTimer，供状态机预调度
-    final timers = transList
-        .where((t) => t.trigger == Trigger.timer)
-        .map((t) => StateTimer(
-            target: t.target,
-            afterMs: t.afterMs,
-            minMs: t.minMs,
-            maxMs: t.maxMs,
-        ))
-        .toList();
 
     return StateDef(
       name: name,
       animation: json['animation'] as String,
-      repeatCount: repeatCount,
+      playCount: (json['playCount'] as num?)?.toInt() ?? 0,
+      targetPos: _parseTargetPos(json['targetPos']),
       behavior: json['behavior'] as String?,
       mirrorH: json['mirrorH'] as bool? ?? false,
-      scaleX: json['scaleX'] as String? ?? '1.0',
-      scaleY: json['scaleY'] as String? ?? '1.0',
-      rotation: json['rotation'] as String? ?? '0.0',
-      offsetX: json['offsetX'] as String? ?? '0.0',
-      offsetY: json['offsetY'] as String? ?? '0.0',
-      opacity: json['opacity'] as String? ?? '1.0',
+      scaleX: _numOrString(json['scaleX'], '1.0'),
+      scaleY: _numOrString(json['scaleY'], '1.0'),
+      rotation: _numOrString(json['rotation'], '0.0'),
+      offsetX: _numOrString(json['offsetX'], '0.0'),
+      offsetY: _numOrString(json['offsetY'], '0.0'),
+      opacity: _numOrString(json['opacity'], '1.0'),
       audio: json['audio'] as String?,
       audioVolume: (json['audioVolume'] as num?)?.toDouble() ?? 1.0,
-      transitions: transList,
-      timers: timers,
+      transitions: transitions,
     );
   }
 
-  /// 计算基于时间的透明度值。
   double computeOpacity(double t) => _doubleExp(opacity, t).clamp(0.0, 1.0);
 
-  /// 计算基于时间的变换矩阵，用于 [Transform] 组件。
   Matrix4 computeTransformMatrix(Size size, double t) {
     final sx = mirrorH ? -_doubleExp(scaleX, t) : _doubleExp(scaleX, t);
     return Matrix4.identity()
@@ -153,56 +190,26 @@ class StateDef {
       ..translateByDouble(-size.width / 2, -size.height / 2, 0, 1);
   }
 
-  double _doubleExp(String exp, double t) {
-    return evalExpr(exp, t: t);
-  }
-}
+  double _doubleExp(String exp, double t) => evalExpr(exp, t: t);
 
-/// 状态机，持有当前状态定义并提供事件驱动的状态跳转能力。
-///
-/// Timer 调度由 [PetNotifier] 负责，本类仅关注状态定义查找与跳转。
-class StateMachine {
-  StateDef def;
-  final Map<String, StateDef> _allDefs;
-
-  StateMachine({required this.def, required Map<String, StateDef> allDefs})
-      : _allDefs = allDefs;
-
-  /// 当前状态是否需要移动行为。
-  bool get shouldMove => def.behavior == 'moveToTarget';
-
-  /// 当前状态注册的 timer 触发器列表，由 [PetNotifier] 消费。
-  List<StateTimer> get timers => def.timers;
-
-  /// 按 [trigger] 查找匹配的跳转目标状态名。找不到返回 null。
-  String? onEvent(String trigger) {
-    for (final t in def.transitions) {
-      if (t.trigger == trigger) return t.target;
-    }
-    return null;
+  /// 从 JSON 取值转为 String：num → toString，String → 原值，否则用默认值。
+  static String _numOrString(dynamic v, String def) {
+    if (v is num) return v.toString();
+    if (v is String) return v;
+    return def;
   }
 
-  /// 检查当前活动窗口标题是否匹配任一 `window` 触发器的 [match] 规则。
+  /// 解析 `targetPos` JSON。
   ///
-  /// [match] 为逗号分隔的标题片段（不区分大小写），匹配任一即返回对应 [target]。
-  String? matchWindow(String title) {
-    if (title.isEmpty) return null;
-    final lower = title.toLowerCase();
-    for (final t in def.transitions) {
-      if (t.trigger == Trigger.window && t.match != null) {
-        for (final pattern in t.match!.split(',')) {
-          if (lower.contains(pattern.trim().toLowerCase())) {
-            return t.target;
-          }
-        }
-      }
+  /// - `{"x": N, "y": N}` → `Offset(x, y)`
+  /// - 其他 → `null`
+  static Offset? _parseTargetPos(dynamic value) {
+    if (value is Map && value.containsKey('x') && value.containsKey('y')) {
+      return Offset(
+        (value['x'] as num).toDouble(),
+        (value['y'] as num).toDouble(),
+      );
     }
     return null;
-  }
-
-  /// 跳转到指定状态，更新内部的 [def] 引用。
-  void transitionTo(String stateName) {
-    final newDef = _allDefs[stateName];
-    if (newDef != null) def = newDef;
   }
 }

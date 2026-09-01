@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
+import '../core/constants.dart';
 import '../core/enums.dart';
 import 'state/state_define.dart';
 import 'animation/animation_define.dart';
@@ -30,7 +31,70 @@ class SkinPackage {
     required this.source,
   });
 
-  StateMachine createStateMachine() => StateMachine(def: states[initialState]!, allDefs: states);
+  StateDef? operator [](String stateName) => states[stateName];
+
+  bool hasBehavior(String stateName) => states[stateName]?.behavior != null;
+
+  /// 查找匹配的跳转目标状态名。
+  ///
+  /// [hotkeyComposite] 形如 `"k+alt+ctrl"`，仅对 `hotkey` 触发器生效，
+  /// 用于匹配规则的 `key`+`modifiers`。
+  String? findTransition(String stateName, String trigger,
+      {String? alignment, String? hotkeyComposite}) {
+    final def = states[stateName];
+    if (def == null) return null;
+    for (final target in def.transitions.entries) {
+      final rule = target.value[trigger];
+      if (rule == null) continue;
+      if (rule.alignment != null && rule.alignment != alignment) continue;
+      if (hotkeyComposite != null && rule.key != null) {
+        if (TransitionRule.compositeKey(rule.key!, rule.modifiers) != hotkeyComposite) continue;
+      }
+      if (hotkeyComposite != null && rule.key == null) continue;
+      return target.key;
+    }
+    return null;
+  }
+
+  (Duration? bestDelay, String? bestTarget) findBestTimer(String currentState) {
+    final def = states[currentState];
+    if (def == null) return (null, null);
+
+    Duration? bestDelay;
+    String? bestTarget;
+
+    for (final entry in def.transitions.entries) {
+      final rule = entry.value[Trigger.limitTimer] ?? entry.value[Trigger.waitTimer];
+      if (rule == null) continue;
+      final delay = rule.delay;
+      if (bestDelay == null || delay < bestDelay) {
+        bestDelay = delay;
+        bestTarget = entry.key;
+      }
+    }
+    return (bestDelay, bestTarget);
+  }
+
+  List<String> getFramePaths(String animationName) {
+    final def = anims[animationName];
+    if (def == null) return [];
+
+    if (source == SkinSource.filesystem) {
+      final dir = Directory('$basePath/${def.folder}');
+      if (!dir.existsSync()) return [];
+      final files = dir
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.toLowerCase().endsWith('.png'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
+      return files.map((f) => f.path).toList();
+    } else {
+      return [];
+    }
+  }
+
+  // ── 工厂构造 ────────────────────────────────────────────────────────
 
   factory SkinPackage.fromJson(Map<String, dynamic> json, String basePath, SkinSource source) {
     final anims = <String, AnimationDef>{};
@@ -38,7 +102,6 @@ class SkinPackage {
     for (final entry in animsJson.entries) {
       anims[entry.key] = AnimationDef.fromJson(entry.value as Map<String, dynamic>);
     }
-    // Parse states
     final states = <String, StateDef>{};
     final statesJson = json['states'] as Map<String, dynamic>?;
     if (statesJson != null) {
@@ -77,48 +140,11 @@ class SkinPackage {
     return SkinPackage.fromJson(json, path, SkinSource.filesystem);
   }
 
-  /// 从给定的路径（asset 或文件系统）加载皮肤包。
-  ///
-  /// - 以 `assets/` 开头 → 通过 AssetBundle 加载
-  /// - 其他 → 从文件系统加载
-  /// 加载失败时返回 null。
   static Future<SkinPackage?> load(String path) async {
-    try {
-      if (path.startsWith('assets/')) {
-        return await SkinPackage.fromAsset(path);
-      } else {
-        return await SkinPackage.fromPath(path);
-      }
-    } catch (_) {
-      return null;
-    }
-  }
-
-  static SkinPackage fromJsonString(String jsonString, String basePath) {
-    final json = jsonDecode(jsonString) as Map<String, dynamic>;
-    return SkinPackage.fromJson(json, basePath, SkinSource.asset);
-  }
-
-  /// Returns all frame paths for an animation, sorted naturally.
-  /// 返回动画的所有帧路径，自然排序。
-  List<String> getFramePaths(String animationName) {
-    final def = anims[animationName];
-    if (def == null) return [];
-
-    if (source == SkinSource.filesystem) {
-      final dir = Directory('$basePath/${def.folder}');
-      if (!dir.existsSync()) return [];
-      final files = dir
-          .listSync()
-          .whereType<File>()
-          .where((f) => f.path.toLowerCase().endsWith('.png'))
-          .toList()
-        ..sort((a, b) => a.path.compareTo(b.path));
-      return files.map((f) => f.path).toList();
+    if (path.startsWith('assets/')) {
+      return await SkinPackage.fromAsset(path);
     } else {
-      // Asset source: discover frames by scanning consecutive indices
-      return [];
+      return await SkinPackage.fromPath(path);
     }
   }
-
 }

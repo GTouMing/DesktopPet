@@ -3,8 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants.dart';
 import '../../core/providers.dart';
+import '../../pet/pet_notifier.dart';
 import '../../pet/pet_widget.dart';
-import '../../storage/storage_service.dart';
+import '../widgets/quick_launch_overlay.dart';
 
 class AndroidPetOverlay extends ConsumerStatefulWidget {
   const AndroidPetOverlay({super.key});
@@ -13,58 +14,58 @@ class AndroidPetOverlay extends ConsumerStatefulWidget {
   ConsumerState<AndroidPetOverlay> createState() => _AndroidOverlayEntryState();
 }
 
-class _AndroidOverlayEntryState extends ConsumerState<AndroidPetOverlay> {
-  late final MethodChannel _channel;
+class _AndroidOverlayEntryState extends ConsumerState<AndroidPetOverlay>
+    with WidgetsBindingObserver {
+  PetNotifier? notifier;
 
   @override
   void initState() {
     super.initState();
+    notifier = ref.read(petStateProvider.notifier);
+    WidgetsBinding.instance.addObserver(this);
     _setupSettingsHandler();
   }
 
   /// 注册 MethodChannel 处理器，接收来自原生层（主窗口）的 settings_updated 通知。
   void _setupSettingsHandler() {
-    _channel = const MethodChannel('multi_floating_window_android');
-    _channel.setMethodCallHandler((call) async {
+    final channel = const MethodChannel('multi_floating_window_android');
+    channel.setMethodCallHandler((call) async {
       if (call.method == 'settings_updated') {
         if (!mounted) return;
-        ref.read(petStateProvider.notifier).refreshSettings();
-        _syncLockState();
+        notifier?.refreshSettings();
       }
     });
   }
 
-  /// 从 MMKV 读取当前桌宠的锁定状态，同步到窗口控制器。
-  void _syncLockState() {
-    final petId = ref.read(petIdProvider);
-    final pet = StorageService.readPet(petId);
-    if (pet == null) return;
-    ref.read(petStateProvider.notifier).onLock(pet.isLocked);
+  @override
+  void didChangeMetrics() {
+    // Android 横竖屏切换时刷新屏幕尺寸缓存
+    ref.read(petStateProvider.notifier).refreshScreenSize();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final notifier = ref.read(petStateProvider.notifier);
-    return ExcludeSemantics(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        resizeToAvoidBottomInset: false,
-        body: GestureDetector(
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      resizeToAvoidBottomInset: false,
+      body: ExcludeSemantics(
+        child: GestureDetector(
           behavior: HitTestBehavior.translucent,
-          onTap: () => notifier.onEvent(Trigger.click),
+          onTap: () => notifier?.onEvent(Trigger.click),
           onPanStart: (_) {
-            notifier.onDragStart();
-            notifier.resources.windowController.startDragging().then((_) {
-              notifier.onDragEnd();
+            notifier?.onDragStart();
+            notifier?.windowController.startDragging().then((_) {
+              notifier?.onDragEnd();
             });
           },
-          child: const PetWidget(),
-        )
+          child: QuickLaunchOverlay(child: const PetWidget()),
+        ),
       ),
     );
   }

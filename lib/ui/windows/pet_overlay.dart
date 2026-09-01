@@ -4,8 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants.dart';
 import '../../core/providers.dart';
+import '../../pet/pet_notifier.dart';
 import '../../pet/pet_widget.dart';
-import '../../storage/storage_service.dart';
+import '../widgets/quick_launch_overlay.dart';
 
 class WindowsPetOverlay extends ConsumerStatefulWidget {
   const WindowsPetOverlay({super.key});
@@ -15,9 +16,12 @@ class WindowsPetOverlay extends ConsumerStatefulWidget {
 }
 
 class _PetOverlayContainerState extends ConsumerState<WindowsPetOverlay> {
+  PetNotifier? notifier;
+
   @override
   void initState() {
     super.initState();
+    notifier = ref.read(petStateProvider.notifier);
     _setupDmwHandler();
   }
 
@@ -29,44 +33,33 @@ class _PetOverlayContainerState extends ConsumerState<WindowsPetOverlay> {
     dmw.WindowController.fromCurrentEngine().then((ctrl) {
       ctrl.setWindowMethodHandler((call) async {
         if (call.method == 'settings_updated') {
-          ref.read(petStateProvider.notifier).refreshSettings();
-          _syncLockState();
-        } else if (call.method == 'lock_updated') {
-          _syncLockState();
+          notifier?.refreshSettings();
         }
       });
     }).catchError((_) {});
   }
 
-  /// 从 MMKV 读取当前桌宠的锁定状态，同步到窗口控制器。
-  void _syncLockState() {
-    final petId = ref.read(petIdProvider);
-    final pet = StorageService.readPet(petId);
-    if (pet == null) return;
-    ref.read(petStateProvider.notifier).onLock(pet.isLocked);
-  }
-
   @override
   void dispose() {
+    notifier = null;
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final notifier = ref.read(petStateProvider.notifier);
-    return ExcludeSemantics(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onTap: () => notifier.onEvent(Trigger.click),
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: ExcludeSemantics(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => notifier?.onEvent(Trigger.click),
           onPanStart: (details) {
-            notifier.onDragStart();
-            notifier.resources.windowController.startDragging().then((_) {
-              notifier.onDragEnd();
+            notifier?.onDragStart();
+            notifier?.windowController.startDragging().then((_) {
+              notifier?.onDragEnd();
             });
           },
-          child: const PetWidget(),
+          child: QuickLaunchOverlay(child: const PetWidget()),
         ),
       ),
     );

@@ -1,18 +1,19 @@
+import 'package:desktop_pet/pet/pet_animation.dart';
 import 'package:desktop_pet/pet/pet_notifier.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/constants.dart';
 import '../core/providers.dart';
-import '../pet/pet_resources.dart';
 import '../skin/sheet/sprite_renderer.dart';
-import '../skin/sheet/sprite_sheet_generator.dart';
 import '../skin/state/state_define.dart';
 
 /// 桌宠渲染组件。
 ///
-/// 皮肤包加载和初始精灵图预加载由 [PetNotifier] 在构造时完成，
-/// PetWidget 只需监听 [skinError] 状态：就绪后创建 [AnimationController] 并渲染。
+/// 职责：
+/// 1. 持有所有 [PetAnimation] 实例，控制动画切换
+/// 2. 监听 [petStateProvider] 状态变化，切换动画
+/// 3. 使用 [AnimatedBuilder] 驱动精灵图渲染
 class PetWidget extends ConsumerStatefulWidget {
   const PetWidget({super.key});
 
@@ -22,75 +23,40 @@ class PetWidget extends ConsumerStatefulWidget {
 
 class _PetWidgetState extends ConsumerState<PetWidget>
     with TickerProviderStateMixin {
-  AnimationController? _activeController;
-  SpriteSheetData? _activeSheet;
 
   PetNotifier get _notifier => ref.read(petStateProvider.notifier);
-  PetResources get _resources => _notifier.resources;
 
-  // ── 动画管理 ─────────────────────────────────────────────────────────
+  // ── 动画系统 ─────────────────────────────────────────────────────────
 
-  /// 激活指定动画：暂停/重置上一个，切换到新的并开始播放。
-  void _activateAnimation(String animName) {
-    final res = _resources;
-    final prev = _activeController;
-    if (prev != null && prev != res.controllers[animName]) {
-      prev.stop();
-      prev.reset();
-    }
-    _notifier.currentAnim = animName;
-    _activeSheet = res.sheets[animName];
-    _activeController = res.controllers[animName];
+  /// 所有预加载的动画实例，由 [initAnimations] 初始化。
+  final Map<String, PetAnimation> animations = {};
 
-    final stateName = ref.read(petStateProvider).currentState;
-    final stateDef = res.skin!.states[stateName];
-    _notifier.remainingRepeats = stateDef?.repeatCount ?? 0;
+  /// 动画系统是否已就绪。
+  bool _animationsReady = false;
 
-    _activeController!.forward();
-  }
-
-  void _onAnimationStatus(AnimationStatus status) {
-    if (status != AnimationStatus.completed) return;
-
-    final petState = ref.read(petStateProvider);
-    final stateDef = _resources.skin?.states[petState.currentState];
-    // 状态不存在（如 currentState 为空时），按旧逻辑直接用 _activeController 处理
-    if (stateDef == null) {
-      if (_activeController != null) {
-        _activeController!.forward(from: 0);
-      }
-      return;
-    }
-    // 如果当前状态已切换，忽略上一个动画的 stale 完成回调
-    final expectedAnim = stateDef.animation;
-    if (petState.currentAnim != expectedAnim) return;
-
-    if (stateDef.isInfinite) {
-      _activeController!.forward(from: 0);
-      return;
-    }
-
-    if (stateDef.repeatCount > 0 && petState.remainingRepeats > 0) {
-      _notifier.decrementRepeats();
-      _activeController!.forward(from: 0);
-      return;
-    }
-
-    Future.microtask(() {
-      if (mounted) _notifier.onEvent(Trigger.complete);
-    });
-  }
+  /// 当前正在播放的动画。
+  PetAnimation? get currentAnimation => animations[_notifier.currentAnim];
 
   // ── 生命周期 ─────────────────────────────────────────────────────────
 
   @override
+  void initState() {
+    super.initState();
+    // 如果皮肤已就绪（非首次创建，例如 QuickLaunchOverlay 切换后重建），
+    // 在下一帧初始化动画系统，避免 ref.listen 因状态未变化而无法触发
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final state = ref.read(petStateProvider);
+      if (state.skinError == '') {
+        initAnimations();
+      }
+    });
+  }
+
+  @override
   void dispose() {
-    final res = _resources;
-    for (final c in res.controllers.values) {
-      c.removeStatusListener(_onAnimationStatus);
-      c.dispose();
-    }
-    res.controllers.clear();
+    // 必须在 super.dispose() 前释放 AnimationController（依赖 TickerProvider）
+    disposeAnimations();
     super.dispose();
   }
 
@@ -99,85 +65,61 @@ class _PetWidgetState extends ConsumerState<PetWidget>
   @override
   Widget build(BuildContext context) {
     final petState = ref.watch(petStateProvider);
-    final res = _resources;
 
+    // ── 状态变化 → 动画切换 ────────────────────────────────────────────
     ref.listen(petStateProvider, (prev, next) {
-      final skin = res.skin;
-      if (skin == null) return;
+      if (next.skinError != '') return;
 
-      // 初始加载完成 → 播放初始动画
-      if (prev?.skinError == null && next.skinError == '') {
-        _switchAnimation(skin.initialState);
+      // 皮肤首次就绪 → 初始化动画系统
+      if (prev?.skinError != '' && next.skinError == '') {
+        initAnimations();
         return;
       }
 
-      // 状态变更 → 动画切换
-      final stateDef = skin.states[next.currentState];
-      final anim = stateDef?.animation ?? next.currentState;
-      if (next.currentAnim != anim) {
-        _switchAnimation(anim);
+      // 状态变化 → 切换动画
+      if (prev?.currentState != next.currentState) {
+        switchToStateAnim(next.currentState);
       }
     });
 
-    // 皮肤加载失败
+    // ── 皮肤加载失败 ──────────────────────────────────────────────────
     if (petState.skinError?.isNotEmpty ?? false) {
-      return Center(
-        child: Text('error: ${petState.skinError}'),
+      return ColoredBox(
+        color: Colors.red,
+        child: Center(
+          child: Text('error: ${petState.skinError}'),
+        ),
       );
     }
 
-    // 尚未就绪（skinError==null 仍初始化中，或 skinError=='' 但控制器未创建）
-    if (petState.skinError == null ||
-        !petState.isVisible ||
-        petState.finalPetSize.isEmpty ||
-        _activeSheet == null ||
-        _activeController == null) {
+    // ── 尚未就绪 ──────────────────────────────────────────────────────
+    final anim = currentAnimation;
+    if (petState.skinError == null || anim == null) {
       return const SizedBox.shrink();
     }
 
-    final sheet = _activeSheet!;
-    final controller = _activeController!;
-    final stateDef = res.skin!.states[petState.currentState];
+    // ── 渲染 ──────────────────────────────────────────────────────────
+    final stateDef = _notifier.skin.states[petState.currentState];
 
     return RepaintBoundary(
       child: Opacity(
         opacity: petState.finalOpacity,
-        child: _buildAnimation(sheet, controller, petState.finalPetSize, stateDef),
+        child: _buildAnimation(anim, petState.finalPetSize, stateDef),
       ),
     );
   }
 
-  /// 切换动画：按需加载精灵图，创建控制器，然后激活。
-  void _switchAnimation(String animName) {
-    final res = _resources;
-    if (res.skin == null) return;
-    final animDef = res.skin!.anims[animName];
-    final sheet = res.sheets[animName];
-    if (animDef == null || sheet == null) return;
-
-    if (!res.controllers.containsKey(animName)) {
-      final controller = AnimationController(
-        duration: Duration(
-          milliseconds: ((1000 / animDef.fps) * sheet.frameCount).round(),
-        ),
-        vsync: this,
-      );
-      controller.addStatusListener(_onAnimationStatus);
-      res.controllers[animName] = controller;
-    }
-    _activateAnimation(animName);
-    if (mounted) setState(() {});
-  }
-
+  /// 使用 [PetAnimation] 驱动精灵图渲染。
   Widget _buildAnimation(
-    SpriteSheetData sheet,
-    AnimationController controller,
+    PetAnimation anim,
     Size size,
     StateDef? stateDef,
   ) {
     return AnimatedBuilder(
-      animation: controller,
+      animation: anim.controller,
       builder: (context, child) {
+        final sheet = anim.sheet;
+        final controller = anim.controller;
         final rawFrame = (controller.value * sheet.frameCount).floor();
         final frame = rawFrame.clamp(0, sheet.frameCount - 1);
         final t = controller.value;
@@ -206,5 +148,89 @@ class _PetWidgetState extends ConsumerState<PetWidget>
         return childWidget;
       },
     );
+  }
+
+  // ── 动画系统方法 ──────────────────────────────────────────────────────
+
+  /// 初始化动画系统。在皮肤就绪后调用。
+  Future<void> initAnimations() async {
+    if (_animationsReady) return;
+
+    // 先加载当前状态所需的动画（可能因交互已不同于 skin.initialState）
+    await _loadAnimationForState(_notifier.currentState);
+
+    _animationsReady = true;
+
+    // 后台预加载其余动画
+    _preloadRemainingAnimations();
+  }
+
+  /// 为指定状态加载所需的动画（如果尚未加载）。
+  Future<void> _loadAnimationForState(String stateName) async {
+    final stateDef = _notifier.skin.states[stateName];
+    final animName = stateDef?.animation ?? stateName;
+    if (animName.isEmpty || animations.containsKey(animName)) return;
+
+    final anim = await PetAnimation.load(
+      skin: _notifier.skin,
+      animName: animName,
+      vsync: this,
+      onAnimationComplete: () {
+        if (_notifier.currentAnim != animName) return; // stale completion
+        _notifier.onEvent(Trigger.complete);
+      },
+    );
+    animations[animName] = anim;
+
+    // 开始播放
+    anim.play(playCount: stateDef?.playCount);
+    _notifier.setCurrentAnim(animName);
+  }
+
+  /// 后台预加载所有动画。
+  void _preloadRemainingAnimations() {
+    for (final animName in _notifier.skin.anims.keys) {
+      if (animations.containsKey(animName)) continue;
+      final captured = animName;
+      PetAnimation.load(
+        skin: _notifier.skin,
+        animName: animName,
+        vsync: this,
+        onAnimationComplete: () {
+          if (_notifier.currentAnim != captured) return;
+          _notifier.onEvent(Trigger.complete);
+        },
+      ).then((anim) => animations[captured] = anim);
+    }
+  }
+
+  /// 响应状态变更，切换到对应的动画。
+  void switchToStateAnim(String stateName) {
+    if (!_animationsReady || stateName.isEmpty) return;
+
+    final stateDef = _notifier.skin.states[stateName];
+    final animName = stateDef?.animation ?? stateName;
+    if (animName.isEmpty || _notifier.currentAnim == animName) return;
+
+    final prev = animations[_notifier.currentAnim];
+    prev?.stop();
+
+    final next = animations[animName];
+    if (next == null) {
+      _loadAnimationForState(stateName);
+      return;
+    }
+
+    next.play(playCount: stateDef?.playCount);
+    _notifier.setCurrentAnim(animName);
+  }
+
+  /// 释放所有动画资源（AnimationController 和精灵图）。
+  void disposeAnimations() {
+    for (final anim in animations.values) {
+      anim.dispose();
+    }
+    animations.clear();
+    _animationsReady = false;
   }
 }

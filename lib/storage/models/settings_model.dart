@@ -1,3 +1,5 @@
+import '../../core/constants.dart';
+
 /// 全局基础设置（对所有桌宠生效）。
 class SettingsModel {
   /// 全局基础缩放倍数。与 [PetConfig.scaleMultiplier] 乘算得到最终缩放。
@@ -14,11 +16,19 @@ class SettingsModel {
   /// 为 null 时使用内置皮肤；非 null 时 [PetConfig.skinPath] 是相对于此的路径。
   String? skinDir;
 
+  /// 快捷启动快捷键键名，如 `` ` ``、`'g'`。空字符串表示禁用。
+  String quickLaunchKey;
+
+  /// 快捷启动快捷键修饰键，如 `['alt']`、`['ctrl', 'shift']`。
+  List<String> quickLaunchModifiers;
+
   SettingsModel({
     this.baseScale = 1.0,
     this.baseOpacity = 1.0,
     this.baseSpeed = 1.0,
     this.skinDir,
+    this.quickLaunchKey = defaultQuickLaunchKey,
+    this.quickLaunchModifiers = const [],
   });
 
   // ── JSON ──────────────────────────────────────────────────────────────
@@ -28,6 +38,8 @@ class SettingsModel {
     'baseOpacity': baseOpacity,
     'baseSpeed': baseSpeed,
     'skinDir': skinDir,
+    'quickLaunchKey': quickLaunchKey,
+    'quickLaunchModifiers': quickLaunchModifiers,
   };
 
   factory SettingsModel.fromJson(Map<String, dynamic> json) {
@@ -36,6 +48,10 @@ class SettingsModel {
       baseOpacity: (json['baseOpacity'] as num?)?.toDouble() ?? 1.0,
       baseSpeed: (json['baseSpeed'] as num?)?.toDouble() ?? 1.0,
       skinDir: json['skinDir'] as String?,
+      quickLaunchKey: json['quickLaunchKey'] as String? ?? defaultQuickLaunchKey,
+      quickLaunchModifiers: (json['quickLaunchModifiers'] as List<dynamic>?)
+          ?.map((e) => e.toString())
+          .toList() ?? defaultQuickLaunchModifiers,
     );
   }
 
@@ -44,12 +60,16 @@ class SettingsModel {
     double? baseOpacity,
     double? baseSpeed,
     String? skinDir,
+    String? quickLaunchKey,
+    List<String>? quickLaunchModifiers,
   }) {
     return SettingsModel(
       baseScale: baseScale ?? this.baseScale,
       baseOpacity: baseOpacity ?? this.baseOpacity,
       baseSpeed: baseSpeed ?? this.baseSpeed,
       skinDir: skinDir ?? this.skinDir,
+      quickLaunchKey: quickLaunchKey ?? this.quickLaunchKey,
+      quickLaunchModifiers: quickLaunchModifiers ?? this.quickLaunchModifiers,
     );
   }
 }

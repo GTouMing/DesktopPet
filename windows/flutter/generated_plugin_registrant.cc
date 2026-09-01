@@ -8,10 +8,11 @@
 
 #include <audioplayers_windows/audioplayers_windows_plugin.h>
 #include <desktop_multi_window/desktop_multi_window_plugin.h>
-#include <hotkey_manager/hotkey_manager_plugin.h>
+#include <flutter_alone/flutter_alone_plugin_c_api.h>
 #include <mmkv_win32/mmkv_win32_plugin.h>
-#include <screen_retriever/screen_retriever_plugin.h>
+#include <screen_retriever_windows/screen_retriever_windows_plugin_c_api.h>
 #include <system_tray/system_tray_plugin.h>
+#include <win32hooks/win32hooks_plugin_c_api.h>
 #include <window_manager/window_manager_plugin.h>
 
 void RegisterPlugins(flutter::PluginRegistry* registry) {
@@ -19,14 +20,16 @@ void RegisterPlugins(flutter::PluginRegistry* registry) {
       registry->GetRegistrarForPlugin("AudioplayersWindowsPlugin"));
   DesktopMultiWindowPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("DesktopMultiWindowPlugin"));
-  HotkeyManagerPluginRegisterWithRegistrar(
-      registry->GetRegistrarForPlugin("HotkeyManagerPlugin"));
+  FlutterAlonePluginCApiRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("FlutterAlonePluginCApi"));
   MmkvWin32PluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("MmkvWin32Plugin"));
-  ScreenRetrieverPluginRegisterWithRegistrar(
-      registry->GetRegistrarForPlugin("ScreenRetrieverPlugin"));
+  ScreenRetrieverWindowsPluginCApiRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("ScreenRetrieverWindowsPluginCApi"));
   SystemTrayPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("SystemTrayPlugin"));
+  Win32hooksPluginCApiRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("Win32hooksPluginCApi"));
   WindowManagerPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("WindowManagerPlugin"));
 }

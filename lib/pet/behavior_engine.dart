@@ -2,88 +2,112 @@ import 'dart:math';
 import 'dart:ui';
 
 import '../core/constants.dart';
-import '../core/enums.dart';
-import 'pet_state.dart';
 import '../skin/state/state_define.dart';
+import 'pet_context.dart';
+import 'pet_state.dart';
 
-/// Drives pet movement and state transitions via a JSON-configured StateMachine.
-///
 /// ## 职责边界
 /// - 目标位置生成、位置插值、事件驱动跳转（arrived、direction）
-/// - **不负责** Timer 调度——由 [PetNotifier] 统一管理
 class BehaviorEngine {
   final Random _random = Random();
-  StateMachine? _machine;
+  final PetContext context;
 
-  /// Bind to the state machine from the current skin. Must be called after skin loads.
-  void bind(StateMachine machine) {
-    _machine = machine;
-  }
+  BehaviorEngine({required this.context});
 
   /// Main tick: advance toward target, detect arrival & direction.
-  PetState tick(PetState state, Size screenSize) {
-    if (_machine == null) return state;
+  Offset? tick(PetState state) {
+    final ctx = context;
+    if (state.targetPosition == null) return null;
 
-    // 1. Walking: advance toward target
-    if (_machine!.shouldMove && state.targetPosition != null) {
-      final dx = state.targetPosition!.dx - state.position.dx;
-      final dy = state.targetPosition!.dy - state.position.dy;
-      final distance = sqrt(dx * dx + dy * dy);
+    final target = state.targetPosition!;
+    final ss = ctx.screenSize;
+    final maxX = ss.width - ctx.finalPetSize.width;
+    final maxY = ss.height - ctx.finalPetSize.height;
+    final speed = petWalkSpeed * state.finalSpeed * (behaviorTickMs / 1000.0);
+    final pos = state.position;
 
-      if (distance < 5) {
-        // Arrived: fire "arrived" event into state machine
-        final next = _machine!.onEvent(Trigger.arrived);
-        if (next != null) {
-          _machine!.transitionTo(next);
-          return state.copyWith(currentState: next, clearTarget: true);
-        }
-        return state.copyWith(clearTarget: true);
-      }
-      Direction direction = state.direction;
-      if (dx < -1) {
-        direction = Direction.left;
-      } else if (dx > 1) {
-        direction = Direction.right;
-      }
-      // Fire direction trigger to state machine for mirror states
-      String trigger = direction == Direction.left ? 'moveLeft' : 'moveRight';
-      final nextState = _machine?.onEvent(trigger);
-      if (nextState != null) {
-        _machine!.transitionTo(nextState);
-      }
-      final speed = petWalkSpeed * state.finalSpeed * (behaviorTickMs / 1000.0);
-      final newX = (state.position.dx + (dx / distance) * speed).clamp(0.0, screenSize.width - state.finalPetSize.width);
-      final newY = (state.position.dy + (dy / distance) * speed).clamp(0.0, screenSize.height - state.finalPetSize.height);
-      final effectiveState = nextState ?? state.currentState;
-      return state.copyWith(currentState: effectiveState, position: Offset(newX, newY), direction: direction);
+    return _moveDirect(pos, target, speed, maxX, maxY, ctx);
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  //  直线移动（commitToTarget / moveAroundScreen 非边缘共用）
+  // ═════════════════════════════════════════════════════════════════════
+
+  Offset? _moveDirect(Offset pos, Offset target, double speed,
+                      double maxX, double maxY, PetContext ctx)
+  {
+    final dx = target.dx - pos.dx;
+    final dy = target.dy - pos.dy;
+    final distance = sqrt(dx * dx + dy * dy);
+    if (distance < speed) {
+      ctx.onEvent(Trigger.arrived);
+      return null;
     }
-
-    // No transition, no movement
-    return state;
+    _emitDirection(dx, dy, ctx);
+    return Offset(
+      (pos.dx + (dx / distance) * speed).clamp(0.0, maxX),
+      (pos.dy + (dy / distance) * speed).clamp(0.0, maxY),
+    );
   }
 
-  String? onEvent(String trigger) {
-    final next = _machine?.onEvent(trigger);
-    if (next != null) _machine?.transitionTo(next);
-    return next;
+  // ═════════════════════════════════════════════════════════════════════
+  //  方向触发器
+  // ═════════════════════════════════════════════════════════════════════
+
+  /// 直线移动方向触发器。方向作为触发器名。
+  void _emitDirection(double dx, double dy, PetContext ctx) {
+    String? trigger;
+    if (dx < 0) {
+      trigger = Trigger.moveLeft;
+    } else if (dx > 0) {
+      trigger = Trigger.moveRight;
+    } else if (dy < 0) {
+      trigger = Trigger.moveUp;
+    } else if (dy > 0) {
+      trigger = Trigger.moveDown;
+    }
+    if (trigger != null) ctx.onEvent(trigger);
   }
 
-  void transitionTo(String stateName) {
-    _machine?.transitionTo(stateName);
-  }
+  // ═════════════════════════════════════════════════════════════════════
+  //  目标生成
+  // ═════════════════════════════════════════════════════════════════════
 
-  /// 用当前活动窗口标题匹配 `window` 触发器规则，返回目标状态名。
-  String? matchWindow(String title) => _machine?.matchWindow(title);
+  Offset randomTarget(StateDef? stateDef, Offset currentPos) {
+    final ctx = context;
+    final targetPos = stateDef?.targetPos;
+    final maxX = ctx.screenSize.width - ctx.finalPetSize.width;
+    final maxY = ctx.screenSize.height - ctx.finalPetSize.height;
 
-  /// Dispose the state machine (cancels any pending timers).
-  void dispose() {
-    _machine = null;
-  }
-
-  /// 生成随机移动的目标坐标。
-  Offset randomTargetPosition(Size screenSize, Size petSize) {
-    final x = _random.nextDouble() * (screenSize.width - petSize.width);
-    final y = _random.nextDouble() * (screenSize.height - petSize.height);
-    return Offset(x, y);
+    if (stateDef?.behavior == moveToTarget) {
+      if (targetPos != null && targetPos.dx >= 0 && targetPos.dy >= 0) {
+        return Offset(targetPos.dx.clamp(0.0, maxX), targetPos.dy.clamp(0.0, maxY));
+      }
+      return Offset(_random.nextDouble() * maxX, _random.nextDouble() * maxY);
+    }
+    else if (stateDef?.behavior == moveToEdge) {
+      if (targetPos != null) {
+        if (targetPos.dx == 0 || targetPos.dy == 0 || targetPos.dx >= maxX || targetPos.dy >= maxY) {
+          return Offset(
+              targetPos.dx.clamp(0.0, maxX), targetPos.dy.clamp(0.0, maxY));
+        }
+      }
+      final center = Offset(maxX / 2, maxY / 2);
+      if (currentPos.dy <= center.dy) {
+        return Offset(currentPos.dx, 0);
+      }
+      else if (currentPos.dx > center.dx) {
+        return Offset(maxX, currentPos.dy);
+      }
+      else if (currentPos.dy > center.dy) {
+        return Offset(currentPos.dx, maxX);
+      }
+      else {
+        return Offset(0, currentPos.dy);
+      }
+    }
+    else {
+      return Offset.zero;
+    }
   }
 }

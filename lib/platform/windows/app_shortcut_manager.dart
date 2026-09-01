@@ -38,7 +38,6 @@ class AppShortcutManager {
     final updated = AppShortcut(
       name: moved.name,
       executablePath: moved.executablePath,
-      hotkey: moved.hotkey,
       order: newIndex,
     );
     if (newIndex > shortcuts.length) newIndex = shortcuts.length;

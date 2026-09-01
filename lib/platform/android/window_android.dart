@@ -9,7 +9,7 @@ import 'multi_floating_window/multi_floating_window_android.dart';
 /// 用于覆盖 overlay engine 中可能返回 1.0 的 PlatformDispatcher。
 double? _overrideDpr;
 
-/// 设置 overlay engine 的真实 DPR（由 main.dart 在解析启动参数时调用）。
+/// 设置 overlay engine 的真实 DPR（由 desktop_pet.dart 在解析启动参数时调用）。
 void setOverrideDpr(double dpr) {
   _overrideDpr = dpr;
 }
@@ -54,31 +54,7 @@ class WindowControllerAndroid implements WindowController {
   // ─── Lifecycle ─────────────────────────────────────────────────────────
 
   @override
-  Future<void> init() async {
-    if (_overlayId != 'main') return;
-    // 主窗口：请求悬浮窗权限后遍历桌宠配置显示悬浮窗
-    await MultiFloatingWindowAndroid.requestPermission();
-    final appData = StorageService.appData;
-    final settings = StorageService.readSettings();
-    final dpr = _devicePixelRatio;
-    for (final pet in appData.pets) {
-      try {
-        final scale = settings.baseScale * pet.scaleMultiplier;
-        final logical = Size(pet.width * scale, pet.height * scale);
-        // 视口逻辑像素 = scaledSize / dpr，使物理窗口 ≈ pet.width * scale
-        final viewportLogical = Size(logical.width / dpr, logical.height / dpr);
-        final (w, h) = _toPhysicalSize(viewportLogical);
-        await MultiFloatingWindowAndroid.showOverlay(
-          overlayId: pet.id,
-          width: w,
-          height: h,
-          startPosition: OverlayPosition(
-            (pet.positionX * dpr).toInt(),
-            (pet.positionY * dpr).toInt(),
-          ),
-        );
-      } catch (_) {}
-    }
+  Future<void> petInit() async {
   }
 
   @override
@@ -184,7 +160,7 @@ class WindowControllerAndroid implements WindowController {
       final dpr = _devicePixelRatio;
       return Size(physical.width / dpr, physical.height / dpr);
     } catch (e) {
-      return const Size(360, 640);
+      return const Size(1080, 1920);
     }
   }
 
@@ -193,9 +169,4 @@ class WindowControllerAndroid implements WindowController {
     await MultiFloatingWindowAndroid.startDragging(_overlayId);
   }
 
-  @override
-  String? getForegroundWindowTitle() => null;
-
-  @override
-  Stream<String>? get onForegroundWindowTitle => null;
 }

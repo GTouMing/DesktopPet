@@ -7,7 +7,8 @@ import '../../core/constants.dart';
 import '../../skin/import/skin_importer.dart';
 import '../../storage/storage_service.dart';
 import '../../storage/models/pet_config.dart';
-import '../widgets/skin_picker_screen.dart';
+import 'skin_picker_screen.dart';
+import '../widgets/info_overlay.dart';
 
 class PetEditScreen extends ConsumerStatefulWidget {
   final PetConfig pet;
@@ -371,7 +372,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
   }
 
   Future<void> _importZipSkin() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['zip'],
     );
@@ -398,21 +399,18 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
       if (!mounted) return;
       setState(() => _skinPath = importedPath);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('皮肤导入成功: ${importedPath.split('/').last}'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 2),
-        ),
+      InfoOverlay.show(
+        context,
+        title: '皮肤导入成功',
+        message: importedPath.split('/').last,
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('皮肤导入失败: $e'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 3),
-        ),
+      InfoOverlay.show(
+        context,
+        title: '皮肤导入失败',
+        message: '$e',
+        type: InfoType.error,
       );
     }
   }
@@ -420,12 +418,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
   void _saveChanges() {
     final baseScale = StorageService.readSettings().baseScale;
     if (baseScale * _scaleMultiplier > maxFinalScale) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('缩放乘数过高，请降低乘数或全局缩放'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      InfoOverlay.show(context, title: '缩放乘数过高', message: '请降低乘数或全局缩放');
       return;
     }
 

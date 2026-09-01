@@ -60,7 +60,11 @@ class SpriteSheetGenerator {
         final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
         final frame = await codec.getNextFrame();
         frames.add(frame.image);
-      } catch (_) {}
+      } catch (_) {
+        for (var a in frames) {
+          a.dispose();
+        }
+      }
     }
     return _stitch(frames, frameSize);
   }

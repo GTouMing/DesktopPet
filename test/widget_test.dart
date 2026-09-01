@@ -7,7 +7,8 @@ import 'package:desktop_pet/platform/window_interface.dart';
 
 class FakeWindowController implements WindowController {
   @override String get id => 'fake';
-  @override Future<void> init({bool isPetWindow = false}) async {}
+  @override Future<void> mainInit() async {}
+  @override Future<void> petInit() async {}
   @override Future<void> show() async {}
   @override Future<void> hide() async {}
   @override Future<void> setIgnoreMouseEvents(bool ignore) async {}
@@ -23,16 +24,6 @@ class FakeWindowController implements WindowController {
   @override
   // TODO: implement devicePixelRatio
   double get devicePixelRatio => throw UnimplementedError();
-
-  @override
-  String? getForegroundWindowTitle() {
-    // TODO: implement getForegroundWindowTitle
-    throw UnimplementedError();
-  }
-
-  @override
-  // TODO: implement onForegroundWindowTitle
-  Stream<String>? get onForegroundWindowTitle => throw UnimplementedError();
 
   @override
   void setPositionSync(Offset pos) {

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mmkv/mmkv.dart';
 
+import '../core/constants.dart';
 import 'models/pet_config.dart';
 import 'models/settings_model.dart';
 import 'models/skin_entry.dart';
@@ -13,8 +14,7 @@ typedef AppData = ({SettingsModel global, List<PetConfig> pets});
 
 /// MMKV 键值存储服务。
 ///
-/// 所有读写直接操作 MMKV（MULTI_PROCESS_MODE 确保多进程一致性），
-/// 无内存缓存，无需显式 save/saveSync。
+/// 所有读写直接操作 MMKV（MULTI_PROCESS_MODE 确保多进程一致性）。
 class StorageService {
   static MMKV? _mmkv;
 
@@ -25,6 +25,28 @@ class StorageService {
   static const _mmkvId = 'desktop_pet_data';
 
   // ── 初始化 ─────────────────────────────────────────────────────────────
+
+  /// 初始化持久化存储（所有窗口都需要）。
+  static Future<void> initStorage() async {
+    await StorageService.init();
+
+    // 首次启动：设置全局皮肤目录并创建一个默认桌宠
+    if (StorageService.readPets().isEmpty) {
+      StorageService.writeSettings(
+        SettingsModel(
+          skinDir: defaultSkinPath,
+        ),
+      );
+      StorageService.writePets([
+        PetConfig(
+          id: defaultPetId,
+          name: '默认桌宠',
+          width: 200,
+          height: 200,
+        ),
+      ]);
+    }
+  }
 
   static Future<void> init() async {
     if (_mmkv != null) return;
