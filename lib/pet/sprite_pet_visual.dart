@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
-import '../petpack/pet_pack.dart';
+import '../petpack/sprite_pet_pack.dart';
 import '../petpack/sheet/sprite_renderer.dart';
 import '../petpack/state/state_define.dart';
 import 'pet_animation.dart';
@@ -21,7 +21,7 @@ class SpritePetVisual implements PetVisual {
     required this._onAnimationComplete,
   });
 
-  final PetPack _pack;
+  final SpritePetPack _pack;
   final TickerProvider _vsync;
   final void Function(String animName) _onAnimChanged;
   final void Function() _onAnimationComplete;

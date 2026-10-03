@@ -1,10 +1,11 @@
-import 'dart:convert';
 import 'dart:io';
 
 import '../core/constants.dart';
+import '../core/enums.dart';
 import '../l10n/l10n.dart';
 import '../storage/storage_service.dart';
 import 'import/pet_pack_repository.dart';
+import 'pet_pack.dart';
 
 /// 发现的皮肤包信息。
 class DiscoveredPetPack {
@@ -58,7 +59,7 @@ class PetPackLister {
         if (await dirObj.exists()) {
           await for (final entity in dirObj.list()) {
             if (entity is Directory) {
-              final name = await _readPackName(File('${entity.path}/skin.json'));
+              final name = await _readPackName(entity.path);
               if (name != null) {
                 packs.add(DiscoveredPetPack(name: name, path: entity.path));
                 seen.add(entity.path);
@@ -93,12 +94,11 @@ class PetPackLister {
     return packs;
   }
 
-  /// 读取 skin.json 中的 name 字段，失败返回 null。
-  static Future<String?> _readPackName(File packJson) async {
+  /// 读取宠物包清单（`pet.json`，兼容 `skin.json`）里的 name，失败返回 null。
+  static Future<String?> _readPackName(String dir) async {
     try {
-      if (!await packJson.exists()) return null;
-      final json = jsonDecode(await packJson.readAsString());
-      return json['name'] as String?;
+      final json = await PetPack.readManifest(dir, PetPackSource.filesystem);
+      return json?['name'] as String?;
     } catch (_) {
       return null;
     }

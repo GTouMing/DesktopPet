@@ -46,20 +46,31 @@ class PetPackImporter {
     }
 
     // 4. 解压
+    //
+    // ZIP 条目按规范用 `/` 分隔，但存在不守规范的打包器（例如 .NET 的
+    // Compress-Archive）会写 `\`。Windows 恰好把 `\` 也当分隔符，于是在 Windows 上
+    // 「看起来能用」；到 Android/Linux 就会解出一个名字里带反斜杠的单文件，后续
+    // 校验与模型加载全都找不到。这里统一规范化，并顺带挡掉越界路径。
     for (final entry in archive) {
-      if (entry.isFile) {
-        final outPath = '$destDir/${entry.name}';
-        final outFile = File(outPath);
-        await outFile.parent.create(recursive: true);
-        await outFile.writeAsBytes(entry.content as List<int>);
+      if (!entry.isFile) continue;
+
+      final name = entry.name.replaceAll('\\', '/');
+      if (name.isEmpty ||
+          name.startsWith('/') ||
+          name.split('/').contains('..')) {
+        continue;
       }
+
+      final outFile = File('$destDir/$name');
+      await outFile.parent.create(recursive: true);
+      await outFile.writeAsBytes(entry.content as List<int>);
     }
 
-    // 5. 校验
+    // 5. 校验（透出校验器的具体原因，别用一句笼统的“缺 skin.json”盖掉）
     final validation = await PetPackValidator.validate(destDir);
     if (!validation.isValid) {
       await dest.delete(recursive: true);
-      throw Exception('Invalid pet pack: missing or malformed skin.json');
+      throw Exception('Invalid pet pack: ${validation.error ?? 'unknown error'}');
     }
 
     // 6. 注册到 Repository

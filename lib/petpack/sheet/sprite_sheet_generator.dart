@@ -8,7 +8,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/constants.dart';
 import '../../core/enums.dart';
-import '../pet_pack.dart';
+import '../sprite_pet_pack.dart';
 
 /// 图集磁盘缓存的格式版本。
 ///
@@ -117,7 +117,7 @@ class SpriteSheetGenerator {
   /// 未命中则现场生成并落盘。缓存全程 best-effort——任何失败都回退到现场
   /// 生成,绝不影响渲染。
   static Future<SpriteSheetData> generateFromPack(
-    PetPack pack,
+    SpritePetPack pack,
     String animName,
   ) async {
     final key = await _cacheKey(pack, animName);
@@ -140,7 +140,7 @@ class SpriteSheetGenerator {
 
   /// 现场生成:逐帧解码 + 拼接图集。
   static Future<SpriteSheetData> _build(
-    PetPack pack,
+    SpritePetPack pack,
     String animName,
   ) async {
     final animDef = pack.anims[animName]!;
@@ -151,12 +151,12 @@ class SpriteSheetGenerator {
       );
       return generateFromAssets(
         assetPaths: assetPaths,
-        frameSize: pack.frameSize,
+        frameSize: pack.baseSize,
       );
     }
     return generateFromFiles(
       framePaths: pack.getFramePaths(animName),
-      frameSize: pack.frameSize,
+      frameSize: pack.baseSize,
     );
   }
 
@@ -173,7 +173,7 @@ class SpriteSheetGenerator {
   ///
   /// filesystem 皮肤把每帧的文件名/大小/mtime 混入,资源一改就换 key;
   /// asset 皮肤靠 [_sheetCacheVersion] 手动失效。无法确定时返回 null(不缓存)。
-  static Future<String?> _cacheKey(PetPack pack, String animName) async {
+  static Future<String?> _cacheKey(SpritePetPack pack, String animName) async {
     try {
       final animDef = pack.anims[animName];
       if (animDef == null) return null;
@@ -184,7 +184,7 @@ class SpriteSheetGenerator {
         pack.basePath,
         animName,
         animDef.folder,
-        '${pack.frameSize.width}x${pack.frameSize.height}',
+        '${pack.baseSize.width}x${pack.baseSize.height}',
         '${animDef.frameCount}',
       ];
       if (pack.source == PetPackSource.filesystem) {

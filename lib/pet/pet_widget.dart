@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/constants.dart';
+import '../petpack/live2d_pet_pack.dart';
+import '../petpack/sprite_pet_pack.dart';
+import 'live2d_pet_visual.dart';
 import 'pet_providers.dart';
 import 'pet_visual.dart';
 import 'sprite_pet_visual.dart';
@@ -16,8 +19,9 @@ import 'sprite_pet_visual.dart';
 /// 1. 把该桌宠的 [petStateProvider] 画出来（错误态 / 未就绪 / 正常渲染）；
 /// 2. 在「宠物包就绪」「状态变化」「销毁」三个时点驱动 [PetVisual]。
 ///
-/// 具体像素由 [PetVisual] 的实现产出——今天是精灵图（[SpritePetVisual]），
-/// 将来 Live2D 作为第二个实现接入。这里不认识精灵图、不认识原生纹理。
+/// 具体像素由 [PetVisual] 的实现产出，按宠物包类型选择：
+/// [SpritePetPack] → [SpritePetVisual]，[Live2DPetPack] → [Live2DPetVisual]。
+/// 这里不认识精灵图、也不认识原生纹理。
 ///
 /// Windows 单引擎下同一个引擎里会同时存在多只桌宠的实例，因此必须由 [petId]
 /// 指明状态来源（不再有“每个引擎一只”的隐含前提）。
@@ -35,7 +39,7 @@ class _PetWidgetState extends ConsumerState<PetWidget>
   PetNotifier get _notifier =>
       ref.read(petStateProvider(widget.petId).notifier);
 
-  /// 渲染器。宠物包就绪后创建（[PetNotifier.pack] 是 late final）。
+  /// 渲染器。宠物包就绪后按类型创建（[PetNotifier.pack] 是 late final）。
   PetVisual? _visual;
 
   @override
@@ -62,12 +66,23 @@ class _PetWidgetState extends ConsumerState<PetWidget>
 
   /// 宠物包就绪后创建渲染器并让它准备资源。
   void _prepareVisual() {
-    final visual = _visual ??= SpritePetVisual(
-      pack: _notifier.pack,
-      vsync: this,
-      onAnimChanged: _notifier.setCurrentAnim,
-      onAnimationComplete: () => _notifier.onEvent(Trigger.complete),
-    );
+    var visual = _visual;
+    if (visual == null) {
+      final pack = _notifier.pack;
+      if (pack is SpritePetPack) {
+        visual = SpritePetVisual(
+          pack: pack,
+          vsync: this,
+          onAnimChanged: _notifier.setCurrentAnim,
+          onAnimationComplete: () => _notifier.onEvent(Trigger.complete),
+        );
+      } else if (pack is Live2DPetPack) {
+        visual = Live2DPetVisual(pack: pack);
+      } else {
+        return;
+      }
+      _visual = visual;
+    }
     unawaited(visual.prepare(_notifier.currentState));
   }
 

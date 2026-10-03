@@ -1,5 +1,5 @@
 import 'package:desktop_pet/petpack/sheet/sprite_sheet_generator.dart';
-import 'package:desktop_pet/petpack/pet_pack.dart';
+import 'package:desktop_pet/petpack/sprite_pet_pack.dart';
 import 'package:flutter/animation.dart';
 import 'package:flutter/cupertino.dart';
 
@@ -32,7 +32,7 @@ class PetAnimation {
 
   /// 从皮肤包加载指定动画，生成精灵图和 [AnimationController]。
   static Future<PetAnimation> load({
-    required PetPack pack,
+    required SpritePetPack pack,
     required String animName,
     required TickerProvider vsync,
     void Function()? onAnimationComplete,

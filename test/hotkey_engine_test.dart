@@ -2,7 +2,7 @@ import 'package:desktop_pet/core/constants.dart';
 import 'package:desktop_pet/core/enums.dart';
 import 'package:desktop_pet/input/input.dart';
 import 'package:desktop_pet/pet/hotkey_engine.dart';
-import 'package:desktop_pet/petpack/pet_pack.dart';
+import 'package:desktop_pet/petpack/sprite_pet_pack.dart';
 import 'package:desktop_pet/petpack/state/state_define.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,10 +13,10 @@ StateDef _state(String name, Map<String, Map<String, TransitionRule>> transition
 TransitionRule _hotkey(String key, List<String> modifiers) =>
     TransitionRule(trigger: Trigger.hotkey, key: key, modifiers: modifiers);
 
-PetPack _pack(List<StateDef> states) => PetPack(
+SpritePetPack _pack(List<StateDef> states) => SpritePetPack(
   name: 'test',
   version: 1,
-  frameSize: const Size(100, 100),
+  baseSize: const Size(100, 100),
   basePath: '',
   anims: const {},
   states: {for (final s in states) s.name: s},

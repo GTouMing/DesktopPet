@@ -101,7 +101,7 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
       this.pack = pack;
       _packReady = true;
       state = state.copyWith(
-          basePetSize: pack.frameSize, currentState: pack.initialState);
+          basePetSize: pack.baseSize, currentState: pack.initialState);
 
       // 注册快捷键(皮肤里声明的 hotkey 规则 → 全局输入层)。
       await hotkey.bind(
