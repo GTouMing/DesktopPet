@@ -12,41 +12,21 @@ class TransitionRule {
   /// 方位：仅在 `moveAroundScreen` 行为时检查。
   final String? alignment;
 
-  /// 移动方向。
-  final String? direction;
-
   final int? afterMs;
   final int? minMs;
   final int? maxMs;
-  final String? match; // for "window": comma-separated window title patterns
   final String? key; // for "hotkey": physical key name, e.g. "h"
   final List<String> modifiers; // for "hotkey": ["alt"], ["ctrl","shift"]
 
   const TransitionRule({
     required this.trigger,
     this.alignment,
-    this.direction,
     this.afterMs,
     this.minMs,
     this.maxMs,
-    this.match,
     this.key,
     this.modifiers = const [],
   });
-
-  factory TransitionRule.fromJson(Map<String, dynamic> json) => TransitionRule(
-    trigger: json['trigger'] as String,
-    alignment: json['alignment'] as String?,
-    direction: json['direction'] as String?,
-    match: json['match'] as String?,
-    key: json['key'] as String?,
-    modifiers: (json['modifiers'] as List<dynamic>?)
-        ?.map((e) => e.toString())
-        .toList() ?? [],
-    afterMs: json['afterMs'] as int?,
-    minMs: json['minMs'] as int?,
-    maxMs: json['maxMs'] as int?,
-  );
 
   Duration get delay {
     if (afterMs != null) return Duration(milliseconds: afterMs!);
@@ -128,9 +108,6 @@ class StateDef {
     this.opacity = '1.0',
     this.transitions = const {},
   });
-
-  /// 是否无限循环（playCount == 0）。
-  bool get isInfinite => playCount == 0;
 
   factory StateDef.fromJson(String name, Map<String, dynamic> json) {
     final Map<String, Map<String, TransitionRule>> transitions = {};

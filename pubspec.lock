@@ -177,14 +177,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.7"
-  cupertino_icons:
-    dependency: "direct main"
-    description:
-      name: cupertino_icons
-      sha256: "41e005c33bd814be4d3096aff55b1908d419fde52ca656c8c47719ec745873cd"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.9"
   dbus:
     dependency: transitive
     description:
@@ -246,14 +238,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.0"
-  flutter_gesture_zone:
-    dependency: "direct main"
-    description:
-      name: flutter_gesture_zone
-      sha256: "67561b2eab4739023ea7c81a07b06b57b955b64d6ede8ca5b1372a8bf2324ff6"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.0"
   flutter_lints:
     dependency: "direct dev"
     description:
@@ -341,14 +325,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.2"
-  image:
-    dependency: "direct main"
-    description:
-      name: image
-      sha256: f9881ff4998044947ec38d098bc7c8316ae1186fa786eddffdb867b9bc94dfce
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.8.0"
   intl:
     dependency: "direct main"
     description:
@@ -429,14 +405,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.1.0"
-  logger:
-    dependency: "direct main"
-    description:
-      name: logger
-      sha256: "25aee487596a6257655a1e091ec2ae66bc30e7af663592cc3a27e6591e05035c"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.7.0"
   logging:
     dependency: transitive
     description:
@@ -946,14 +914,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "5.15.0"
-  win32hooks:
-    dependency: "direct main"
-    description:
-      name: win32hooks
-      sha256: b307269b9ac97562601b48afa067d959aa3cf38c711dcb45ed6199be11cae60b
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.0"
   window_manager:
     dependency: "direct main"
     description:

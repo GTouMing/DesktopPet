@@ -2,40 +2,27 @@ import 'dart:ui';
 
 import 'package:desktop_pet/platform/window_interface.dart';
 
+import '../../core/constants.dart';
+import '../../core/device.dart';
 import '../../storage/storage_service.dart';
+import 'multi_floating_window/constants.dart';
 import 'multi_floating_window/multi_floating_window_android.dart';
 
-/// 由 Kotlin OverlayManager 在创建引擎时通过 args[1] 传入的真实 DPR，
-/// 用于覆盖 overlay engine 中可能返回 1.0 的 PlatformDispatcher。
-double? _overrideDpr;
-
-/// 设置 overlay engine 的真实 DPR（由 desktop_pet.dart 在解析启动参数时调用）。
-void setOverrideDpr(double dpr) {
-  _overrideDpr = dpr;
+/// 逻辑像素尺寸 → 物理像素尺寸。全工程唯一的换算入口。
+Size logicalToPhysicalSize(Size logical) {
+  final dpr = currentDevicePixelRatio;
+  return Size(
+    (logical.width * dpr).roundToDouble().clamp(1, 9999).toDouble(),
+    (logical.height * dpr).roundToDouble().clamp(1, 9999).toDouble(),
+  );
 }
 
-/// 设备像素比，用于逻辑像素 ↔ 物理像素转换。
-///
-/// Android WindowManager.LayoutParams.width/height 使用物理像素，
-/// 而 Flutter 的尺寸（petSize 等）使用逻辑像素，需要乘以 DPR 转换。
-///
-/// overlay engine 的 PlatformDispatcher 可能返回 1.0，因此优先使用
-/// Kotlin 侧通过 args 传入的真实 DPR。
-double get _devicePixelRatio {
-  if (_overrideDpr != null) return _overrideDpr!;
-  try {
-    return PlatformDispatcher.instance.views.first.devicePixelRatio;
-  } catch (_) {
-    return 1.0;
-  }
-}
-
-/// 将 Flutter 逻辑像素尺寸转为 Android 物理像素尺寸（取整后 clamp 到 [1, 9999]）。
-(int, int) _toPhysicalSize(Size logical) {
-  final dpr = _devicePixelRatio;
-  return (
-    (logical.width * dpr).round().clamp(1, 9999),
-    (logical.height * dpr).round().clamp(1, 9999),
+/// 逻辑像素坐标 → 物理像素坐标。
+Offset logicalToPhysicalOffset(Offset logical) {
+  final dpr = currentDevicePixelRatio;
+  return Offset(
+    (logical.dx * dpr).roundToDouble(),
+    (logical.dy * dpr).roundToDouble(),
   );
 }
 
@@ -43,13 +30,11 @@ class WindowControllerAndroid implements WindowController {
   final String _overlayId;
 
   WindowControllerAndroid({String overlayId = 'default'})
+      // ignore: prefer_initializing_formals (公开命名参数 overlayId)
       : _overlayId = overlayId;
 
   @override
-  String get id => _overlayId;
-
-  @override
-  double get devicePixelRatio => _devicePixelRatio;
+  double get devicePixelRatio => currentDevicePixelRatio;
 
   // ─── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -61,20 +46,19 @@ class WindowControllerAndroid implements WindowController {
   Future<void> show() async {
     final settings = StorageService.readSettings();
     final pet = StorageService.readPet(_overlayId);
-    double w = 200, h = 200;
-    if (pet != null) {
-      final scale = settings.baseScale * pet.scaleMultiplier;
-      w = pet.width * scale;
-      h = pet.height * scale;
+    final Size logical;
+    if (pet == null) {
+      logical = const Size(defaultPetSize, defaultPetSize);
+    } else {
+      final scale = finalScaleOf(settings.baseScale, pet.scaleMultiplier);
+      logical = Size(pet.width * scale, pet.height * scale);
     }
-    final dpr = _devicePixelRatio;
-    final viewportLogical = Size(w / dpr, h / dpr);
-    final (pw, ph) = _toPhysicalSize(viewportLogical);
+    final physical = logicalToPhysicalSize(logical);
     try {
       await MultiFloatingWindowAndroid.showOverlay(
         overlayId: _overlayId,
-        width: pw,
-        height: ph,
+        width: physical.width.round(),
+        height: physical.height.round(),
       );
     } catch (_) {}
   }
@@ -84,35 +68,21 @@ class WindowControllerAndroid implements WindowController {
     await MultiFloatingWindowAndroid.closeOverlay(_overlayId);
   }
 
-  @override
-  Future<void> close() async {
-    await MultiFloatingWindowAndroid.closeOverlay(_overlayId);
-  }
-
-  @override
-  void dispose() {
-    MultiFloatingWindowAndroid.closeOverlay(_overlayId);
-  }
-
   // ─── Window operations ─────────────────────────────────────────────────
 
   @override
-  Future<void> setAlwaysOnTop(bool value) async {}
-
-  @override
   Future<void> setIgnoreMouseEvents(bool ignore) async {
-    await MultiFloatingWindowAndroid.updateFlag(_overlayId, ignore ? OverlayFlag.clickThrough : OverlayFlag.defaultFlag);
+    await MultiFloatingWindowAndroid.updateFlag(_overlayId,
+        ignore ? OverlayFlag.clickThrough : OverlayFlag.defaultFlag);
   }
 
   @override
   Future<Offset> getPosition() async {
     try {
-      final overlayPosition = await MultiFloatingWindowAndroid.getOverlayPosition(_overlayId);
-      final dpr = _devicePixelRatio;
-      return Offset(
-        overlayPosition.x / dpr,
-        overlayPosition.y / dpr,
-      );
+      final overlayPosition =
+          await MultiFloatingWindowAndroid.getOverlayPosition(_overlayId);
+      final dpr = currentDevicePixelRatio;
+      return Offset(overlayPosition.x / dpr, overlayPosition.y / dpr);
     } catch (e) {
       return Offset.zero;
     }
@@ -120,10 +90,10 @@ class WindowControllerAndroid implements WindowController {
 
   @override
   Future<void> setPosition(Offset pos) async {
-    final dpr = _devicePixelRatio;
+    final physical = logicalToPhysicalOffset(pos);
     MultiFloatingWindowAndroid.moveOverlay(
       _overlayId,
-      OverlayPosition((pos.dx * dpr).round(), (pos.dy * dpr).round()),
+      OverlayPosition(physical.dx.round(), physical.dy.round()),
     );
   }
 
@@ -133,34 +103,23 @@ class WindowControllerAndroid implements WindowController {
   }
 
   @override
-  Future<void> moveRelative(Offset delta) async {
-    try {
-      final dpr = _devicePixelRatio;
-      var pos = await MultiFloatingWindowAndroid.getOverlayPosition(_overlayId);
-      var newPos = OverlayPosition(
-        pos.x + (delta.dx * dpr).round(),
-        pos.y + (delta.dy * dpr).round(),
-      );
-      await MultiFloatingWindowAndroid.moveOverlay(_overlayId, newPos);
-    } catch (e) {
-      // Handle error gracefully
-    }
-  }
-
-  @override
   Future<void> setSize(Size size) async {
-    final (w, h) = _toPhysicalSize(size);
-    await MultiFloatingWindowAndroid.resizeOverlay(_overlayId, w, h);
+    final physical = logicalToPhysicalSize(size);
+    await MultiFloatingWindowAndroid.resizeOverlay(
+        _overlayId, physical.width.round(), physical.height.round());
   }
 
   @override
   Future<Size> getScreenSize() async {
+    final dpr = currentDevicePixelRatio;
     try {
       final physical = await MultiFloatingWindowAndroid.getScreenSize();
-      final dpr = _devicePixelRatio;
       return Size(physical.width / dpr, physical.height / dpr);
     } catch (e) {
-      return const Size(1080, 1920);
+      return Size(
+        Constants.fallbackScreenWidth / dpr,
+        Constants.fallbackScreenHeight / dpr,
+      );
     }
   }
 
@@ -168,5 +127,4 @@ class WindowControllerAndroid implements WindowController {
   Future<void> startDragging() async {
     await MultiFloatingWindowAndroid.startDragging(_overlayId);
   }
-
 }

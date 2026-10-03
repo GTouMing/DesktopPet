@@ -31,8 +31,6 @@ class SkinPackage {
     required this.source,
   });
 
-  StateDef? operator [](String stateName) => states[stateName];
-
   bool hasBehavior(String stateName) => states[stateName]?.behavior != null;
 
   /// 查找匹配的跳转目标状态名。

@@ -1,18 +1,15 @@
 import 'dart:ui';
 
-import 'package:desktop_pet/core/enums.dart';
-
 /// 桌宠运行时瞬间快照。
 ///
 /// ## 字段说明
-/// - 行为状态：`[currentState, direction, position, targetPosition, isDragging, isVisible, lastInteractionTime, isReady]`
+/// - 行为状态：`[currentState, position, targetPosition, isDragging, lastInteractionTime]`
 ///   由 [PetNotifier] 维护和驱动（行为循环、交互事件）。
 /// - 渲染状态：`[skinError, currentAnim, opacity, petSize, baseFrameSize]`
 ///   供 [PetWidget] 消费
 class PetState {
   // ── 行为逻辑 ─────────────────────────────────────────────────────────
   final String currentState;
-  final Direction direction;
   final Offset position;
   final Offset? targetPosition;
   final bool isDragging;
@@ -40,7 +37,6 @@ class PetState {
 
   const PetState({
     this.currentState = '',
-    this.direction = Direction.none,
     this.position = Offset.zero,
     this.targetPosition,
     this.isDragging = false,
@@ -55,14 +51,11 @@ class PetState {
 
   PetState copyWith({
     String? currentState,
-    Direction? direction,
     Offset? position,
     bool cleanTarget = false,
     Offset? targetPosition,
     bool? isDragging,
-    bool? isVisible,
     DateTime? lastInteractionTime,
-    bool? isReady,
     String? skinError,
     String? currentAnim,
     double? finalOpacity,
@@ -72,7 +65,6 @@ class PetState {
   }) {
     return PetState(
       currentState: currentState ?? this.currentState,
-      direction: cleanTarget ? Direction.none : (direction ?? this.direction),
       position: position ?? this.position,
       targetPosition: cleanTarget ? null : (targetPosition ?? this.targetPosition),
       isDragging: isDragging ?? this.isDragging,

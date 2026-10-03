@@ -1,5 +1,8 @@
 import '../../core/constants.dart';
 
+/// [SettingsModel.copyWith] 用它区分"未传该参数"与"显式传 null"。
+const Object _unset = Object();
+
 /// 全局基础设置（对所有桌宠生效）。
 class SettingsModel {
   /// 全局基础缩放倍数。与 [PetConfig.scaleMultiplier] 乘算得到最终缩放。
@@ -22,13 +25,17 @@ class SettingsModel {
   /// 快捷启动快捷键修饰键，如 `['alt']`、`['ctrl', 'shift']`。
   List<String> quickLaunchModifiers;
 
+  /// 界面语言：`system`(跟随系统) / `zh` / `en`。
+  String locale;
+
   SettingsModel({
     this.baseScale = 1.0,
     this.baseOpacity = 1.0,
     this.baseSpeed = 1.0,
     this.skinDir,
     this.quickLaunchKey = defaultQuickLaunchKey,
-    this.quickLaunchModifiers = const [],
+    this.quickLaunchModifiers = defaultQuickLaunchModifiers,
+    this.locale = localeSystem,
   });
 
   // ── JSON ──────────────────────────────────────────────────────────────
@@ -40,6 +47,7 @@ class SettingsModel {
     'skinDir': skinDir,
     'quickLaunchKey': quickLaunchKey,
     'quickLaunchModifiers': quickLaunchModifiers,
+    'locale': locale,
   };
 
   factory SettingsModel.fromJson(Map<String, dynamic> json) {
@@ -52,24 +60,31 @@ class SettingsModel {
       quickLaunchModifiers: (json['quickLaunchModifiers'] as List<dynamic>?)
           ?.map((e) => e.toString())
           .toList() ?? defaultQuickLaunchModifiers,
+      locale: json['locale'] as String? ?? localeSystem,
     );
   }
 
+  /// 复制并覆盖部分字段。
+  ///
+  /// [skinDir] 是唯一的可空字段，"没传"与"显式清空"必须区分：传 `null` 表示恢复
+  /// 默认（用内置皮肤），不传则保持原值。
   SettingsModel copyWith({
     double? baseScale,
     double? baseOpacity,
     double? baseSpeed,
-    String? skinDir,
+    Object? skinDir = _unset,
     String? quickLaunchKey,
     List<String>? quickLaunchModifiers,
+    String? locale,
   }) {
     return SettingsModel(
       baseScale: baseScale ?? this.baseScale,
       baseOpacity: baseOpacity ?? this.baseOpacity,
       baseSpeed: baseSpeed ?? this.baseSpeed,
-      skinDir: skinDir ?? this.skinDir,
+      skinDir: identical(skinDir, _unset) ? this.skinDir : skinDir as String?,
       quickLaunchKey: quickLaunchKey ?? this.quickLaunchKey,
       quickLaunchModifiers: quickLaunchModifiers ?? this.quickLaunchModifiers,
+      locale: locale ?? this.locale,
     );
   }
 }

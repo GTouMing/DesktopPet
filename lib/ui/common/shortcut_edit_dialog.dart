@@ -1,3 +1,4 @@
+import 'package:desktop_pet/l10n/app_localizations.dart';
 import 'package:desktop_pet/storage/models/app_shortcut.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -47,18 +48,19 @@ class _ShortcutEditDialogState extends State<ShortcutEditDialog> {
   @override
   Widget build(BuildContext context) {
     final isNew = widget.initial == null;
+    final l10n = AppLocalizations.of(context);
 
     return AlertDialog(
-      title: Text(isNew ? '添加快捷启动' : '编辑快捷启动'),
+      title: Text(isNew ? l10n.addShortcutTitle : l10n.editShortcutTitle),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
             controller: _nameCtrl,
-            decoration: const InputDecoration(
-              labelText: '名称',
-              hintText: '如：记事本',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: l10n.nameLabel,
+              hintText: l10n.nameHintShortcut,
+              border: const OutlineInputBorder(),
             ),
             onChanged: (_) => setState(() {}),
           ),
@@ -68,10 +70,10 @@ class _ShortcutEditDialogState extends State<ShortcutEditDialog> {
               Expanded(
                 child: TextField(
                   controller: _pathCtrl,
-                  decoration: const InputDecoration(
-                    labelText: '可执行文件路径',
-                    hintText: '如：C:\\Windows\\notepad.exe',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.pathLabel,
+                    hintText: l10n.pathHint,
+                    border: const OutlineInputBorder(),
                   ),
                   onChanged: (_) => setState(() {}),
                 ),
@@ -79,7 +81,7 @@ class _ShortcutEditDialogState extends State<ShortcutEditDialog> {
               const SizedBox(width: 8),
               IconButton(
                 icon: const Icon(Icons.folder_open),
-                tooltip: '浏览文件',
+                tooltip: l10n.browseFile,
                 onPressed: _pickExecutable,
               ),
             ],
@@ -89,7 +91,7 @@ class _ShortcutEditDialogState extends State<ShortcutEditDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
+          child: Text(l10n.cancel),
         ),
         FilledButton(
           onPressed: _valid
@@ -102,7 +104,7 @@ class _ShortcutEditDialogState extends State<ShortcutEditDialog> {
                     ),
                   )
               : null,
-          child: const Text('确定'),
+          child: Text(l10n.confirm),
         ),
       ],
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../storage/models/pet_config.dart';
 import 'pet_card.dart';
 
@@ -20,6 +21,7 @@ class PetList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -29,7 +31,7 @@ class PetList extends StatelessWidget {
             Icon(Icons.pets, color: theme.colorScheme.primary),
             const SizedBox(width: 8),
             Text(
-              '我的桌宠 (${pets.length})',
+              l10n.myPets(pets.length),
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -38,7 +40,7 @@ class PetList extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         if (pets.isEmpty)
-          _buildEmptyState(theme)
+          _buildEmptyState(context)
         else
           ...pets.map((pet) => PetCard(
                 pet: pet,
@@ -49,7 +51,8 @@ class PetList extends StatelessWidget {
     );
   }
 
-  Widget _buildEmptyState(ThemeData theme) {
+  Widget _buildEmptyState(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -57,10 +60,10 @@ class PetList extends StatelessWidget {
           children: [
             Icon(Icons.pets, size: 64, color: Colors.grey[300]),
             const SizedBox(height: 16),
-            Text('还没有添加桌宠',
+            Text(l10n.noPets,
                 style: TextStyle(color: Colors.grey[500], fontSize: 16)),
             const SizedBox(height: 8),
-            Text('点击右上角 + 按钮添加',
+            Text(l10n.noPetsHint,
                 style: TextStyle(color: Colors.grey[400], fontSize: 14)),
           ],
         ),

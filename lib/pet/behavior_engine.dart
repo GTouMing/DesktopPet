@@ -92,19 +92,18 @@ class BehaviorEngine {
               targetPos.dx.clamp(0.0, maxX), targetPos.dy.clamp(0.0, maxY));
         }
       }
-      final center = Offset(maxX / 2, maxY / 2);
-      if (currentPos.dy <= center.dy) {
-        return Offset(currentPos.dx, 0);
-      }
-      else if (currentPos.dx > center.dx) {
-        return Offset(maxX, currentPos.dy);
-      }
-      else if (currentPos.dy > center.dy) {
-        return Offset(currentPos.dx, maxX);
-      }
-      else {
-        return Offset(0, currentPos.dy);
-      }
+      // 贴到距离最近的一条边。
+      //
+      // 原实现把 maxX(横向范围)当成了 y 坐标返回,且分支顺序使 left 分支永不命中。
+      final toTop = currentPos.dy;
+      final toBottom = maxY - currentPos.dy;
+      final toLeft = currentPos.dx;
+      final toRight = maxX - currentPos.dx;
+      final nearest = min(min(toTop, toBottom), min(toLeft, toRight));
+      if (nearest == toTop) return Offset(currentPos.dx, 0);
+      if (nearest == toBottom) return Offset(currentPos.dx, maxY);
+      if (nearest == toLeft) return Offset(0, currentPos.dy);
+      return Offset(maxX, currentPos.dy);
     }
     else {
       return Offset.zero;

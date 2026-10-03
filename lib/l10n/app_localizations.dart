@@ -62,15 +62,17 @@ import 'app_localizations_zh.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
-  AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+  AppLocalizations(String locale)
+    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
-  static AppLocalizations? of(BuildContext context) {
-    return Localizations.of<AppLocalizations>(context, AppLocalizations);
+  static AppLocalizations of(BuildContext context) {
+    return Localizations.of<AppLocalizations>(context, AppLocalizations)!;
   }
 
-  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate =
+      _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -82,33 +84,587 @@ abstract class AppLocalizations {
   /// Additional delegates can be added by appending to this list in
   /// MaterialApp. This list does not have to be used at all if a custom list
   /// of delegates is preferred or required.
-  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates = <LocalizationsDelegate<dynamic>>[
-    delegate,
-    GlobalMaterialLocalizations.delegate,
-    GlobalCupertinoLocalizations.delegate,
-    GlobalWidgetsLocalizations.delegate,
-  ];
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
+      <LocalizationsDelegate<dynamic>>[
+        delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+      ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
     Locale('en'),
-    Locale('zh')
+    Locale('zh'),
   ];
 
   /// No description provided for @appName.
   ///
   /// In en, this message translates to:
-  /// **'My Flutter App'**
+  /// **'Desktop Pet'**
   String get appName;
 
-  /// A welcome message for the user
+  /// No description provided for @cancel.
   ///
   /// In en, this message translates to:
-  /// **'Hello {username}!'**
-  String greetingMessage(String username);
+  /// **'Cancel'**
+  String get cancel;
+
+  /// No description provided for @confirm.
+  ///
+  /// In en, this message translates to:
+  /// **'OK'**
+  String get confirm;
+
+  /// No description provided for @delete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get delete;
+
+  /// No description provided for @retry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retry;
+
+  /// No description provided for @save.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get save;
+
+  /// No description provided for @restoreDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore default'**
+  String get restoreDefault;
+
+  /// No description provided for @disable.
+  ///
+  /// In en, this message translates to:
+  /// **'Disable'**
+  String get disable;
+
+  /// No description provided for @settings.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get settings;
+
+  /// No description provided for @addPet.
+  ///
+  /// In en, this message translates to:
+  /// **'Add pet'**
+  String get addPet;
+
+  /// No description provided for @petAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Pet added'**
+  String get petAdded;
+
+  /// No description provided for @sectionAppearance.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get sectionAppearance;
+
+  /// No description provided for @sectionSkin.
+  ///
+  /// In en, this message translates to:
+  /// **'Skin'**
+  String get sectionSkin;
+
+  /// No description provided for @sectionShortcut.
+  ///
+  /// In en, this message translates to:
+  /// **'Shortcut'**
+  String get sectionShortcut;
+
+  /// No description provided for @sectionQuickLaunch.
+  ///
+  /// In en, this message translates to:
+  /// **'Launch shortcuts'**
+  String get sectionQuickLaunch;
+
+  /// No description provided for @sectionAbout.
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get sectionAbout;
+
+  /// No description provided for @sectionLanguage.
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get sectionLanguage;
+
+  /// No description provided for @globalOpacity.
+  ///
+  /// In en, this message translates to:
+  /// **'Global opacity — {percent}%'**
+  String globalOpacity(int percent);
+
+  /// No description provided for @globalScale.
+  ///
+  /// In en, this message translates to:
+  /// **'Global scale — {scale}x'**
+  String globalScale(String scale);
+
+  /// No description provided for @globalSpeed.
+  ///
+  /// In en, this message translates to:
+  /// **'Global speed — {speed}x'**
+  String globalSpeed(String speed);
+
+  /// No description provided for @scaleLimitExceeded.
+  ///
+  /// In en, this message translates to:
+  /// **'Global scale cannot exceed {limit}x'**
+  String scaleLimitExceeded(String limit);
+
+  /// No description provided for @skinDirDefaultPath.
+  ///
+  /// In en, this message translates to:
+  /// **'Skin directory (default)'**
+  String get skinDirDefaultPath;
+
+  /// No description provided for @skinDir.
+  ///
+  /// In en, this message translates to:
+  /// **'Skin directory'**
+  String get skinDir;
+
+  /// No description provided for @skinBuiltInValue.
+  ///
+  /// In en, this message translates to:
+  /// **'assets/default_skin (built-in)'**
+  String get skinBuiltInValue;
+
+  /// No description provided for @viewAvailableSkins.
+  ///
+  /// In en, this message translates to:
+  /// **'View available skins'**
+  String get viewAvailableSkins;
+
+  /// No description provided for @browseDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse directory'**
+  String get browseDirectory;
+
+  /// No description provided for @skinMigrated.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported skin packages migrated'**
+  String get skinMigrated;
+
+  /// No description provided for @skinMigrateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to migrate skin packages'**
+  String skinMigrateFailed(String error);
+
+  /// No description provided for @defaultSkinName.
+  ///
+  /// In en, this message translates to:
+  /// **'Default skin'**
+  String get defaultSkinName;
+
+  /// No description provided for @quickLaunchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick launch'**
+  String get quickLaunchTitle;
+
+  /// No description provided for @setShortcut.
+  ///
+  /// In en, this message translates to:
+  /// **'Set shortcut'**
+  String get setShortcut;
+
+  /// No description provided for @noShortcuts.
+  ///
+  /// In en, this message translates to:
+  /// **'No launch shortcuts yet'**
+  String get noShortcuts;
+
+  /// No description provided for @addShortcut.
+  ///
+  /// In en, this message translates to:
+  /// **'Add launch shortcut'**
+  String get addShortcut;
+
+  /// No description provided for @language.
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get language;
+
+  /// No description provided for @languageSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow system'**
+  String get languageSystem;
+
+  /// No description provided for @languageEnglish.
+  ///
+  /// In en, this message translates to:
+  /// **'English'**
+  String get languageEnglish;
+
+  /// No description provided for @languageChinese.
+  ///
+  /// In en, this message translates to:
+  /// **'简体中文'**
+  String get languageChinese;
+
+  /// No description provided for @versionLine.
+  ///
+  /// In en, this message translates to:
+  /// **'v1.0.0 — {platform}'**
+  String versionLine(String platform);
+
+  /// No description provided for @myPets.
+  ///
+  /// In en, this message translates to:
+  /// **'My pets ({count})'**
+  String myPets(int count);
+
+  /// No description provided for @noPets.
+  ///
+  /// In en, this message translates to:
+  /// **'No pets yet'**
+  String get noPets;
+
+  /// No description provided for @noPetsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap the + button at the top right to add one'**
+  String get noPetsHint;
+
+  /// No description provided for @skinLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Skin: {skin}'**
+  String skinLabel(String skin);
+
+  /// No description provided for @locked.
+  ///
+  /// In en, this message translates to:
+  /// **'Locked'**
+  String get locked;
+
+  /// No description provided for @unlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlocked'**
+  String get unlocked;
+
+  /// No description provided for @shown.
+  ///
+  /// In en, this message translates to:
+  /// **'Visible'**
+  String get shown;
+
+  /// No description provided for @hidden.
+  ///
+  /// In en, this message translates to:
+  /// **'Hidden'**
+  String get hidden;
+
+  /// No description provided for @deletePetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete pet'**
+  String get deletePetTitle;
+
+  /// No description provided for @deletePetBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete \"{name}\"?\n\nScale: {scale}%\nOpacity: {opacity}%'**
+  String deletePetBody(String name, int scale, int opacity);
+
+  /// No description provided for @keepOnePet.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep at least one pet'**
+  String get keepOnePet;
+
+  /// No description provided for @editPet.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit pet'**
+  String get editPet;
+
+  /// No description provided for @preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get preview;
+
+  /// No description provided for @name.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get name;
+
+  /// No description provided for @nameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter pet name'**
+  String get nameHint;
+
+  /// No description provided for @scaleMultiplier.
+  ///
+  /// In en, this message translates to:
+  /// **'Scale multiplier'**
+  String get scaleMultiplier;
+
+  /// No description provided for @opacityMultiplier.
+  ///
+  /// In en, this message translates to:
+  /// **'Opacity multiplier'**
+  String get opacityMultiplier;
+
+  /// No description provided for @speedMultiplier.
+  ///
+  /// In en, this message translates to:
+  /// **'Speed multiplier'**
+  String get speedMultiplier;
+
+  /// No description provided for @skin.
+  ///
+  /// In en, this message translates to:
+  /// **'Skin'**
+  String get skin;
+
+  /// No description provided for @useGlobalSkin.
+  ///
+  /// In en, this message translates to:
+  /// **'Use skin from global settings'**
+  String get useGlobalSkin;
+
+  /// No description provided for @importZipSkin.
+  ///
+  /// In en, this message translates to:
+  /// **'Import ZIP skin'**
+  String get importZipSkin;
+
+  /// No description provided for @chooseSkin.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose skin'**
+  String get chooseSkin;
+
+  /// No description provided for @finalSpeedFormula.
+  ///
+  /// In en, this message translates to:
+  /// **'× global speed = final speed'**
+  String get finalSpeedFormula;
+
+  /// No description provided for @finalScaleFormula.
+  ///
+  /// In en, this message translates to:
+  /// **'× global scale = final scale'**
+  String get finalScaleFormula;
+
+  /// No description provided for @finalOpacityFormula.
+  ///
+  /// In en, this message translates to:
+  /// **'× global opacity = final opacity'**
+  String get finalOpacityFormula;
+
+  /// No description provided for @importingSkin.
+  ///
+  /// In en, this message translates to:
+  /// **'Importing skin package...'**
+  String get importingSkin;
+
+  /// No description provided for @skinImportSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Skin imported'**
+  String get skinImportSuccess;
+
+  /// No description provided for @skinImportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Skin import failed'**
+  String get skinImportFailed;
+
+  /// No description provided for @scaleTooHigh.
+  ///
+  /// In en, this message translates to:
+  /// **'Scale multiplier too high'**
+  String get scaleTooHigh;
+
+  /// No description provided for @scaleTooHighHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Lower the multiplier or the global scale'**
+  String get scaleTooHighHint;
+
+  /// No description provided for @deletePetConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete \"{name}\"? This cannot be undone.'**
+  String deletePetConfirm(String name);
+
+  /// No description provided for @chooseSkinTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose skin'**
+  String get chooseSkinTitle;
+
+  /// No description provided for @loadSkinsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load skins'**
+  String get loadSkinsFailed;
+
+  /// No description provided for @noSkinsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No skin packages found'**
+  String get noSkinsFound;
+
+  /// No description provided for @noSkinsFoundHint.
+  ///
+  /// In en, this message translates to:
+  /// **'No valid skin package (with skin.json) in this directory'**
+  String get noSkinsFoundHint;
+
+  /// No description provided for @skinSourceImported.
+  ///
+  /// In en, this message translates to:
+  /// **'Source: imported skin package'**
+  String get skinSourceImported;
+
+  /// No description provided for @skinSourceDir.
+  ///
+  /// In en, this message translates to:
+  /// **'Directory: {path}'**
+  String skinSourceDir(String path);
+
+  /// No description provided for @builtIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in'**
+  String get builtIn;
+
+  /// No description provided for @addShortcutTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add launch shortcut'**
+  String get addShortcutTitle;
+
+  /// No description provided for @editShortcutTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit launch shortcut'**
+  String get editShortcutTitle;
+
+  /// No description provided for @nameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get nameLabel;
+
+  /// No description provided for @nameHintShortcut.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. Notepad'**
+  String get nameHintShortcut;
+
+  /// No description provided for @pathLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Executable path'**
+  String get pathLabel;
+
+  /// No description provided for @pathHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. C:\\Windows\\notepad.exe'**
+  String get pathHint;
+
+  /// No description provided for @browseFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse file'**
+  String get browseFile;
+
+  /// No description provided for @hotkeyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Set shortcut'**
+  String get hotkeyTitle;
+
+  /// No description provided for @hotkeyPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'(tap a button below to choose)'**
+  String get hotkeyPlaceholder;
+
+  /// No description provided for @modifiersLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Modifiers (multi-select)'**
+  String get modifiersLabel;
+
+  /// No description provided for @keyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Key'**
+  String get keyLabel;
+
+  /// No description provided for @trayLock.
+  ///
+  /// In en, this message translates to:
+  /// **'Lock'**
+  String get trayLock;
+
+  /// No description provided for @trayUnlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock'**
+  String get trayUnlock;
+
+  /// No description provided for @traySettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get traySettings;
+
+  /// No description provided for @trayQuit.
+  ///
+  /// In en, this message translates to:
+  /// **'Quit'**
+  String get trayQuit;
+
+  /// No description provided for @trayTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Desktop Pet'**
+  String get trayTooltip;
+
+  /// No description provided for @defaultPetName.
+  ///
+  /// In en, this message translates to:
+  /// **'My Pet'**
+  String get defaultPetName;
+
+  /// No description provided for @skinError.
+  ///
+  /// In en, this message translates to:
+  /// **'error: {message}'**
+  String skinError(String message);
 }
 
-class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate
+    extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -117,25 +673,26 @@ class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> 
   }
 
   @override
-  bool isSupported(Locale locale) => <String>['en', 'zh'].contains(locale.languageCode);
+  bool isSupported(Locale locale) =>
+      <String>['en', 'zh'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
 }
 
 AppLocalizations lookupAppLocalizations(Locale locale) {
-
-
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
-    case 'en': return AppLocalizationsEn();
-    case 'zh': return AppLocalizationsZh();
+    case 'en':
+      return AppLocalizationsEn();
+    case 'zh':
+      return AppLocalizationsZh();
   }
 
   throw FlutterError(
     'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
     'an issue with the localizations generation tool. Please file an issue '
     'on GitHub with a reproducible sample app and the gen-l10n configuration '
-    'that was used.'
+    'that was used.',
   );
 }

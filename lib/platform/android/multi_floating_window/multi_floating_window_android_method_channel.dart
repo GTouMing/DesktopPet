@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'constants.dart';
 
+import 'constants.dart';
 import 'multi_floating_window_android_platform_interface.dart';
 
 /// An implementation of [MultiFloatingWindowAndroidPlatform] that uses method channels.
@@ -9,22 +9,13 @@ class MethodChannelMultiFloatingWindowAndroid
     extends MultiFloatingWindowAndroidPlatform {
   /// The method channel used to interact with the native platform.
   @visibleForTesting
-  final methodChannel = const MethodChannel('multi_floating_window_android');
+  final methodChannel = const MethodChannel(Constants.channelName);
 
-  /// Get platform version
+  /// 是否已授予悬浮窗权限
   @override
-  Future<String?> getPlatformVersion() async {
-    final version = await methodChannel.invokeMethod<String>(
-      Constants.getPlatformVersion,
-    );
-    return version;
-  }
-
-  /// Check floating window permission
-  @override
-  Future<bool> isPermissionGranted() async {
+  Future<bool> hasPermission() async {
     final result = await methodChannel.invokeMethod<bool>(
-      Constants.isPermissionGranted,
+      Constants.hasPermission,
     );
     return result ?? false;
   }
@@ -74,22 +65,6 @@ class MethodChannelMultiFloatingWindowAndroid
     return result ?? false;
   }
 
-  /// Close all floating windows
-  @override
-  Future<bool> closeAllOverlays() async {
-    final result = await methodChannel.invokeMethod<bool>(
-      Constants.closeAllOverlays,
-    );
-    return result ?? false;
-  }
-
-  /// Check if floating window is currently showing
-  @override
-  Future<bool> isShowing() async {
-    final result = await methodChannel.invokeMethod<bool>(Constants.isShowing);
-    return result ?? false;
-  }
-
   /// Check if specific overlay is showing
   @override
   Future<bool> isOverlayShowing(String overlayId) async {
@@ -103,22 +78,17 @@ class MethodChannelMultiFloatingWindowAndroid
     return result ?? false;
   }
 
-  /// Get real screen size
+  /// Get real screen size (物理像素)
   @override
   Future<Map<String, dynamic>> getScreenSize() async {
     final result = await methodChannel.invokeMapMethod<String, dynamic>(
       Constants.getScreenSize,
     );
-    return result ?? {'width': 1920, 'height': 1080};
-  }
-
-  /// Get all active overlay ids
-  @override
-  Future<List<String>> getOverlayIds() async {
-    final result = await methodChannel.invokeListMethod<String>(
-      Constants.getOverlayIds,
-    );
-    return result ?? [];
+    return result ??
+        {
+          'width': Constants.fallbackScreenWidth,
+          'height': Constants.fallbackScreenHeight,
+        };
   }
 
   /// Update floating window flag
@@ -152,7 +122,8 @@ class MethodChannelMultiFloatingWindowAndroid
 
   /// Move floating window position
   @override
-  Future<bool> moveOverlay(String overlayId, Map<String, dynamic> position) async {
+  Future<bool> moveOverlay(
+      String overlayId, Map<String, dynamic> position) async {
     final Map<String, dynamic> arguments = {
       Constants.overlayId: overlayId,
       ...position,
@@ -185,25 +156,7 @@ class MethodChannelMultiFloatingWindowAndroid
       Constants.getOverlayPosition,
       arguments,
     );
-    return result ?? {'x': 0, 'y': 0};
-  }
-
-  /// Share data between floating window and main app
-  @override
-  Future<bool> shareData(dynamic data) async {
-    final result = await methodChannel.invokeMethod<bool>(Constants.shareData, {
-      Constants.data: data,
-    });
-    return result ?? false;
-  }
-
-  /// Check if main app is running in foreground
-  @override
-  Future<bool> isMainAppRunning() async {
-    final result = await methodChannel.invokeMethod<bool>(
-      Constants.isMainAppRunning,
-    );
-    return result ?? false;
+    return result ?? {Constants.x: 0, Constants.y: 0};
   }
 
   /// 通知所有悬浮窗刷新设置
@@ -212,14 +165,5 @@ class MethodChannelMultiFloatingWindowAndroid
     await methodChannel.invokeMethod<void>(
       Constants.sendSettingsUpdated,
     );
-  }
-
-  @override
-  Future<bool> openMainApp([Map<String, dynamic>? params]) async {
-    final result = await methodChannel.invokeMethod<bool>(
-      Constants.openMainApp,
-      params,
-    );
-    return result ?? false;
   }
 }

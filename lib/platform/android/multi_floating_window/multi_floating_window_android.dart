@@ -1,65 +1,56 @@
-import 'dart:async';
+import 'dart:ui';
 
-import 'package:flutter/services.dart';
 import 'multi_floating_window_android_platform_interface.dart';
 
 import 'constants.dart';
 
-/// Overlay flag types
+/// 悬浮窗触摸标志(与原生 `Constants.kt` 的字符串值一致)。
 enum OverlayFlag {
-  /// Click through - The floating window never receives touch events, suitable for creating click-through floating windows
+  /// 完全穿透:不接收任何触摸/焦点事件(对应"锁定")。
   clickThrough,
 
-  /// Default flag - The floating window doesn't get keyboard input focus, user can't send key events or other button events
+  /// 默认:接收触摸但不抢焦点,且不阻塞系统手势。
   defaultFlag,
-
-  /// Focus pointer - Allows pointer events outside the floating window to be sent to the windows behind, suitable for input boxes that need to display a keyboard
-  focusPointer,
 }
 
-/// Window size constants
+/// 窗口尺寸哨兵值,与原生 `Constants.MATCH_PARENT/WRAP_CONTENT` 一致。
 class WindowSize {
-  /// Full cover
-  static const int fullCover = -1;
-
-  /// Match parent
+  /// 撑满父窗口。
   static const int matchParent = -1;
 
-  /// Wrap content
+  /// 包裹内容。
   static const int wrapContent = -2;
 }
 
-/// Overlay position
+/// 悬浮窗位置(物理像素)。
 class OverlayPosition {
   final int x;
   final int y;
 
   OverlayPosition(this.x, this.y);
 
-  Map<String, dynamic> toJson() => {'x': x, 'y': y};
+  Map<String, dynamic> toJson() => {Constants.x: x, Constants.y: y};
 }
 
-/// Multi Floating Window Android - Supports multiple floating windows using Map to store views
+/// 多悬浮窗(Android):每只桌宠一个系统悬浮窗。
 class MultiFloatingWindowAndroid {
-  /// Get platform version
-  Future<String?> getPlatformVersion() {
-    return MultiFloatingWindowAndroidPlatform.instance.getPlatformVersion();
+  /// 是否已授予悬浮窗权限（"显示在其他应用上层"）。
+  static Future<bool> hasPermission() {
+    return MultiFloatingWindowAndroidPlatform.instance.hasPermission();
   }
 
-  /// Check if floating window permission is granted
-  static Future<bool> isPermissionGranted() {
-    return MultiFloatingWindowAndroidPlatform.instance.isPermissionGranted();
-  }
-
-  /// Request floating window permission
+  /// 请求悬浮窗权限：拉起系统设置页并**立刻返回**（用户是否授予无从得知，
+  /// 回到前台后由调用方重新检查）。
   static Future<bool> requestPermission() {
     return MultiFloatingWindowAndroidPlatform.instance.requestPermission();
   }
 
-  /// Show floating window with specific overlayId
+  /// 创建/显示指定 id 的悬浮窗。
+  ///
+  /// [width]/[height] 与 [startPosition] 均为**物理像素**。
   static Future<bool> showOverlay({
     required String overlayId,
-    int height = WindowSize.fullCover,
+    int height = WindowSize.matchParent,
     int width = WindowSize.matchParent,
     OverlayFlag flag = OverlayFlag.defaultFlag,
     OverlayPosition? startPosition,
@@ -68,130 +59,70 @@ class MultiFloatingWindowAndroid {
       overlayId: overlayId,
       height: height,
       width: width,
-      flag: flag.toString().split('.').last,
+      flag: flag.name,
       startPosition: startPosition?.toJson(),
     );
   }
 
-  /// Close specific floating window by overlayId
+  /// 关闭指定悬浮窗。
   static Future<bool> closeOverlay(String overlayId) {
     return MultiFloatingWindowAndroidPlatform.instance.closeOverlay(overlayId);
   }
 
-  /// Close all floating windows
-  static Future<bool> closeAllOverlays() {
-    return MultiFloatingWindowAndroidPlatform.instance.closeAllOverlays();
-  }
-
-  /// Check if any floating window is showing
-  static Future<bool> isShowing() {
-    return MultiFloatingWindowAndroidPlatform.instance.isShowing();
-  }
-
-  /// Check if specific overlay is showing
+  /// 指定悬浮窗是否已显示。
   static Future<bool> isOverlayShowing(String overlayId) {
-    return MultiFloatingWindowAndroidPlatform.instance.isOverlayShowing(overlayId);
+    return MultiFloatingWindowAndroidPlatform.instance
+        .isOverlayShowing(overlayId);
   }
 
-  /// Get all active overlay ids
-  static Future<List<String>> getOverlayIds() {
-    return MultiFloatingWindowAndroidPlatform.instance.getOverlayIds();
-  }
-
-  /// Update floating window flag for specific overlay
+  /// 更新触摸标志。
   static Future<bool> updateFlag(String overlayId, OverlayFlag flag) {
-    return MultiFloatingWindowAndroidPlatform.instance.updateFlag(
-      overlayId,
-      flag.toString().split('.').last,
-    );
+    return MultiFloatingWindowAndroidPlatform.instance
+        .updateFlag(overlayId, flag.name);
   }
 
-  /// Resize specific floating window
+  /// 调整悬浮窗尺寸(物理像素)。
   static Future<bool> resizeOverlay(String overlayId, int width, int height) {
-    return MultiFloatingWindowAndroidPlatform.instance.resizeOverlay(
-      overlayId,
-      width,
-      height,
-    );
+    return MultiFloatingWindowAndroidPlatform.instance
+        .resizeOverlay(overlayId, width, height);
   }
 
-  /// Move specific floating window position
+  /// 移动悬浮窗(物理像素)。
   static Future<bool> moveOverlay(String overlayId, OverlayPosition position) {
-    return MultiFloatingWindowAndroidPlatform.instance.moveOverlay(
-      overlayId,
-      position.toJson(),
-    );
+    return MultiFloatingWindowAndroidPlatform.instance
+        .moveOverlay(overlayId, position.toJson());
   }
 
+  /// 交给系统拖拽整个悬浮窗,返回的 Future 完成时表示拖拽结束。
   static Future<void> startDragging(String overlayId) async {
     await MultiFloatingWindowAndroidPlatform.instance.startDragging(overlayId);
   }
 
-  /// Get current specific floating window position
+  /// 当前悬浮窗位置(物理像素)。
   static Future<OverlayPosition> getOverlayPosition(String overlayId) async {
     final Map<String, dynamic> position =
-        await MultiFloatingWindowAndroidPlatform.instance.getOverlayPosition(overlayId);
+        await MultiFloatingWindowAndroidPlatform.instance
+            .getOverlayPosition(overlayId);
     return OverlayPosition(
-      position['x'] as int? ?? 0,
-      position['y'] as int? ?? 0,
+      position[Constants.x] as int? ?? 0,
+      position[Constants.y] as int? ?? 0,
     );
   }
 
-  /// Get real screen size (returns logical pixels)
+  /// 真实屏幕尺寸(物理像素;逻辑换算由 WindowControllerAndroid 处理)。
   static Future<Size> getScreenSize() async {
     final Map<String, dynamic> size =
         await MultiFloatingWindowAndroidPlatform.instance.getScreenSize();
-    final physicalWidth = (size['width'] as int? ?? 1080).toDouble();
-    final physicalHeight = (size['height'] as int? ?? 1920).toDouble();
-    
-    double pixelRatio = 1.0;
-    try {
-      //pixelRatio = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
-    } catch (e) {
-      // Fallback to 1.0 if unable to get pixel ratio
-    }
-    
-    return Size(physicalWidth / pixelRatio, physicalHeight / pixelRatio);
-  }
-
-  /// Share data between floating window and main app
-  static Future<bool> shareData(dynamic data) {
-    return MultiFloatingWindowAndroidPlatform.instance.shareData(data);
-  }
-
-  /// Open main app from floating window
-  static Future<bool> openMainApp([Map<String, dynamic>? params]) {
-    return MultiFloatingWindowAndroidPlatform.instance.openMainApp(params);
-  }
-
-  /// Close floating window from within the floating window
-  static Future<void> closeOverlayFromOverlay(String overlayId) async {
-    // Use specific channel to communicate with native service
-    const MethodChannel channel = MethodChannel(
-      Constants.overlayControlChannel,
+    return Size(
+      (size['width'] as int? ?? Constants.fallbackScreenWidth).toDouble(),
+      (size['height'] as int? ?? Constants.fallbackScreenHeight).toDouble(),
     );
-    try {
-      await channel.invokeMethod(Constants.closeOverlayFromOverlay, {
-        Constants.overlayId: overlayId,
-      });
-    } on PlatformException catch (e) {
-      throw PlatformException(
-        code: 'UNAVAILABLE',
-        message: 'Failed to close from floating window: ${e.message}',
-      );
-    }
   }
 
-  /// Check if main app is running in foreground
-  static Future<bool> isMainAppRunning() {
-    return MultiFloatingWindowAndroidPlatform.instance.isMainAppRunning();
-  }
-
-  /// 通知所有悬浮窗刷新设置（主窗口写入 MMKV 后调用）。
+  /// 通知所有悬浮窗刷新设置(主窗口写入 MMKV 后调用)。
   static Future<void> notifySettingsUpdated() async {
     try {
-      await MultiFloatingWindowAndroidPlatform.instance
-          .sendSettingsUpdated();
+      await MultiFloatingWindowAndroidPlatform.instance.sendSettingsUpdated();
     } catch (_) {}
   }
 }

@@ -1,49 +1,34 @@
 import 'dart:io';
 
+import 'package:desktop_pet/l10n/app_localizations.dart';
+import 'package:desktop_pet/platform/windows/settings_window.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
 /// Windows 窗口框架组件。
 ///
-/// 包裹在所有页面的最外层，提供自定义标题栏（最小化/最大化/关闭按钮）。
+/// 包裹在所有页面的最外层，提供自定义标题栏（关闭按钮）。
 /// 移动端不使用此组件。
-class WindowFrame extends StatefulWidget {
-  final Widget child;
-
+///
+/// 它只出现在**设置窗口**里（悬浮窗不渲染任何窗口装饰），因此关闭即"隐藏回
+/// 托盘"，由 [SettingsWindow] 直接作用于本窗口。
+///
+/// 职责划分：本组件只管那颗自定义的 X 按钮；系统级关闭（Alt+F4 / WM_CLOSE）由
+/// `SettingsWindowRoot` 的 WindowListener 统一处理——两处都注册 `onWindowClose`
+/// 只会让同一次关闭走两遍 `hide()`。
+class WindowFrame extends StatelessWidget {
   const WindowFrame({super.key, required this.child});
 
-  @override
-  State<StatefulWidget> createState() => _WindowFrameState();
-}
-
-class _WindowFrameState extends State<WindowFrame>
-with WindowListener {
-
-  @override
-  void initState() {
-    super.initState();
-    windowManager.addListener(this);
-  }
-
-  @override
-  void dispose() {
-    windowManager.removeListener(this);
-    super.dispose();
-  }
-
-  @override
-  void onWindowClose() {
-    windowManager.hide();
-  }
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    if (!Platform.isWindows) return widget.child;
+    if (!Platform.isWindows) return child;
 
     return Column(
       children: [
         _buildTitleBar(context),
-        Expanded(child: widget.child),
+        Expanded(child: child),
       ],
     );
   }
@@ -64,13 +49,14 @@ with WindowListener {
           child: Row(
             children: [
               const SizedBox(width: 12),
-              const Text('Desktop Pet',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              Text(AppLocalizations.of(context).appName,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600, fontSize: 14)),
               const Spacer(),
               _WindowButton(
                 icon: Icons.close,
                 onPressed: () async {
-                  await windowManager.hide();
+                  await SettingsWindow.hide();
                 },
               ),
             ],
@@ -79,7 +65,6 @@ with WindowListener {
       ),
     );
   }
-
 }
 
 class _WindowButton extends StatelessWidget {

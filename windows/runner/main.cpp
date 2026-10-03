@@ -2,7 +2,9 @@
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>
 
+#include "crash_handler.h"
 #include "flutter_window.h"
+#include "overlay_window.h"
 #include "utils.h"
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
@@ -12,6 +14,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {
     CreateAndAttachConsole();
   }
+
+  // Windows Error Reporting may be disabled on the target machine, so install
+  // our own handler to leave a crash log / minidump behind.
+  crash_handler::Install();
 
   // Initialize COM, so that it is available for use in the library and/or
   // plugins.
@@ -24,9 +30,23 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
-  FlutterWindow window(project);
-  Win32Window::Point origin(10, 10);
-  Win32Window::Size size(200, 200);
+  // Single-window overlay: this is the app's only window.
+  //
+  // The geometry is deliberately square (see overlay_window.h: OverlayWindowRect)
+  // and the size is applied *before* the engine exists, so the engine's view -
+  // and hence its rendering surface - is created at its final size and never has
+  // to be recreated.
+  //
+  // Only the size is set here: the rectangle's origin is above the screen
+  // (negative Y) and Win32Window::Point takes an unsigned value, so Install
+  // moves the window into place instead. A move does not recreate the surface.
+  const RECT overlay_rect = overlay_window::OverlayWindowRect();
+
+  FlutterWindow window(project, /*auto_show=*/true);
+  Win32Window::Point origin(0, 0);
+  Win32Window::Size size(
+      static_cast<unsigned int>(overlay_rect.right - overlay_rect.left),
+      static_cast<unsigned int>(overlay_rect.bottom - overlay_rect.top));
   if (!window.Create(L"desktop_pet", origin, size)) {
     return EXIT_FAILURE;
   }

@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart' show FilePicker, FileType;
 import 'package:styled_widget/styled_widget.dart';
 
 import '../../core/constants.dart';
+import '../../l10n/app_localizations.dart';
 import '../../skin/import/skin_importer.dart';
 import '../../storage/storage_service.dart';
 import '../../storage/models/pet_config.dart';
@@ -48,16 +49,18 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: const Text('修改桌宠'),
+        title: Text(l10n.editPet),
         centerTitle: true,
         actions: [
           TextButton.icon(
             onPressed: _saveChanges,
             icon: const Icon(Icons.check),
-            label: const Text('保存'),
+            label: Text(l10n.save),
           ),
         ],
       ),
@@ -66,50 +69,52 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.only(bottom: 24),
-            child: _buildPreviewSection(theme),
+            child: _buildPreviewSection(context, theme),
           ),
           Padding(
             padding: const EdgeInsets.only(bottom: 24),
-            child: _buildNameField(theme),
+            child: _buildNameField(context, theme),
           ),
-          _buildScaleSlider(theme),
+          _buildScaleSlider(context, theme),
           Padding(
             padding: const EdgeInsets.only(bottom: 24),
-            child: _buildMultiplierHint(theme, isScale: true),
+            child: _buildMultiplierHint(l10n, isScale: true),
           ),
-          _buildOpacitySlider(theme),
+          _buildOpacitySlider(context, theme),
           Padding(
             padding: const EdgeInsets.only(bottom: 24),
-            child: _buildMultiplierHint(theme, isScale: false),
+            child: _buildMultiplierHint(l10n, isScale: false),
           ),
-          _buildSpeedSlider(theme),
+          _buildSpeedSlider(context, theme),
           Padding(
             padding: const EdgeInsets.only(bottom: 24),
-            child: _buildMultiplierHint(theme, isScale: false, isSpeed: true),
+            child: _buildMultiplierHint(l10n, isScale: false, isSpeed: true),
           ),
           Padding(
             padding: const EdgeInsets.only(bottom: 32),
-            child: _buildSkinPathField(theme),
+            child: _buildSkinPathField(context, theme),
           ),
-          _buildDeleteButton(theme),
+          _buildDeleteButton(context),
         ],
       ),
     );
   }
 
-  Widget _buildMultiplierHint(ThemeData theme, {required bool isScale, bool isSpeed = false}) {
+  Widget _buildMultiplierHint(AppLocalizations l10n,
+      {required bool isScale, bool isSpeed = false}) {
     final text = isSpeed
-        ? '× 全局速度 = 最终速度'
+        ? l10n.finalSpeedFormula
         : isScale
-            ? '× 全局缩放 = 最终缩放'
-            : '× 全局透明度 = 最终透明度';
+            ? l10n.finalScaleFormula
+            : l10n.finalOpacityFormula;
     return Padding(
       padding: const EdgeInsets.only(left: 16),
       child: Text(text).fontSize(11).textColor(Colors.grey),
     );
   }
 
-  Widget _buildPreviewSection(ThemeData theme) {
+  Widget _buildPreviewSection(BuildContext context, ThemeData theme) {
+    final l10n = AppLocalizations.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -117,7 +122,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
-              child: Text('预览', style: theme.textTheme.labelLarge),
+              child: Text(l10n.preview, style: theme.textTheme.labelLarge),
             ),
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -147,7 +152,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
             if (_skinPath.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Text('皮肤: ${_skinPath.split('/').last}')
+                child: Text(l10n.skinLabel(_skinPath.split('/').last))
                     .fontSize(11)
                     .textColor(Colors.blue),
               ),
@@ -157,27 +162,29 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
     );
   }
 
-  Widget _buildNameField(ThemeData theme) {
+  Widget _buildNameField(BuildContext context, ThemeData theme) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: Text('名称', style: theme.textTheme.labelLarge),
+          child: Text(l10n.name, style: theme.textTheme.labelLarge),
         ),
         TextField(
           controller: _nameController,
-          decoration: const InputDecoration(
-            hintText: '输入桌宠名称',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.edit),
+          decoration: InputDecoration(
+            hintText: l10n.nameHint,
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.edit),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildScaleSlider(ThemeData theme) {
+  Widget _buildScaleSlider(BuildContext context, ThemeData theme) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -186,7 +193,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('缩放乘数', style: theme.textTheme.labelLarge),
+              Text(l10n.scaleMultiplier, style: theme.textTheme.labelLarge),
               Text('${(_scaleMultiplier * 100).round()}%')
                   .bold().fontSize(14).textColor(theme.colorScheme.primary),
             ],
@@ -194,7 +201,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
         ),
         Row(
           children: [
-            Icon(Icons.zoom_out, size: 20, color: Colors.grey),
+            const Icon(Icons.zoom_out, size: 20, color: Colors.grey),
             Expanded(
               child: Slider(
                 value: _scaleMultiplier,
@@ -209,14 +216,15 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
                 },
               ),
             ),
-            Icon(Icons.zoom_in, size: 20, color: Colors.grey),
+            const Icon(Icons.zoom_in, size: 20, color: Colors.grey),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildOpacitySlider(ThemeData theme) {
+  Widget _buildOpacitySlider(BuildContext context, ThemeData theme) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -225,7 +233,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('透明度乘数', style: theme.textTheme.labelLarge),
+              Text(l10n.opacityMultiplier, style: theme.textTheme.labelLarge),
               Text('${(_opacityMultiplier * 100).round()}%')
                   .bold().fontSize(14).textColor(theme.colorScheme.primary),
             ],
@@ -233,7 +241,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
         ),
         Row(
           children: [
-            Icon(Icons.opacity, size: 20, color: Colors.grey),
+            const Icon(Icons.opacity, size: 20, color: Colors.grey),
             Expanded(
               child: Slider(
                 value: _opacityMultiplier,
@@ -255,7 +263,8 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
     );
   }
 
-  Widget _buildSpeedSlider(ThemeData theme) {
+  Widget _buildSpeedSlider(BuildContext context, ThemeData theme) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -264,7 +273,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('速度乘数', style: theme.textTheme.labelLarge),
+              Text(l10n.speedMultiplier, style: theme.textTheme.labelLarge),
               Text('${_speedMultiplier.toStringAsFixed(1)}x')
                   .bold().fontSize(14).textColor(theme.colorScheme.primary),
             ],
@@ -272,7 +281,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
         ),
         Row(
           children: [
-            Icon(Icons.speed, size: 20, color: Colors.grey),
+            const Icon(Icons.speed, size: 20, color: Colors.grey),
             Expanded(
               child: Slider(
                 value: _speedMultiplier,
@@ -294,14 +303,15 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
     );
   }
 
-  Widget _buildSkinPathField(ThemeData theme) {
+  Widget _buildSkinPathField(BuildContext context, ThemeData theme) {
+    final l10n = AppLocalizations.of(context);
     final isDefault = _skinPath.isEmpty || _skinPath == defaultSkinPath;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: Text('皮肤', style: theme.textTheme.labelLarge),
+          child: Text(l10n.skin, style: theme.textTheme.labelLarge),
         ),
         Card(
           child: ListTile(
@@ -310,11 +320,11 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
               color: isDefault ? theme.colorScheme.primary : null,
             ),
             title: Text(
-              isDefault ? '默认皮肤' : _skinPath.split('/').last,
+              isDefault ? l10n.defaultSkinName : _skinPath.split('/').last,
               overflow: TextOverflow.ellipsis,
             ),
             subtitle: Text(
-              isDefault ? '使用全局设置中的皮肤' : _skinPath,
+              isDefault ? l10n.useGlobalSkin : _skinPath,
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ).fontSize(12),
@@ -324,17 +334,17 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
                 if (!isDefault)
                   IconButton(
                     icon: const Icon(Icons.close, size: 18),
-                    tooltip: '恢复默认',
+                    tooltip: l10n.restoreDefault,
                     onPressed: () => setState(() => _skinPath = ''),
                   ),
                 IconButton(
                   icon: const Icon(Icons.archive_outlined, size: 18),
-                  tooltip: '导入 ZIP 皮肤包',
+                  tooltip: l10n.importZipSkin,
                   onPressed: _importZipSkin,
                 ),
                 IconButton(
                   icon: const Icon(Icons.chevron_right, size: 18),
-                  tooltip: '选择皮肤',
+                  tooltip: l10n.chooseSkin,
                   onPressed: _openSkinPicker,
                 ),
               ],
@@ -346,11 +356,13 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
     );
   }
 
-  Widget _buildDeleteButton(ThemeData theme) {
+  Widget _buildDeleteButton(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return OutlinedButton.icon(
       onPressed: () => _showDeleteDialog(),
-      icon: Icon(Icons.delete, color: Colors.red),
-      label: Text('删除此桌宠', style: TextStyle(color: Colors.red)),
+      icon: const Icon(Icons.delete, color: Colors.red),
+      label: Text(l10n.deletePetTitle,
+          style: const TextStyle(color: Colors.red)),
       style: OutlinedButton.styleFrom(
         side: const BorderSide(color: Colors.red),
         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -372,6 +384,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
   }
 
   Future<void> _importZipSkin() async {
+    final l10n = AppLocalizations.of(context);
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['zip'],
@@ -380,14 +393,12 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
     if (zipPath == null || !mounted) return;
 
     try {
-      final petId = widget.pet.id.isNotEmpty
-          ? widget.pet.id
-          : 'pet_${DateTime.now().millisecondsSinceEpoch}';
+      final petId = widget.pet.id.isNotEmpty ? widget.pet.id : newPetId();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('正在导入皮肤包...'),
-          duration: Duration(seconds: 1),
+        SnackBar(
+          content: Text(l10n.importingSkin),
+          duration: const Duration(seconds: 1),
         ),
       );
 
@@ -401,14 +412,14 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
 
       InfoOverlay.show(
         context,
-        title: '皮肤导入成功',
+        title: l10n.skinImportSuccess,
         message: importedPath.split('/').last,
       );
     } catch (e) {
       if (!mounted) return;
       InfoOverlay.show(
         context,
-        title: '皮肤导入失败',
+        title: l10n.skinImportFailed,
         message: '$e',
         type: InfoType.error,
       );
@@ -416,9 +427,11 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
   }
 
   void _saveChanges() {
+    final l10n = AppLocalizations.of(context);
     final baseScale = StorageService.readSettings().baseScale;
-    if (baseScale * _scaleMultiplier > maxFinalScale) {
-      InfoOverlay.show(context, title: '缩放乘数过高', message: '请降低乘数或全局缩放');
+    if (rawFinalScale(baseScale, _scaleMultiplier) > maxFinalScale) {
+      InfoOverlay.show(context,
+          title: l10n.scaleTooHigh, message: l10n.scaleTooHighHint);
       return;
     }
 
@@ -430,22 +443,23 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
       skinPath: _skinPath,
     );
     final resultPet = widget.isNewPet && widget.pet.id.isEmpty
-        ? updatedPet.copyWith(id: 'pet_${DateTime.now().millisecondsSinceEpoch}')
+        ? updatedPet.copyWith(id: newPetId())
         : updatedPet;
 
     Navigator.pop(context, resultPet);
   }
 
   void _showDeleteDialog() {
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('删除桌宠'),
-        content: Text('确定要删除「${widget.pet.name}」吗？此操作不可恢复。'),
+        title: Text(l10n.deletePetTitle),
+        content: Text(l10n.deletePetConfirm(widget.pet.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () {
@@ -453,7 +467,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
               Navigator.pop(context, null);
             },
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('删除'),
+            child: Text(l10n.delete),
           ),
         ],
       ),

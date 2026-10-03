@@ -2,11 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants.dart';
-import '../../core/providers.dart';
 import '../../pet/pet_notifier.dart';
 import '../../pet/pet_widget.dart';
-import '../widgets/quick_launch_overlay.dart';
+import '../../pet/pet_providers.dart';
+import '../../platform/android/multi_floating_window/constants.dart';
+import '../../storage/storage_service.dart';
 
+/// 单只桌宠的系统悬浮窗内容（Android）。
+///
+/// 该引擎由启动参数指定唯一一只宠物，故用 [petIdProvider] 定位它。
+/// Windows 没有对应组件：那里所有桌宠同处一个悬浮窗场景，见 `lib/pet/pet_view.dart`。
 class AndroidPetOverlay extends ConsumerStatefulWidget {
   const AndroidPetOverlay({super.key});
 
@@ -16,23 +21,27 @@ class AndroidPetOverlay extends ConsumerStatefulWidget {
 
 class _AndroidOverlayEntryState extends ConsumerState<AndroidPetOverlay>
     with WidgetsBindingObserver {
-  PetNotifier? notifier;
+  late final String _petId = ref.read(petIdProvider);
+
+  PetNotifier get _notifier => ref.read(petStateProvider(_petId).notifier);
 
   @override
   void initState() {
     super.initState();
-    notifier = ref.read(petStateProvider.notifier);
     WidgetsBinding.instance.addObserver(this);
     _setupSettingsHandler();
   }
 
   /// 注册 MethodChannel 处理器，接收来自原生层（主窗口）的 settings_updated 通知。
+  ///
+  /// 只把"存储变了"转成 [StorageService.changes] 这一个信号——缩放/不透明度/速度
+  /// 的重算由 [PetWidget] 监听 `appDataProvider` 完成，与 Windows 完全同一条路径。
   void _setupSettingsHandler() {
-    final channel = const MethodChannel('multi_floating_window_android');
+    const channel = MethodChannel(Constants.channelName);
     channel.setMethodCallHandler((call) async {
-      if (call.method == 'settings_updated') {
+      if (call.method == Constants.settingsUpdatedEvent) {
         if (!mounted) return;
-        notifier?.refreshSettings();
+        StorageService.notifySettingsChanged();
       }
     });
   }
@@ -40,7 +49,7 @@ class _AndroidOverlayEntryState extends ConsumerState<AndroidPetOverlay>
   @override
   void didChangeMetrics() {
     // Android 横竖屏切换时刷新屏幕尺寸缓存
-    ref.read(petStateProvider.notifier).refreshScreenSize();
+    _notifier.refreshScreenSize();
   }
 
   @override
@@ -51,20 +60,22 @@ class _AndroidOverlayEntryState extends ConsumerState<AndroidPetOverlay>
 
   @override
   Widget build(BuildContext context) {
+    // 设置变更 → 重算本宠的派生值（与 Windows 的 PetView 同一套）。
+    //
+    // 原生推来的 `settings_updated` 只负责把它转成 `StorageService.changes` 这一个
+    // 信号（见 [_setupSettingsHandler]），真正的刷新在这里统一发生。
+    ref.listen(appDataProvider, (_, _) => _notifier.refreshSettings());
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       resizeToAvoidBottomInset: false,
       body: ExcludeSemantics(
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
-          onTap: () => notifier?.onEvent(Trigger.click),
-          onPanStart: (_) {
-            notifier?.onDragStart();
-            notifier?.windowController.startDragging().then((_) {
-              notifier?.onDragEnd();
-            });
-          },
-          child: QuickLaunchOverlay(child: const PetWidget()),
+          onTap: () => _notifier.onEvent(Trigger.click),
+          // Android 的拖拽交给原生：系统移动整个悬浮窗，松手后回读位置。
+          onPanStart: (_) => _notifier.startWindowDrag(),
+          child: PetWidget(petId: _petId),
         ),
       ),
     );

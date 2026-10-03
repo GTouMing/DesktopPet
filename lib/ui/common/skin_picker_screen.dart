@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../skin/skin_lister.dart';
 import '../../storage/storage_service.dart';
 
@@ -35,13 +36,16 @@ class _SkinPickerScreenState extends State<SkinPickerScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('选择皮肤'), centerTitle: true),
+      backgroundColor: theme.colorScheme.surface,
+      appBar: AppBar(title: Text(l10n.chooseSkinTitle), centerTitle: true),
       body: _buildBody(theme),
     );
   }
 
   Widget _buildBody(ThemeData theme) {
+    final l10n = AppLocalizations.of(context);
     if (_error != null) {
       return Center(
         child: Padding(
@@ -49,11 +53,20 @@ class _SkinPickerScreenState extends State<SkinPickerScreen> {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
             const SizedBox(height: 16),
-            Text('加载皮肤列表失败', style: theme.textTheme.titleMedium),
+            Text(l10n.loadSkinsFailed, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(_error!, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
             const SizedBox(height: 24),
-            FilledButton.icon(onPressed: () { setState(() { _skins = null; _error = null; }); _loadSkins(); }, icon: const Icon(Icons.refresh), label: const Text('重试')),
+            FilledButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _skins = null;
+                    _error = null;
+                  });
+                  _loadSkins();
+                },
+                icon: const Icon(Icons.refresh),
+                label: Text(l10n.retry)),
           ]),
         ),
       );
@@ -66,9 +79,10 @@ class _SkinPickerScreenState extends State<SkinPickerScreen> {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Icon(Icons.folder_off, size: 64, color: Colors.grey[300]),
           const SizedBox(height: 16),
-          Text('未找到皮肤包', style: theme.textTheme.titleMedium),
+          Text(l10n.noSkinsFound, style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
-          Text('该目录下没有包含 skin.json 的有效皮肤包', style: TextStyle(color: Colors.grey[500])),
+          Text(l10n.noSkinsFoundHint,
+              style: TextStyle(color: Colors.grey[500])),
         ]),
       );
     }
@@ -80,7 +94,12 @@ class _SkinPickerScreenState extends State<SkinPickerScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Text(isDefault ? '来源: 已导入的皮肤包' : '目录: $skinDir', style: TextStyle(fontSize: 12, color: Colors.grey[500]), overflow: TextOverflow.ellipsis),
+          child: Text(
+              isDefault
+                  ? l10n.skinSourceImported
+                  : l10n.skinSourceDir('$skinDir'),
+              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              overflow: TextOverflow.ellipsis),
         ),
         Expanded(
           child: ListView.separated(
@@ -113,6 +132,7 @@ class _SkinTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: skin.isBuiltIn ? Theme.of(context).colorScheme.primaryContainer : Colors.grey[100],
@@ -120,7 +140,7 @@ class _SkinTile extends StatelessWidget {
       ),
       title: Row(children: [
         Flexible(child: Text(skin.name, overflow: TextOverflow.ellipsis)),
-        if (skin.isBuiltIn) ...[const SizedBox(width: 8), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer, borderRadius: BorderRadius.circular(4)), child: Text('内置', style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onPrimaryContainer)))],
+        if (skin.isBuiltIn) ...[const SizedBox(width: 8), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer, borderRadius: BorderRadius.circular(4)), child: Text(l10n.builtIn, style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onPrimaryContainer)))],
       ]),
       subtitle: Text(skin.path, overflow: TextOverflow.ellipsis, maxLines: 1, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
       trailing: const Icon(Icons.chevron_right),

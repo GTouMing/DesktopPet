@@ -1,11 +1,11 @@
 import 'dart:ui';
 
 /// Abstract interface for platform-specific pet window management.
+///
+/// Windows 单引擎改造后桌宠不再是独立窗口（位置/显隐由悬浮窗场景表达），因此
+/// 只有 Android 提供实现；见 `platform_factory.dart:createWindowController`。
+/// 行为循环里"移动桌宠"这一步仍走 [setPosition] / [setPositionSync]。
 abstract class WindowController {
-  /// Unique identifier for this window/overlay instance.
-  /// On Android this is the overlayId; on Windows this is the window identifier.
-  String get id;
-
   /// 初始化单个桌宠窗口。
   Future<void> petInit();
 
@@ -13,27 +13,20 @@ abstract class WindowController {
   Future<void> hide();
   Future<void> setIgnoreMouseEvents(bool ignore);
   Future<Offset> getPosition();
-  /// 通过 [SetWindowPos]（含 SWP_NOSENDCHANGING）同步移动窗口。
-  ///
-  /// 仅在 Windows 平台有效，用于避免 `_onTick` 中异步 setPosition
-  /// 产生的窗口消息干扰托盘弹出菜单。
+
+  /// 不等待完成的移动（行为刻每 [behaviorTickMs] 调用一次，避免异步消息堆积）。
   void setPositionSync(Offset pos);
 
   Future<void> setPosition(Offset pos);
-  Future<void> moveRelative(Offset delta);
   Future<void> setSize(Size size);
-  Future<void> setAlwaysOnTop(bool value);
-  Future<void> close();
-  void dispose();
   Future<Size> getScreenSize();
 
   /// 设备像素比，用于逻辑/物理像素转换。
-  /// - Android：使用 Kotlin 侧传入的真实 density（可能不同于 overlay engine 的 PlatformDispatcher）
-  /// - Windows：返回 1.0（逻辑像素 == 物理像素）
-  double get devicePixelRatio;
   ///
-  /// 调用后系统接管拖拽循环，通过 [Future] 返回时表示拖拽结束。
-  /// - Windows：使用 [windowManager.startDragging]（发送 WM_SYSCOMMAND）
-  /// - Android：使用 [MultiFloatingWindowAndroid.startDragging]
+  /// Android 原生悬浮窗用物理像素，而 Flutter 侧一律用逻辑像素，故调用侧需据此
+  /// 换算。
+  double get devicePixelRatio;
+
+  /// 交给系统接管拖拽循环，返回的 [Future] 完成时表示拖拽结束。
   Future<void> startDragging();
 }

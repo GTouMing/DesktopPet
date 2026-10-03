@@ -9,21 +9,8 @@ class SkinRepository {
     return StorageService.readSkins();
   }
 
-  SkinEntry? getCurrentSkin() {
-    return listSkins().isNotEmpty ? listSkins().first : null;
-  }
-
   Future<void> addSkin(SkinEntry entry) async {
     StorageService.addSkin(entry);
-  }
-
-  Future<void> deleteSkin(SkinEntry entry) async {
-    if (entry.isBuiltIn) return;
-    final dir = Directory(entry.folderPath);
-    if (await dir.exists()) {
-      await dir.delete(recursive: true);
-    }
-    StorageService.removeSkinByPath(entry.folderPath);
   }
 
   /// 将全部已导入皮肤复制到 [targetDir]。

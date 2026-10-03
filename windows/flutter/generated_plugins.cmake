@@ -9,7 +9,6 @@ list(APPEND FLUTTER_PLUGIN_LIST
   mmkv_win32
   screen_retriever_windows
   system_tray
-  win32hooks
   window_manager
 )
 

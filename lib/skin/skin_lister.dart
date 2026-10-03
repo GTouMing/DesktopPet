@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../core/constants.dart';
+import '../l10n/l10n.dart';
 import '../storage/storage_service.dart';
 import 'import/skin_repository.dart';
 
@@ -31,6 +32,7 @@ class SkinLister {
   static Future<List<DiscoveredSkin>> listAvailable() async {
     final settings = StorageService.readSettings();
     final dir = settings.skinDir;
+    final builtInName = l10nFor(settings.locale).defaultSkinName;
     final skins = <DiscoveredSkin>[];
     final seen = <String>{};
 
@@ -43,8 +45,8 @@ class SkinLister {
       }
       // 内置默认皮肤始终在列表末尾
       if (!seen.contains(defaultSkinPath)) {
-        skins.add(const DiscoveredSkin(
-          name: '默认皮肤',
+        skins.add(DiscoveredSkin(
+          name: builtInName,
           path: defaultSkinPath,
           isBuiltIn: true,
         ));
@@ -80,8 +82,8 @@ class SkinLister {
 
       // 内置默认皮肤始终在列表末尾
       if (!seen.contains(defaultSkinPath)) {
-        skins.add(const DiscoveredSkin(
-          name: '默认皮肤',
+        skins.add(DiscoveredSkin(
+          name: builtInName,
           path: defaultSkinPath,
           isBuiltIn: true,
         ));

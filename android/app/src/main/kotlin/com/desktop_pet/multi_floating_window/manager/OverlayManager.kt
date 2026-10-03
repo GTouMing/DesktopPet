@@ -17,9 +17,8 @@ import com.desktop_pet.multi_floating_window.constants.Constants
 import io.flutter.embedding.android.FlutterSurfaceView
 import io.flutter.embedding.android.FlutterView
 import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.embedding.engine.FlutterEngineCache
+import io.flutter.embedding.engine.FlutterEngineGroup
 import io.flutter.embedding.engine.dart.DartExecutor
-import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
 
@@ -48,18 +47,26 @@ class OverlayManager(
 
     // Map to store multiple overlays by overlayId
     private val overlays: MutableMap<String, OverlayInfo> = mutableMapOf()
-    private var eventSink: EventChannel.EventSink? = null
 
-    companion object {
-        // No preloaded engine functionality - removed for simplicity
+    /**
+     * 所有悬浮窗引擎都从这一个分组创建。
+     *
+     * 每只桌宠仍是独立的引擎/isolate（它们是各自独立的系统悬浮窗，无法合并），
+     * 但同组引擎共享 Dart VM 快照、字体与 GPU 上下文，单个悬浮窗的启动开销与
+     * 显存占用都远低于各自 `FlutterEngine(context)` 从零启动。
+     *
+     * 分组由本类持有：它挂在主引擎的 plugin 上，生命周期长于任何单个悬浮窗。
+     */
+    private val engineGroup: FlutterEngineGroup by lazy {
+        FlutterEngineGroup(context.applicationContext)
     }
 
     /**
-     * Check floating window permission
+     * 是否已授予"显示在其他应用上层"权限。
+     *
+     * Dart 侧只在**缺失**时才拉起设置页：否则每次启动都会把用户甩到系统设置里。
      */
-    fun isPermissionGranted(): Boolean {
-        return Settings.canDrawOverlays(context)
-    }
+    fun hasPermission(): Boolean = Settings.canDrawOverlays(context)
 
     /**
      * Request floating window permission
@@ -73,6 +80,8 @@ class OverlayManager(
 
     /**
      * Show floating window with specific overlayId
+     *
+     * [width]/[height] 与 [startPosition] 均为物理像素(由 Dart 侧换算)。
      */
     fun showOverlay(
         overlayId: String,
@@ -86,37 +95,35 @@ class OverlayManager(
             closeOverlay(overlayId)
         }
 
-        // Create a new Flutter engine for this overlay
-        val flutterEngine = FlutterEngine(context)
+        // 没有权限时**不要建引擎**。
+        //
+        // 引擎一建好，它的 Dart 入口就会跑起来；此时 `addView` 必然抛异常，只能就地
+        // 回收，而回收是共享分组里的引擎是有代价的：分组内引擎由第一个引擎的 shell
+        // 派生，销毁它会连累同组的其它引擎（实测：先失败两个再重建，第二个悬浮窗
+        // 拿不到 surface，`mDrawState=NO_SURFACE`、`visible=false`，且永不恢复）。
+        //
+        // 干脆不建：用户授予权限后由 Dart 侧重试（MainScreen 的 resumed 钩子）。
+        if (!Settings.canDrawOverlays(context)) {
+            android.util.Log.w(
+                "OverlayManager",
+                "showOverlay($overlayId): 缺少悬浮窗权限，跳过创建"
+            )
+            return
+        }
+
+        // 从共享分组创建本悬浮窗的引擎（overlayId 作为 Dart 入口参数传入）。
+        //
+        // createAndRunEngine 会自己执行入口点，因此不再需要手动
+        // executeDartEntrypoint。
+        val engineOptions = FlutterEngineGroup.Options(context)
+            .setDartEntrypoint(DartExecutor.DartEntrypoint.createDefault())
+            .setDartEntrypointArgs(listOf(overlayId))
+        val flutterEngine = engineGroup.createAndRunEngine(engineOptions)!!
 
         flutterEngine.let { engine ->
-            // ── 通过 dartEntrypointArgs 传递 overlayId 和真实 density ──────
-            val defaultEntrypoint = DartExecutor.DartEntrypoint.createDefault()
-            val density = context.resources.displayMetrics.density
-            val arg = listOf(overlayId, density.toString())
-            engine.dartExecutor.executeDartEntrypoint(defaultEntrypoint, arg)
-            // Always cache the current engine for overlay control
-            FlutterEngineCache.getInstance().put("overlay_engine_$overlayId", engine)
-
-            // Set up dedicated method channel for the overlay engine
-            val overlayControlChannel = MethodChannel(
-                engine.dartExecutor.binaryMessenger, Constants.OVERLAY_CONTROL_CHANNEL)
-            overlayControlChannel.setMethodCallHandler { call, result ->
-                if (call.method == Constants.CLOSE_OVERLAY_FROM_OVERLAY) {
-                    val overlayIdToClose = call.argument<String>(Constants.OVERLAY_ID)
-                    if (overlayIdToClose != null) {
-                        closeOverlay(overlayIdToClose)
-                    }
-                    result.success(true)
-                } else {
-                    result.notImplemented()
-                }
-            }
-
-            // Also register the main channel for the overlay engine
-            // This allows overlay to call methods like getOverlayPosition, moveOverlay, etc.
+            // 悬浮窗引擎内部的通道：供悬浮窗 Dart 侧回读/调整自己的窗口。
             val mainChannel = MethodChannel(
-                engine.dartExecutor.binaryMessenger, "multi_floating_window_android")
+                engine.dartExecutor.binaryMessenger, Constants.MAIN_CHANNEL)
             mainChannel.setMethodCallHandler { call, result ->
                 when (call.method) {
                     Constants.GET_OVERLAY_POSITION -> {
@@ -206,9 +213,6 @@ class OverlayManager(
                 }
             }
 
-            // Register a MethodChannel on the overlay engine for native→Dart
-            // gesture events (mirrors window_manager's architecture).
-
             // Android 13 上 FlutterTextureView 在悬浮窗中 surface 会被系统销毁重建
             // 导致闪烁。改用 FlutterSurfaceView + zOrderOnTop 绕开此问题。
             val surfaceView = FlutterSurfaceView(context)
@@ -251,12 +255,17 @@ class OverlayManager(
             // Add to window and store in map
             try {
                 windowManager.addView(overlayView, windowParams)
-                overlays[overlayId] = overlayInfo
-
-                triggerContinuousRendering(overlayInfo, engine)
             } catch (e: Exception) {
+                // 引擎与视图已经建好但不能进窗口：就地回收，避免留下一个无窗口的引擎。
                 e.printStackTrace()
+                flutterView.detachFromFlutterEngine()
+                engine.destroy()
+                return
             }
+
+            overlays[overlayId] = overlayInfo
+
+            triggerContinuousRendering(overlayInfo, engine)
         }
     }
 
@@ -281,27 +290,8 @@ class OverlayManager(
         val params = WindowManager.LayoutParams().apply {
             format = PixelFormat.TRANSLUCENT
 
-            // Set flags based on flag and enableDrag
-            flags = when (flag) {
-                Constants.CLICK_THROUGH -> {
-                    // Click through: window doesn't receive any events
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                }
-                Constants.FOCUS_POINTER -> {
-                    // Focus pointer: allows external events, self-interactive (remove NOT_FOCUSABLE)
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                }
-                else -> { // defaultFlag
-                    // For system gesture compatibility, use a combination of flags that:
-                    // 1. Allow system gestures to work properly
-                    // 2. Prevent the overlay from blocking system navigation
-                    // 3. Still allow interaction with the overlay content
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                            WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
-                }
-            }
+            // Set flags based on flag
+            flags = windowFlagsFor(flag)
 
             type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -310,29 +300,8 @@ class OverlayManager(
                 WindowManager.LayoutParams.TYPE_PHONE
             }
 
-            this.width = when (width) {
-                Constants.MATCH_PARENT -> {
-                    WindowManager.LayoutParams.MATCH_PARENT
-                }
-                Constants.WRAP_CONTENT -> {
-                    WindowManager.LayoutParams.WRAP_CONTENT
-                }
-                else -> {
-                    width
-                }
-            }
-
-            this.height = when (height) {
-                Constants.MATCH_PARENT -> {
-                    WindowManager.LayoutParams.MATCH_PARENT
-                }
-                Constants.WRAP_CONTENT -> {
-                    WindowManager.LayoutParams.WRAP_CONTENT
-                }
-                else -> {
-                    height
-                }
-            }
+            this.width = resolveSize(width)
+            this.height = resolveSize(height)
 
             gravity = Gravity.TOP or Gravity.START
             
@@ -344,15 +313,43 @@ class OverlayManager(
     }
 
     /**
+     * 标志字符串 → WindowManager 标志位。
+     *
+     * 只区分"穿透"与"默认"两种；具体策略由 Dart 侧决定(见 OverlayFlag)。
+     */
+    private fun windowFlagsFor(flag: String): Int {
+        return when (flag) {
+            Constants.CLICK_THROUGH -> {
+                // Click through: window doesn't receive any events
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            }
+            else -> { // defaultFlag
+                // For system gesture compatibility, use a combination of flags that:
+                // 1. Allow system gestures to work properly
+                // 2. Prevent the overlay from blocking system navigation
+                // 3. Still allow interaction with the overlay content
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+            }
+        }
+    }
+
+    /** 尺寸哨兵值 → LayoutParams 尺寸。 */
+    private fun resolveSize(value: Int): Int {
+        return when (value) {
+            Constants.MATCH_PARENT -> WindowManager.LayoutParams.MATCH_PARENT
+            Constants.WRAP_CONTENT -> WindowManager.LayoutParams.WRAP_CONTENT
+            else -> value
+        }
+    }
+
+    /**
      * Close specific floating window by overlayId
      */
     fun closeOverlay(overlayId: String) {
         val overlayInfo = overlays[overlayId] ?: return
-
-        // Clean up dedicated channel
-        overlayInfo.flutterEngine.dartExecutor.binaryMessenger.let { messenger ->
-            MethodChannel(messenger, Constants.OVERLAY_CONTROL_CHANNEL).setMethodCallHandler(null)
-        }
 
         try {
             windowManager.removeView(overlayInfo.overlayView)
@@ -365,20 +362,9 @@ class OverlayManager(
 
         // Handle Flutter engine - destroy it
         overlayInfo.flutterEngine.destroy()
-        FlutterEngineCache.getInstance().remove("overlay_engine_$overlayId")
 
         // Remove from map
         overlays.remove(overlayId)
-    }
-
-    /**
-     * Close all floating windows
-     */
-    fun closeAllOverlays() {
-        val overlayIdsToClose = overlays.keys.toList()
-        for (overlayId in overlayIdsToClose) {
-            closeOverlay(overlayId)
-        }
     }
 
     /**
@@ -387,22 +373,7 @@ class OverlayManager(
     fun updateFlag(overlayId: String, flag: String): Boolean {
         val overlayInfo = overlays[overlayId] ?: return false
 
-        overlayInfo.windowParams.flags = when (flag) {
-            Constants.CLICK_THROUGH -> {
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-            }
-            Constants.FOCUS_POINTER -> {
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-            }
-            else -> { // defaultFlag
-                // Use the same flag combination as setupWindowParams for consistency
-                // This ensures system gestures work properly across all scenarios
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
-            }
-        }
+        overlayInfo.windowParams.flags = windowFlagsFor(flag)
 
         try {
             windowManager.updateViewLayout(overlayInfo.overlayView, overlayInfo.windowParams)
@@ -420,29 +391,8 @@ class OverlayManager(
     fun resizeOverlay(overlayId: String, width: Int, height: Int): Boolean {
         val overlayInfo = overlays[overlayId] ?: return false
 
-        overlayInfo.windowParams.width = when (width) {
-            Constants.MATCH_PARENT -> {
-                WindowManager.LayoutParams.MATCH_PARENT
-            }
-            Constants.WRAP_CONTENT -> {
-                WindowManager.LayoutParams.WRAP_CONTENT
-            }
-            else -> {
-                width
-            }
-        }
-
-        overlayInfo.windowParams.height = when (height) {
-            Constants.MATCH_PARENT -> {
-                WindowManager.LayoutParams.MATCH_PARENT
-            }
-            Constants.WRAP_CONTENT -> {
-                WindowManager.LayoutParams.WRAP_CONTENT
-            }
-            else -> {
-                height
-            }
-        }
+        overlayInfo.windowParams.width = resolveSize(width)
+        overlayInfo.windowParams.height = resolveSize(height)
 
         try {
             windowManager.updateViewLayout(overlayInfo.overlayView, overlayInfo.windowParams)
@@ -544,36 +494,10 @@ class OverlayManager(
     }
 
     /**
-     * Check if any overlay is showing
+     * Check if any overlay is showing（插件用它决定是否停掉前台服务）。
      */
     fun isShowing(): Boolean {
         return overlays.isNotEmpty()
-    }
-
-    /**
-     * Get all active overlay ids
-     */
-    fun getOverlayIds(): List<String> {
-        return overlays.keys.toList()
-    }
-
-    /**
-     * Share data between floating window and main app
-     */
-    fun shareData(data: Any?): Boolean {
-        if (eventSink == null) {
-            return false
-        }
-
-        eventSink?.success(data)
-        return true
-    }
-
-    /**
-     * Set event sink
-     */
-    fun setEventSink(sink: EventChannel.EventSink?) {
-        this.eventSink = sink
     }
 
     /**
@@ -586,9 +510,9 @@ class OverlayManager(
             try {
                 val channel = MethodChannel(
                     overlayInfo.flutterEngine.dartExecutor.binaryMessenger,
-                    "multi_floating_window_android"
+                    Constants.MAIN_CHANNEL
                 )
-                channel.invokeMethod("settings_updated", null)
+                channel.invokeMethod(Constants.SETTINGS_UPDATED_EVENT, null)
             } catch (_: Exception) {
                 // 单窗口失败不影响其他
             }
@@ -596,7 +520,7 @@ class OverlayManager(
     }
 
     /**
-     * Get real screen size（返回逻辑像素）
+     * Get real screen size（返回物理像素）
      */
     fun getScreenSize(): Map<String?, Int?> {
         val displayMetrics = android.content.res.Resources.getSystem().displayMetrics

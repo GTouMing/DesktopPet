@@ -24,13 +24,9 @@ abstract class MultiFloatingWindowAndroidPlatform extends PlatformInterface {
     _instance = instance;
   }
 
-  Future<String?> getPlatformVersion() {
-    throw UnimplementedError('platformVersion() has not been implemented.');
-  }
-
-  /// Check if floating window permission is granted
-  Future<bool> isPermissionGranted() {
-    throw UnimplementedError('isPermissionGranted() has not been implemented.');
+  /// 是否已授予悬浮窗权限
+  Future<bool> hasPermission() {
+    throw UnimplementedError('hasPermission() has not been implemented.');
   }
 
   /// Request floating window permission
@@ -54,24 +50,9 @@ abstract class MultiFloatingWindowAndroidPlatform extends PlatformInterface {
     throw UnimplementedError('closeOverlay() has not been implemented.');
   }
 
-  /// Close all floating windows
-  Future<bool> closeAllOverlays() {
-    throw UnimplementedError('closeAllOverlays() has not been implemented.');
-  }
-
-  /// Check if floating window is currently showing
-  Future<bool> isShowing() {
-    throw UnimplementedError('isShowing() has not been implemented.');
-  }
-
   /// Check if specific overlay is showing
   Future<bool> isOverlayShowing(String overlayId) {
     throw UnimplementedError('isOverlayShowing() has not been implemented.');
-  }
-
-  /// Get all active overlay ids
-  Future<List<String>> getOverlayIds() {
-    throw UnimplementedError('getOverlayIds() has not been implemented.');
   }
 
   /// Update floating window flag
@@ -103,23 +84,8 @@ abstract class MultiFloatingWindowAndroidPlatform extends PlatformInterface {
     throw UnimplementedError('getScreenSize() has not been implemented.');
   }
 
-  /// Share data between floating window and main app
-  Future<bool> shareData(dynamic data) {
-    throw UnimplementedError('shareData() has not been implemented.');
-  }
-
-  /// Check if main app is running in foreground
-  Future<bool> isMainAppRunning() {
-    throw UnimplementedError('isMainAppRunning() has not been implemented.');
-  }
-
   /// 通知所有悬浮窗刷新设置
   Future<void> sendSettingsUpdated() {
     throw UnimplementedError('sendSettingsUpdated() has not been implemented.');
-  }
-
-  /// Open main app from floating window
-  Future<bool> openMainApp([Map<String, dynamic>? params]) {
-    throw UnimplementedError('openMainApp() has not been implemented.');
   }
 }

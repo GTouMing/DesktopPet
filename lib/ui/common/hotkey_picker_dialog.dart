@@ -1,3 +1,4 @@
+import 'package:desktop_pet/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 
 /// 快捷键选择对话框。
@@ -43,8 +44,8 @@ class _HotkeyPickerDialogState extends State<HotkeyPickerDialog> {
     return list;
   }
 
-  String get _displayValue {
-    if (_key.isEmpty) return '（点击下方按钮选择）';
+  String _displayValue(AppLocalizations l10n) {
+    if (_key.isEmpty) return l10n.hotkeyPlaceholder;
     final parts = [
       ..._modifiers
           .map((m) => m[0].toUpperCase() + m.substring(1)),
@@ -55,8 +56,9 @@ class _HotkeyPickerDialogState extends State<HotkeyPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return AlertDialog(
-      title: const Text('设置快捷键'),
+      title: Text(l10n.hotkeyTitle),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -69,15 +71,15 @@ class _HotkeyPickerDialogState extends State<HotkeyPickerDialog> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              _displayValue,
+              _displayValue(l10n),
               style: Theme.of(context).textTheme.titleLarge,
             ),
           ),
           const SizedBox(height: 20),
 
           // 修饰键勾选
-          const Text('修饰键（可多选）',
-              style: TextStyle(fontSize: 13, color: Colors.grey)),
+          Text(l10n.modifiersLabel,
+              style: const TextStyle(fontSize: 13, color: Colors.grey)),
           const SizedBox(height: 8),
           Wrap(
             spacing: 12,
@@ -102,8 +104,8 @@ class _HotkeyPickerDialogState extends State<HotkeyPickerDialog> {
           const SizedBox(height: 20),
 
           // 键名选择
-          const Text('按键',
-              style: TextStyle(fontSize: 13, color: Colors.grey)),
+          Text(l10n.keyLabel,
+              style: const TextStyle(fontSize: 13, color: Colors.grey)),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -125,7 +127,7 @@ class _HotkeyPickerDialogState extends State<HotkeyPickerDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
+          child: Text(l10n.cancel),
         ),
         FilledButton(
           onPressed: _key.isEmpty
@@ -134,7 +136,7 @@ class _HotkeyPickerDialogState extends State<HotkeyPickerDialog> {
                   widget.onConfirm(_key, _modifiers);
                   Navigator.pop(context);
                 },
-          child: const Text('确定'),
+          child: Text(l10n.confirm),
         ),
       ],
     );

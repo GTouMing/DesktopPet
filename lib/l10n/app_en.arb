@@ -1,6 +1,159 @@
 {
   "@@locale": "en",
-  "appName": "APeet",
+  "appName": "Desktop Pet",
+  "cancel": "Cancel",
+  "confirm": "OK",
+  "delete": "Delete",
+  "retry": "Retry",
+  "save": "Save",
+  "restoreDefault": "Restore default",
+  "disable": "Disable",
   "settings": "Settings",
-  "": ""
+  "addPet": "Add pet",
+  "petAdded": "Pet added",
+  "sectionAppearance": "Appearance",
+  "sectionSkin": "Skin",
+  "sectionShortcut": "Shortcut",
+  "sectionQuickLaunch": "Launch shortcuts",
+  "sectionAbout": "About",
+  "sectionLanguage": "Language",
+  "globalOpacity": "Global opacity — {percent}%",
+  "@globalOpacity": {
+    "placeholders": {
+      "percent": { "type": "int" }
+    }
+  },
+  "globalScale": "Global scale — {scale}x",
+  "@globalScale": {
+    "placeholders": {
+      "scale": { "type": "String" }
+    }
+  },
+  "globalSpeed": "Global speed — {speed}x",
+  "@globalSpeed": {
+    "placeholders": {
+      "speed": { "type": "String" }
+    }
+  },
+  "scaleLimitExceeded": "Global scale cannot exceed {limit}x",
+  "@scaleLimitExceeded": {
+    "placeholders": {
+      "limit": { "type": "String" }
+    }
+  },
+  "skinDirDefaultPath": "Skin directory (default)",
+  "skinDir": "Skin directory",
+  "skinBuiltInValue": "assets/default_skin (built-in)",
+  "viewAvailableSkins": "View available skins",
+  "browseDirectory": "Browse directory",
+  "skinMigrated": "Imported skin packages migrated",
+  "skinMigrateFailed": "Failed to migrate skin packages",
+  "@skinMigrateFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "defaultSkinName": "Default skin",
+  "quickLaunchTitle": "Quick launch",
+  "setShortcut": "Set shortcut",
+  "noShortcuts": "No launch shortcuts yet",
+  "addShortcut": "Add launch shortcut",
+  "language": "Language",
+  "languageSystem": "Follow system",
+  "languageEnglish": "English",
+  "languageChinese": "简体中文",
+  "versionLine": "v1.0.0 — {platform}",
+  "@versionLine": {
+    "placeholders": {
+      "platform": { "type": "String" }
+    }
+  },
+  "myPets": "My pets ({count})",
+  "@myPets": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "noPets": "No pets yet",
+  "noPetsHint": "Tap the + button at the top right to add one",
+  "skinLabel": "Skin: {skin}",
+  "@skinLabel": {
+    "placeholders": {
+      "skin": { "type": "String" }
+    }
+  },
+  "locked": "Locked",
+  "unlocked": "Unlocked",
+  "shown": "Visible",
+  "hidden": "Hidden",
+  "deletePetTitle": "Delete pet",
+  "deletePetBody": "Delete \"{name}\"?\n\nScale: {scale}%\nOpacity: {opacity}%",
+  "@deletePetBody": {
+    "placeholders": {
+      "name": { "type": "String" },
+      "scale": { "type": "int" },
+      "opacity": { "type": "int" }
+    }
+  },
+  "keepOnePet": "Keep at least one pet",
+  "editPet": "Edit pet",
+  "preview": "Preview",
+  "name": "Name",
+  "nameHint": "Enter pet name",
+  "scaleMultiplier": "Scale multiplier",
+  "opacityMultiplier": "Opacity multiplier",
+  "speedMultiplier": "Speed multiplier",
+  "skin": "Skin",
+  "useGlobalSkin": "Use skin from global settings",
+  "importZipSkin": "Import ZIP skin",
+  "chooseSkin": "Choose skin",
+  "finalSpeedFormula": "× global speed = final speed",
+  "finalScaleFormula": "× global scale = final scale",
+  "finalOpacityFormula": "× global opacity = final opacity",
+  "importingSkin": "Importing skin package...",
+  "skinImportSuccess": "Skin imported",
+  "skinImportFailed": "Skin import failed",
+  "scaleTooHigh": "Scale multiplier too high",
+  "scaleTooHighHint": "Lower the multiplier or the global scale",
+  "deletePetConfirm": "Delete \"{name}\"? This cannot be undone.",
+  "@deletePetConfirm": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "chooseSkinTitle": "Choose skin",
+  "loadSkinsFailed": "Failed to load skins",
+  "noSkinsFound": "No skin packages found",
+  "noSkinsFoundHint": "No valid skin package (with skin.json) in this directory",
+  "skinSourceImported": "Source: imported skin package",
+  "skinSourceDir": "Directory: {path}",
+  "@skinSourceDir": {
+    "placeholders": {
+      "path": { "type": "String" }
+    }
+  },
+  "builtIn": "Built-in",
+  "addShortcutTitle": "Add launch shortcut",
+  "editShortcutTitle": "Edit launch shortcut",
+  "nameLabel": "Name",
+  "nameHintShortcut": "e.g. Notepad",
+  "pathLabel": "Executable path",
+  "pathHint": "e.g. C:\\Windows\\notepad.exe",
+  "browseFile": "Browse file",
+  "hotkeyTitle": "Set shortcut",
+  "hotkeyPlaceholder": "(tap a button below to choose)",
+  "modifiersLabel": "Modifiers (multi-select)",
+  "keyLabel": "Key",
+  "trayLock": "Lock",
+  "trayUnlock": "Unlock",
+  "traySettings": "Settings",
+  "trayQuit": "Quit",
+  "trayTooltip": "Desktop Pet",
+  "defaultPetName": "My Pet",
+  "skinError": "error: {message}",
+  "@skinError": {
+    "placeholders": {
+      "message": { "type": "String" }
+    }
+  }
 }
