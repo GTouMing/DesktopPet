@@ -2,7 +2,7 @@ import 'dart:math';
 import 'dart:ui';
 
 import '../core/constants.dart';
-import '../skin/state/state_define.dart';
+import '../petpack/state/state_define.dart';
 import 'pet_context.dart';
 import 'pet_state.dart';
 

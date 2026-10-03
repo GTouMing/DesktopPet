@@ -1,4 +1,4 @@
-/// Configuration for a single animation in a skin package.
+/// Configuration for a single animation in a pet pack.
 class AnimationDef {
   final String folder;
   final int fps;

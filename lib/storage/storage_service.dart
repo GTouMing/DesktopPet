@@ -9,7 +9,7 @@ import '../core/constants.dart';
 import '../l10n/l10n.dart';
 import 'models/pet_config.dart';
 import 'models/settings_model.dart';
-import 'models/skin_entry.dart';
+import 'models/pet_pack_entry.dart';
 import 'models/app_shortcut.dart';
 
 /// 应用设置数据：(全局设置, 桌宠列表)。
@@ -33,7 +33,7 @@ class StorageService {
   static MMKV? _mmkv;
 
   static const _keySettings = 'settings';
-  static const _keySkins = 'skins';
+  static const _keyPacks = 'skins';
   static const _keyShortcuts = 'shortcuts';
   static const _mmkvId = 'desktop_pet_data';
 
@@ -60,7 +60,7 @@ class StorageService {
     if (StorageService.readPets().isEmpty) {
       StorageService.writeSettings(
         SettingsModel(
-          skinDir: defaultSkinPath,
+          packDir: defaultPackPath,
         ),
       );
       StorageService.writePets([
@@ -111,7 +111,7 @@ class StorageService {
   /// 因此调用方**不需要**再自己 invalidate 任何 Provider，也不需要记得"改完要通知
   /// 谁"——这是刻意做成"写即广播"的。
   ///
-  /// 例外：皮肤列表（[addSkin] / [removeSkinByPath]）不广播——它不在 [AppData] 里，
+  /// 例外：皮肤列表（[addPack] / [removePackByPath]）不广播——它不在 [AppData] 里，
   /// 由导入与皮肤选择器按需直接读。
   static Stream<void> get changes => _changes.stream;
 
@@ -232,15 +232,15 @@ class StorageService {
 
   // ── 皮肤条目 ───────────────────────────────────────────────────────────
 
-  static List<SkinEntry> readSkins() {
-    final raw = _mmkv?.decodeString(_keySkins);
+  static List<PetPackEntry> readPacks() {
+    final raw = _mmkv?.decodeString(_keyPacks);
     if (raw == null) return [];
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! Map) return [];
       return decoded.values
           .whereType<Map<String, dynamic>>()
-          .map((e) => SkinEntry.fromJson(Map<String, dynamic>.from(e)))
+          .map((e) => PetPackEntry.fromJson(Map<String, dynamic>.from(e)))
           .toList();
     } catch (_) {
       return [];
@@ -248,18 +248,18 @@ class StorageService {
   }
 
   /// 以 folderPath 为键存储（覆盖同名路径）。
-  static void addSkin(SkinEntry entry) {
-    final existing = readSkins();
+  static void addPack(PetPackEntry entry) {
+    final existing = readPacks();
     final map = {for (final s in existing) s.folderPath: s.toJson()};
     map[entry.folderPath] = entry.toJson();
-    _mmkv?.encodeString(_keySkins, jsonEncode(map));
+    _mmkv?.encodeString(_keyPacks, jsonEncode(map));
   }
 
-  static void removeSkinByPath(String folderPath) {
-    final existing = readSkins();
+  static void removePackByPath(String folderPath) {
+    final existing = readPacks();
     existing.removeWhere((s) => s.folderPath == folderPath);
     final map = {for (final s in existing) s.folderPath: s.toJson()};
-    _mmkv?.encodeString(_keySkins, jsonEncode(map));
+    _mmkv?.encodeString(_keyPacks, jsonEncode(map));
   }
 
   // ── 快捷启动 ───────────────────────────────────────────────────────────

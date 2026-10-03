@@ -1,5 +1,5 @@
-import 'package:desktop_pet/skin/sheet/sprite_sheet_generator.dart';
-import 'package:desktop_pet/skin/skin_package.dart';
+import 'package:desktop_pet/petpack/sheet/sprite_sheet_generator.dart';
+import 'package:desktop_pet/petpack/pet_pack.dart';
 import 'package:flutter/animation.dart';
 import 'package:flutter/cupertino.dart';
 
@@ -32,13 +32,13 @@ class PetAnimation {
 
   /// 从皮肤包加载指定动画，生成精灵图和 [AnimationController]。
   static Future<PetAnimation> load({
-    required SkinPackage skin,
+    required PetPack pack,
     required String animName,
     required TickerProvider vsync,
     void Function()? onAnimationComplete,
   }) async {
-    final sheet = await SpriteSheetGenerator.generateFromSkin(skin, animName);
-    final animDef = skin.anims[animName]!;
+    final sheet = await SpriteSheetGenerator.generateFromPack(pack, animName);
+    final animDef = pack.anims[animName]!;
     final duration = Duration(
       milliseconds: ((1000 / animDef.fps) * sheet.frameCount).round(),
     );

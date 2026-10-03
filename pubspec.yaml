@@ -28,6 +28,16 @@ dependencies:
   flutter_alone: ^4.1.0
   audioplayers: ^6.1.0
   styled_widget: ^0.4.1
+  live2d_flutter: ^1.0.3
+
+# 上游 live2d_flutter 1.0.3 的发布包缺少其 pubspec 里声明的 assets/web/*，
+# 会让任何依赖它的工程在 flutter_assemble 阶段失败（找不到资产）。
+# 这里指向项目外的一份 vendored 副本，仅移除该 web 资产声明，其余与 1.0.3 一致。
+# 该副本刻意放在仓库之外（E:/Projects/live2d_flutter-1.0.3-vendored），
+# 以免把 Cubism SDK 源码与二进制纳入 git，且不受 flutter clean 影响。
+dependency_overrides:
+  live2d_flutter:
+    path: E:/Projects/live2d_flutter-1.0.3-vendored
 
 dev_dependencies:
   flutter_test:

@@ -9,8 +9,8 @@ import 'state/state_define.dart';
 import 'animation/animation_define.dart';
 
 
-/// A complete pet skin with animation definitions, states, and metadata.
-class SkinPackage {
+/// A complete pet pack with animation definitions, states, and metadata.
+class PetPack {
   final String name;
   final int version;
   final Size frameSize;
@@ -18,9 +18,9 @@ class SkinPackage {
   final Map<String, AnimationDef> anims;
   final Map<String, StateDef> states;
   final String initialState;
-  final SkinSource source;
+  final PetPackSource source;
 
-  const SkinPackage({
+  const PetPack({
     required this.name,
     required this.version,
     required this.frameSize,
@@ -77,7 +77,7 @@ class SkinPackage {
     final def = anims[animationName];
     if (def == null) return [];
 
-    if (source == SkinSource.filesystem) {
+    if (source == PetPackSource.filesystem) {
       final dir = Directory('$basePath/${def.folder}');
       if (!dir.existsSync()) return [];
       final files = dir
@@ -94,7 +94,7 @@ class SkinPackage {
 
   // ── 工厂构造 ────────────────────────────────────────────────────────
 
-  factory SkinPackage.fromJson(Map<String, dynamic> json, String basePath, SkinSource source) {
+  factory PetPack.fromJson(Map<String, dynamic> json, String basePath, PetPackSource source) {
     final anims = <String, AnimationDef>{};
     final animsJson = json['animations'] as Map<String, dynamic>;
     for (final entry in animsJson.entries) {
@@ -107,7 +107,7 @@ class SkinPackage {
         states[entry.key] = StateDef.fromJson(entry.key, entry.value as Map<String, dynamic>);
       }
     }
-    return SkinPackage(
+    return PetPack(
       name: json['name'] as String,
       version: json['version'] as int,
       frameSize: Size(
@@ -122,27 +122,27 @@ class SkinPackage {
     );
   }
 
-  static Future<SkinPackage> fromAsset(String assetPath) async {
+  static Future<PetPack> fromAsset(String assetPath) async {
     final content = await rootBundle.loadString('$assetPath/skin.json');
     final json = jsonDecode(content) as Map<String, dynamic>;
-    return SkinPackage.fromJson(json, assetPath, SkinSource.asset);
+    return PetPack.fromJson(json, assetPath, PetPackSource.asset);
   }
 
-  static Future<SkinPackage> fromPath(String path) async {
+  static Future<PetPack> fromPath(String path) async {
     final file = File('$path/skin.json');
     if (!await file.exists()) {
       throw Exception('skin.json not found at $path');
     }
     final content = await file.readAsString();
     final json = jsonDecode(content) as Map<String, dynamic>;
-    return SkinPackage.fromJson(json, path, SkinSource.filesystem);
+    return PetPack.fromJson(json, path, PetPackSource.filesystem);
   }
 
-  static Future<SkinPackage?> load(String path) async {
+  static Future<PetPack?> load(String path) async {
     if (path.startsWith('assets/')) {
-      return await SkinPackage.fromAsset(path);
+      return await PetPack.fromAsset(path);
     } else {
-      return await SkinPackage.fromPath(path);
+      return await PetPack.fromPath(path);
     }
   }
 }

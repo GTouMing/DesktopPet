@@ -1,23 +1,23 @@
 import 'dart:io';
 
 import '../../storage/storage_service.dart';
-import '../../storage/models/skin_entry.dart';
+import '../../storage/models/pet_pack_entry.dart';
 
-/// Repository for querying and managing installed pet skin packages.
-class SkinRepository {
-  List<SkinEntry> listSkins() {
-    return StorageService.readSkins();
+/// Repository for querying and managing installed pet packs.
+class PetPackRepository {
+  List<PetPackEntry> listPacks() {
+    return StorageService.readPacks();
   }
 
-  Future<void> addSkin(SkinEntry entry) async {
-    StorageService.addSkin(entry);
+  Future<void> addPack(PetPackEntry entry) async {
+    StorageService.addPack(entry);
   }
 
   /// 将全部已导入皮肤复制到 [targetDir]。
   ///
-  /// 仅在全局路径从默认切换到自定义时调用。复制后更新 SkinRepository 中的路径。
+  /// 仅在全局路径从默认切换到自定义时调用。复制后更新 PetPackRepository 中的路径。
   Future<void> migrateTo(String targetDir) async {
-    final entries = listSkins();
+    final entries = listPacks();
     final targetBase = Directory(targetDir);
     if (!await targetBase.exists()) {
       await targetBase.create(recursive: true);
@@ -38,8 +38,8 @@ class SkinRepository {
       await _copyDir(src, dst);
 
       // 更新注册路径
-      StorageService.removeSkinByPath(entry.folderPath);
-      StorageService.addSkin(SkinEntry(
+      StorageService.removePackByPath(entry.folderPath);
+      StorageService.addPack(PetPackEntry(
         name: entry.name,
         folderPath: dstPath,
         isBuiltIn: entry.isBuiltIn,

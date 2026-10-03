@@ -34,9 +34,9 @@ class PetConfig {
   double speedMultiplier;
 
   /// 皮肤路径。
-  /// - 如果 [SettingsModel.skinDir] 非 null，此为相对路径；
+  /// - 如果 [SettingsModel.packDir] 非 null，此为相对路径；
   /// - 否则为绝对路径或 ZIP 文件路径。
-  String skinPath;
+  String packPath;
 
   bool isLocked;
   bool isVisible;
@@ -56,7 +56,7 @@ class PetConfig {
     this.scaleMultiplier = 1.0,
     this.opacityMultiplier = 1.0,
     this.speedMultiplier = 1.0,
-    this.skinPath = defaultSkinPath,
+    this.packPath = defaultPackPath,
     this.isLocked = false,
     this.isVisible = true,
     this.positionX = 0,
@@ -81,7 +81,7 @@ class PetConfig {
     double? scaleMultiplier,
     double? opacityMultiplier,
     double? speedMultiplier,
-    String? skinPath,
+    String? packPath,
     bool? isLocked,
     bool? isVisible,
     double? positionX,
@@ -96,7 +96,7 @@ class PetConfig {
       scaleMultiplier: scaleMultiplier ?? this.scaleMultiplier,
       opacityMultiplier: opacityMultiplier ?? this.opacityMultiplier,
       speedMultiplier: speedMultiplier ?? this.speedMultiplier,
-      skinPath: skinPath ?? this.skinPath,
+      packPath: packPath ?? this.packPath,
       isLocked: isLocked ?? this.isLocked,
       isVisible: isVisible ?? this.isVisible,
       positionX: positionX ?? this.positionX,
@@ -113,7 +113,7 @@ class PetConfig {
     'scaleMultiplier': scaleMultiplier,
     'opacityMultiplier': opacityMultiplier,
     'speedMultiplier': speedMultiplier,
-    'skinPath': skinPath,
+    'skinPath': packPath,
     'isLocked': isLocked,
     'isVisible': isVisible,
     'x': positionX,
@@ -129,7 +129,7 @@ class PetConfig {
     scaleMultiplier: (json['scaleMultiplier'] as num?)?.toDouble() ?? 1.0,
     opacityMultiplier: (json['opacityMultiplier'] as num?)?.toDouble() ?? 1.0,
     speedMultiplier: (json['speedMultiplier'] as num?)?.toDouble() ?? 1.0,
-    skinPath: json['skinPath'] as String? ?? defaultSkinPath,
+    packPath: json['skinPath'] as String? ?? defaultPackPath,
     isLocked: json['isLocked'] as bool? ?? false,
     isVisible: json['isVisible'] as bool? ?? true,
     positionX: (json['x'] as num?)?.toDouble() ?? 0,

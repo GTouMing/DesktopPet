@@ -5,10 +5,10 @@ import 'package:styled_widget/styled_widget.dart';
 
 import '../../core/constants.dart';
 import '../../l10n/app_localizations.dart';
-import '../../skin/import/skin_importer.dart';
+import '../../petpack/import/pet_pack_importer.dart';
 import '../../storage/storage_service.dart';
 import '../../storage/models/pet_config.dart';
-import 'skin_picker_screen.dart';
+import 'pet_pack_picker_screen.dart';
 import '../widgets/info_overlay.dart';
 
 class PetEditScreen extends ConsumerStatefulWidget {
@@ -26,7 +26,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
   late double _scaleMultiplier;
   late double _opacityMultiplier;
   late double _speedMultiplier;
-  late String _skinPath;
+  late String _packPath;
 
   static const double _stepSize = 0.1;
 
@@ -37,7 +37,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
     _scaleMultiplier = widget.pet.snappedScaleMultiplier;
     _opacityMultiplier = widget.pet.snappedOpacityMultiplier;
     _speedMultiplier = widget.pet.snappedSpeedMultiplier;
-    _skinPath = widget.pet.skinPath;
+    _packPath = widget.pet.packPath;
   }
 
   @override
@@ -92,7 +92,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
           ),
           Padding(
             padding: const EdgeInsets.only(bottom: 32),
-            child: _buildSkinPathField(context, theme),
+            child: _buildPackPathField(context, theme),
           ),
           _buildDeleteButton(context),
         ],
@@ -149,10 +149,10 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
             Text(
               '${(_scaleMultiplier * 100).round()}% · ${(_opacityMultiplier * 100).round()}%',
             ).fontSize(12).textColor(Colors.grey),
-            if (_skinPath.isNotEmpty)
+            if (_packPath.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Text(l10n.skinLabel(_skinPath.split('/').last))
+                child: Text(l10n.skinLabel(_packPath.split('/').last))
                     .fontSize(11)
                     .textColor(Colors.blue),
               ),
@@ -303,9 +303,9 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
     );
   }
 
-  Widget _buildSkinPathField(BuildContext context, ThemeData theme) {
+  Widget _buildPackPathField(BuildContext context, ThemeData theme) {
     final l10n = AppLocalizations.of(context);
-    final isDefault = _skinPath.isEmpty || _skinPath == defaultSkinPath;
+    final isDefault = _packPath.isEmpty || _packPath == defaultPackPath;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -320,11 +320,11 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
               color: isDefault ? theme.colorScheme.primary : null,
             ),
             title: Text(
-              isDefault ? l10n.defaultSkinName : _skinPath.split('/').last,
+              isDefault ? l10n.defaultSkinName : _packPath.split('/').last,
               overflow: TextOverflow.ellipsis,
             ),
             subtitle: Text(
-              isDefault ? l10n.useGlobalSkin : _skinPath,
+              isDefault ? l10n.useGlobalSkin : _packPath,
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ).fontSize(12),
@@ -335,21 +335,21 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
                   IconButton(
                     icon: const Icon(Icons.close, size: 18),
                     tooltip: l10n.restoreDefault,
-                    onPressed: () => setState(() => _skinPath = ''),
+                    onPressed: () => setState(() => _packPath = ''),
                   ),
                 IconButton(
                   icon: const Icon(Icons.archive_outlined, size: 18),
                   tooltip: l10n.importZipSkin,
-                  onPressed: _importZipSkin,
+                  onPressed: _importZipPack,
                 ),
                 IconButton(
                   icon: const Icon(Icons.chevron_right, size: 18),
                   tooltip: l10n.chooseSkin,
-                  onPressed: _openSkinPicker,
+                  onPressed: _openPackPicker,
                 ),
               ],
             ),
-            onTap: _openSkinPicker,
+            onTap: _openPackPicker,
           ),
         ),
       ],
@@ -374,16 +374,16 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
     return (value / _stepSize).round() * _stepSize;
   }
 
-  void _openSkinPicker() {
+  void _openPackPicker() {
     Navigator.push<String>(
       context,
-      MaterialPageRoute(builder: (_) => const SkinPickerScreen()),
+      MaterialPageRoute(builder: (_) => const PetPackPickerScreen()),
     ).then((path) {
-      if (path != null && mounted) setState(() => _skinPath = path);
+      if (path != null && mounted) setState(() => _packPath = path);
     });
   }
 
-  Future<void> _importZipSkin() async {
+  Future<void> _importZipPack() async {
     final l10n = AppLocalizations.of(context);
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
@@ -402,13 +402,13 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
         ),
       );
 
-      final importedPath = await SkinImporter.importZip(
+      final importedPath = await PetPackImporter.importZip(
         zipPath: zipPath,
         petId: petId,
       );
 
       if (!mounted) return;
-      setState(() => _skinPath = importedPath);
+      setState(() => _packPath = importedPath);
 
       InfoOverlay.show(
         context,
@@ -440,7 +440,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
       scaleMultiplier: _scaleMultiplier,
       opacityMultiplier: _opacityMultiplier,
       speedMultiplier: _speedMultiplier,
-      skinPath: _skinPath,
+      packPath: _packPath,
     );
     final resultPet = widget.isNewPet && widget.pet.id.isEmpty
         ? updatedPet.copyWith(id: newPetId())

@@ -2,8 +2,8 @@ import 'package:desktop_pet/core/constants.dart';
 import 'package:desktop_pet/core/enums.dart';
 import 'package:desktop_pet/input/input.dart';
 import 'package:desktop_pet/pet/hotkey_engine.dart';
-import 'package:desktop_pet/skin/skin_package.dart';
-import 'package:desktop_pet/skin/state/state_define.dart';
+import 'package:desktop_pet/petpack/pet_pack.dart';
+import 'package:desktop_pet/petpack/state/state_define.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -13,50 +13,50 @@ StateDef _state(String name, Map<String, Map<String, TransitionRule>> transition
 TransitionRule _hotkey(String key, List<String> modifiers) =>
     TransitionRule(trigger: Trigger.hotkey, key: key, modifiers: modifiers);
 
-SkinPackage _skin(List<StateDef> states) => SkinPackage(
+PetPack _pack(List<StateDef> states) => PetPack(
   name: 'test',
   version: 1,
   frameSize: const Size(100, 100),
   basePath: '',
   anims: const {},
   states: {for (final s in states) s.name: s},
-  source: SkinSource.asset,
+  source: PetPackSource.asset,
 );
 
 void main() {
   test('收集皮肤声明的 hotkey 组合键', () {
-    final skin = _skin([
+    final pack = _pack([
       _state('idle', {
         'happy': {Trigger.hotkey: _hotkey('h', ['alt'])},
       }),
     ]);
 
-    expect(HotkeyEngine.collectRules(skin).keys, ['alt+h']);
+    expect(HotkeyEngine.collectRules(pack).keys, ['alt+h']);
   });
 
   test('收集到的组合键能被 findTransition 直接命中(两侧规范化一致)', () {
-    final skin = _skin([
+    final pack = _pack([
       _state('idle', {
         'happy': {Trigger.hotkey: _hotkey('h', ['alt'])},
       }),
       _state('happy', const {}),
     ]);
 
-    final composite = HotkeyEngine.collectRules(skin).keys.single;
+    final composite = HotkeyEngine.collectRules(pack).keys.single;
 
     // 这正是 HotkeyEngine 触发时走的查找；两侧若各用一套规范化就会查不到。
     expect(
-      skin.findTransition('idle', Trigger.hotkey, hotkeyComposite: composite),
+      pack.findTransition('idle', Trigger.hotkey, hotkeyComposite: composite),
       'happy',
     );
     expect(
-      skin.findTransition('idle', Trigger.hotkey, hotkeyComposite: 'alt+g'),
+      pack.findTransition('idle', Trigger.hotkey, hotkeyComposite: 'alt+g'),
       isNull,
     );
   });
 
   test('同一组合键跨状态只注册一次，修饰键顺序无关', () {
-    final skin = _skin([
+    final pack = _pack([
       _state('idle', {
         'a': {Trigger.hotkey: _hotkey('h', ['ctrl', 'alt'])},
       }),
@@ -65,19 +65,19 @@ void main() {
       }),
     ]);
 
-    final rules = HotkeyEngine.collectRules(skin);
+    final rules = HotkeyEngine.collectRules(pack);
     expect(rules.keys, ['alt+ctrl+h']);
     expect(rules.length, 1);
   });
 
   test('没有 key 的 hotkey 规则不注册', () {
-    final skin = _skin([
+    final pack = _pack([
       _state('idle', {
         'a': {Trigger.hotkey: const TransitionRule(trigger: Trigger.hotkey)},
       }),
     ]);
 
-    expect(HotkeyEngine.collectRules(skin), isEmpty);
+    expect(HotkeyEngine.collectRules(pack), isEmpty);
   });
 
   test('bind 把组合键注册到输入层，dispose 时注销', () async {
@@ -85,7 +85,7 @@ void main() {
     final engine = HotkeyEngine(input);
 
     await engine.bind(
-      skin: _skin([
+      pack: _pack([
         _state('idle', {
           'happy': {Trigger.hotkey: _hotkey('h', ['alt'])},
         }),
@@ -111,7 +111,7 @@ void main() {
     String? next;
 
     await engine.bind(
-      skin: _skin([
+      pack: _pack([
         _state('idle', {
           'happy': {Trigger.hotkey: _hotkey('h', ['alt'])},
         }),
@@ -135,15 +135,15 @@ void main() {
 
   test('同一输入层上多引擎共享一次注册，退订一个不影响另一个', () async {
     final input = _FakeKeyInput();
-    final skin = _skin([
+    final pack = _pack([
       _state('idle', {
         'happy': {Trigger.hotkey: _hotkey('h', ['alt'])},
       }),
     ]);
     final a = HotkeyEngine(input);
     final b = HotkeyEngine(input);
-    await a.bind(skin: skin, currentState: () => 'idle', onStateChange: (_) {});
-    await b.bind(skin: skin, currentState: () => 'idle', onStateChange: (_) {});
+    await a.bind(pack: pack, currentState: () => 'idle', onStateChange: (_) {});
+    await b.bind(pack: pack, currentState: () => 'idle', onStateChange: (_) {});
 
     expect(input.registered, ['h+alt'], reason: '同一组合键只注册一次');
 
@@ -156,7 +156,7 @@ void main() {
 
   test('触发时广播给全部订阅者，各自按自己的当前状态查表', () async {
     final input = _FakeKeyInput();
-    final skin = _skin([
+    final pack = _pack([
       _state('idle', {
         'happy': {Trigger.hotkey: _hotkey('h', ['alt'])},
       }),
@@ -168,9 +168,9 @@ void main() {
     String? bNext;
 
     await a.bind(
-        skin: skin, currentState: () => 'idle', onStateChange: (v) => aNext = v);
+        pack: pack, currentState: () => 'idle', onStateChange: (v) => aNext = v);
     await b.bind(
-        skin: skin, currentState: () => 'happy', onStateChange: (v) => bNext = v);
+        pack: pack, currentState: () => 'happy', onStateChange: (v) => bNext = v);
 
     input.press('h+alt');
     expect(aNext, 'happy', reason: 'idle 声明了这条规则');

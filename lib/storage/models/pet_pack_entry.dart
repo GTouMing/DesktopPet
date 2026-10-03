@@ -1,11 +1,11 @@
 /// 已安装的皮肤包条目。
-class SkinEntry {
+class PetPackEntry {
   final String name;
   final String folderPath;
   final bool isBuiltIn;
   final DateTime importedAt;
 
-  SkinEntry({
+  PetPackEntry({
     required this.name,
     required this.folderPath,
     required this.isBuiltIn,
@@ -19,8 +19,8 @@ class SkinEntry {
     'importedAt': importedAt.millisecondsSinceEpoch,
   };
 
-  factory SkinEntry.fromJson(Map<String, dynamic> json) {
-    return SkinEntry(
+  factory PetPackEntry.fromJson(Map<String, dynamic> json) {
+    return PetPackEntry(
       name: json['name'] as String,
       folderPath: json['folderPath'] as String,
       isBuiltIn: json['isBuiltIn'] as bool,

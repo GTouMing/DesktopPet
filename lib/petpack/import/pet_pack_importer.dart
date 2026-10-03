@@ -3,20 +3,20 @@ import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'skin_validator.dart';
-import 'skin_repository.dart';
+import 'pet_pack_validator.dart';
+import 'pet_pack_repository.dart';
 import '../../storage/storage_service.dart';
-import '../../storage/models/skin_entry.dart';
-import '../skin_lister.dart';
+import '../../storage/models/pet_pack_entry.dart';
+import '../pet_pack_lister.dart';
 
 /// 皮肤包导入工具。
 ///
-/// 支持将 `.zip` 文件解压到指定目录并注册到 [SkinRepository]。
+/// 支持将 `.zip` 文件解压到指定目录并注册到 [PetPackRepository]。
 ///
 /// ## 导入目标
 /// - 全局路径为默认（asset）：解压到 `<app_documents>/imported_skins/<petId>/`
-/// - 全局路径为自定义：解压到 `<skinDir>/<petId>/`
-class SkinImporter {
+/// - 全局路径为自定义：解压到 `<packDir>/<petId>/`
+class PetPackImporter {
   static Future<String> importZip({
     required String zipPath,
     required String petId,
@@ -33,10 +33,10 @@ class SkinImporter {
     // 2. 确定目标目录
     final settings = StorageService.readSettings();
     String destDir;
-    if (SkinLister.isDefaultPath(settings.skinDir)) {
+    if (PetPackLister.isDefaultPath(settings.packDir)) {
       destDir = '${(await getApplicationDocumentsDirectory()).path}/imported_skins/$petId';
     } else {
-      destDir = '${settings.skinDir}/$petId';
+      destDir = '${settings.packDir}/$petId';
     }
 
     // 3. 清理旧目录
@@ -56,15 +56,15 @@ class SkinImporter {
     }
 
     // 5. 校验
-    final validation = await SkinValidator.validate(destDir);
+    final validation = await PetPackValidator.validate(destDir);
     if (!validation.isValid) {
       await dest.delete(recursive: true);
-      throw Exception('Invalid skin package: missing or malformed skin.json');
+      throw Exception('Invalid pet pack: missing or malformed skin.json');
     }
 
     // 6. 注册到 Repository
-    final skinRepo = SkinRepository();
-    skinRepo.addSkin(SkinEntry(
+    final packRepo = PetPackRepository();
+    packRepo.addPack(PetPackEntry(
       name: destDir.split('/').last,
       folderPath: destDir,
       isBuiltIn: false,

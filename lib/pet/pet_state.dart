@@ -5,7 +5,7 @@ import 'dart:ui';
 /// ## 字段说明
 /// - 行为状态：`[currentState, position, targetPosition, isDragging, lastInteractionTime]`
 ///   由 [PetNotifier] 维护和驱动（行为循环、交互事件）。
-/// - 渲染状态：`[skinError, currentAnim, opacity, petSize, baseFrameSize]`
+/// - 渲染状态：`[packError, currentAnim, opacity, petSize, baseFrameSize]`
 ///   供 [PetWidget] 消费
 class PetState {
   // ── 行为逻辑 ─────────────────────────────────────────────────────────
@@ -18,7 +18,7 @@ class PetState {
   // ── 渲染状态 ─────────────────────────────────────────────────────────
 
   /// 皮肤加载状态：`null`=加载中，`''`=正常，非空字符串=错误描述。
-  final String? skinError;
+  final String? packError;
 
   /// 当前播放的动画名，由 PetNotifier 在切换动画时更新。
   final String currentAnim;
@@ -41,7 +41,7 @@ class PetState {
     this.targetPosition,
     this.isDragging = false,
     required this.lastInteractionTime,
-    this.skinError,
+    this.packError,
     this.currentAnim = '',
     this.finalOpacity = 1.0,
     this.finalSpeed = 1.0,
@@ -56,7 +56,7 @@ class PetState {
     Offset? targetPosition,
     bool? isDragging,
     DateTime? lastInteractionTime,
-    String? skinError,
+    String? packError,
     String? currentAnim,
     double? finalOpacity,
     double? finalSpeed,
@@ -69,7 +69,7 @@ class PetState {
       targetPosition: cleanTarget ? null : (targetPosition ?? this.targetPosition),
       isDragging: isDragging ?? this.isDragging,
       lastInteractionTime: lastInteractionTime ?? this.lastInteractionTime,
-      skinError: skinError ?? this.skinError,
+      packError: packError ?? this.packError,
       currentAnim: currentAnim ?? this.currentAnim,
       finalOpacity: finalOpacity ?? this.finalOpacity,
       finalSpeed: finalSpeed ?? this.finalSpeed,

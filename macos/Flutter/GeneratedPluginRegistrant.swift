@@ -9,6 +9,7 @@ import audioplayers_darwin
 import desktop_multi_window
 import file_picker
 import flutter_alone
+import live2d_flutter
 import mmkv_ios
 import screen_retriever_macos
 import system_tray
@@ -19,6 +20,7 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   FlutterMultiWindowPlugin.register(with: registry.registrar(forPlugin: "FlutterMultiWindowPlugin"))
   FilePickerPlugin.register(with: registry.registrar(forPlugin: "FilePickerPlugin"))
   FlutterAlonePlugin.register(with: registry.registrar(forPlugin: "FlutterAlonePlugin"))
+  FlutterLive2dPlugin.register(with: registry.registrar(forPlugin: "FlutterLive2dPlugin"))
   MMKVPlugin.register(with: registry.registrar(forPlugin: "MMKVPlugin"))
   ScreenRetrieverMacosPlugin.register(with: registry.registrar(forPlugin: "ScreenRetrieverMacosPlugin"))
   SystemTrayPlugin.register(with: registry.registrar(forPlugin: "SystemTrayPlugin"))

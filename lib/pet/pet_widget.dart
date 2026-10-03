@@ -7,8 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/constants.dart';
 import 'pet_providers.dart';
-import '../skin/sheet/sprite_renderer.dart';
-import '../skin/state/state_define.dart';
+import '../petpack/sheet/sprite_renderer.dart';
+import '../petpack/state/state_define.dart';
 
 /// 桌宠渲染组件。
 ///
@@ -58,7 +58,7 @@ class _PetWidgetState extends ConsumerState<PetWidget>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final state = ref.read(petStateProvider(widget.petId));
-      if (state.skinError == '') {
+      if (state.packError == '') {
         initAnimations();
       }
     });
@@ -79,10 +79,10 @@ class _PetWidgetState extends ConsumerState<PetWidget>
 
     // ── 状态变化 → 动画切换 ────────────────────────────────────────────
     ref.listen(petStateProvider(widget.petId), (prev, next) {
-      if (next.skinError != '') return;
+      if (next.packError != '') return;
 
       // 皮肤首次就绪 → 初始化动画系统
-      if (prev?.skinError != '' && next.skinError == '') {
+      if (prev?.packError != '' && next.packError == '') {
         initAnimations();
         return;
       }
@@ -94,12 +94,12 @@ class _PetWidgetState extends ConsumerState<PetWidget>
     });
 
     // ── 皮肤加载失败 ──────────────────────────────────────────────────
-    if (petState.skinError?.isNotEmpty ?? false) {
+    if (petState.packError?.isNotEmpty ?? false) {
       return ColoredBox(
         color: Colors.red,
         child: Center(
           child: Text(
-            AppLocalizations.of(context).skinError(petState.skinError ?? ''),
+            AppLocalizations.of(context).skinError(petState.packError ?? ''),
           ),
         ),
       );
@@ -107,12 +107,12 @@ class _PetWidgetState extends ConsumerState<PetWidget>
 
     // ── 尚未就绪 ──────────────────────────────────────────────────────
     final anim = currentAnimation;
-    if (petState.skinError == null || anim == null) {
+    if (petState.packError == null || anim == null) {
       return const SizedBox.shrink();
     }
 
     // ── 渲染 ──────────────────────────────────────────────────────────
-    final stateDef = _notifier.skin.states[petState.currentState];
+    final stateDef = _notifier.pack.states[petState.currentState];
 
     return RepaintBoundary(
       child: Opacity(
@@ -169,7 +169,7 @@ class _PetWidgetState extends ConsumerState<PetWidget>
   Future<void> initAnimations() async {
     if (_animationsReady) return;
 
-    // 先加载当前状态所需的动画（可能因交互已不同于 skin.initialState）
+    // 先加载当前状态所需的动画（可能因交互已不同于 pack.initialState）
     await _loadAnimationForState(_notifier.currentState);
     if (!mounted) return;
 
@@ -181,7 +181,7 @@ class _PetWidgetState extends ConsumerState<PetWidget>
 
   /// 为指定状态加载并播放动画（如果尚未加载）。
   Future<void> _loadAnimationForState(String stateName) async {
-    final stateDef = _notifier.skin.states[stateName];
+    final stateDef = _notifier.pack.states[stateName];
     final animName = stateDef?.animation ?? stateName;
     if (animName.isEmpty) return;
 
@@ -203,7 +203,7 @@ class _PetWidgetState extends ConsumerState<PetWidget>
   Future<PetAnimation?> _loadAnimation(String animName) async {
     try {
       final anim = await PetAnimation.load(
-        skin: _notifier.skin,
+        pack: _notifier.pack,
         animName: animName,
         vsync: this,
         onAnimationComplete: () {
@@ -232,7 +232,7 @@ class _PetWidgetState extends ConsumerState<PetWidget>
 
   /// 后台预加载所有动画。
   void _preloadRemainingAnimations() {
-    for (final animName in _notifier.skin.anims.keys) {
+    for (final animName in _notifier.pack.anims.keys) {
       if (animations.containsKey(animName) || _loading.containsKey(animName)) {
         continue;
 
@@ -245,7 +245,7 @@ class _PetWidgetState extends ConsumerState<PetWidget>
   void switchToStateAnim(String stateName) {
     if (!_animationsReady || stateName.isEmpty) return;
 
-    final stateDef = _notifier.skin.states[stateName];
+    final stateDef = _notifier.pack.states[stateName];
     final animName = stateDef?.animation ?? stateName;
     if (animName.isEmpty || _notifier.currentAnim == animName) return;
 

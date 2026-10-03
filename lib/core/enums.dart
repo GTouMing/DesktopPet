@@ -1,1 +1,1 @@
-enum SkinSource { asset, filesystem }
+enum PetPackSource { asset, filesystem }

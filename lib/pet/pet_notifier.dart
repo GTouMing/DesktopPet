@@ -9,8 +9,8 @@ import 'package:flutter_riverpod/legacy.dart';
 import '../core/constants.dart';
 import '../core/overlay_controller.dart';
 import '../input/key_input.dart';
-import '../skin/audio/audio_service.dart';
-import '../skin/skin_package.dart';
+import '../petpack/audio/audio_service.dart';
+import '../petpack/pet_pack.dart';
 import '../storage/models/pet_config.dart';
 import '../storage/storage_service.dart';
 import 'behavior_engine.dart';
@@ -45,10 +45,10 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
   /// 平台窗口同步。仅 Android 有真实窗口；Windows 下所有方法都是空操作。
   late final PetWindowBinding _window = PetWindowBinding(petId);
 
-  late final SkinPackage skin;
+  late final PetPack pack;
 
-  /// 皮肤是否已就绪（[skin] 是 late final，未就绪前不可读）。
-  bool _skinReady = false;
+  /// 皮肤是否已就绪（[pack] 是 late final，未就绪前不可读）。
+  bool _packReady = false;
 
   /// 音效（每只桌宠一个播放器，见 [AudioService]）。
   final AudioService _audio = AudioService();
@@ -94,18 +94,18 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
       final pet = StorageService.readPet(petId);
       if (pet == null) throw Exception('pet config not found: $petId');
 
-      final skin = await SkinPackage.load(pet.skinPath);
+      final pack = await PetPack.load(pet.packPath);
       if (!mounted) return;
-      if (skin == null) throw Exception();
+      if (pack == null) throw Exception();
 
-      this.skin = skin;
-      _skinReady = true;
+      this.pack = pack;
+      _packReady = true;
       state = state.copyWith(
-          basePetSize: skin.frameSize, currentState: skin.initialState);
+          basePetSize: pack.frameSize, currentState: pack.initialState);
 
       // 注册快捷键(皮肤里声明的 hotkey 规则 → 全局输入层)。
       await hotkey.bind(
-        skin: skin,
+        pack: pack,
         currentState: () => state.currentState,
         onStateChange: (next) {
           state = state.copyWith(
@@ -135,12 +135,12 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
       if (!mounted) return;
 
       // 动画由 PetWidget 管理生命周期
-      state = state.copyWith(skinError: '');
+      state = state.copyWith(packError: '');
     } catch (e) {
       if (kDebugMode) debugPrint('[pet] init $petId ERROR: $e');
       // 若初始化期间已被 dispose,写 state 会抛未捕获异常,需守卫。
       if (mounted) {
-        state = state.copyWith(skinError: 'init_error: $e');
+        state = state.copyWith(packError: 'init_error: $e');
       }
     }
   }
@@ -181,8 +181,8 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
   /// 状态机的每一处跳转（点击 / 定时 / 热键 / 到达…）都经过 [state] setter，
   /// 所以这就是唯一的发声点。
   void _playStateAudio(String stateName) {
-    if (!_skinReady) return;
-    _audio.playForState(skin.states[stateName], cue: stateName);
+    if (!_packReady) return;
+    _audio.playForState(pack.states[stateName], cue: stateName);
   }
 
   /// 应用设置（本引擎内）：缩放 / 透明度 / 速度 + 窗口侧的显隐与穿透。
@@ -221,7 +221,7 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
   /// 扫描当前状态所有目标，找出最短 delay 的 timer 规则，启动单一定时器。
   void _checkStateTimer() {
     final (Duration? bestDelay, String? bestTarget) =
-        skin.findBestTimer(state.currentState);
+        pack.findBestTimer(state.currentState);
 
     if (bestTarget == null || bestDelay == null) return;
     final delay =
@@ -244,7 +244,7 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
 
   void _checkBehaviorTimer() {
     // 行为定时器
-    final needsBehavior = skin.hasBehavior(state.currentState);
+    final needsBehavior = pack.hasBehavior(state.currentState);
     if (!needsBehavior) {
       _cancelBehaviorTimer();
       return;
@@ -252,7 +252,7 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
     // 场景尺寸未就绪时不能生成目标:maxX/maxY 会变成负数,clamp 直接抛错。
     if (screenSize.isEmpty) return;
     if (state.targetPosition == null) {
-      final def = skin.states[state.currentState];
+      final def = pack.states[state.currentState];
       state = state.copyWith(
           targetPosition: engine.randomTarget(def, state.position));
     }
@@ -325,7 +325,7 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
 
   @override
   void onEvent(String trigger) {
-    final next = skin.findTransition(state.currentState, trigger);
+    final next = pack.findTransition(state.currentState, trigger);
     state = state.copyWith(
         currentState: next, lastInteractionTime: DateTime.now());
   }

@@ -43,11 +43,11 @@ class PetCard extends ConsumerWidget {
                       style: TextStyle(
                           fontSize: 12, color: Colors.grey.shade600),
                     ),
-                    if (pet.skinPath.isNotEmpty)
+                    if (pet.packPath.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
-                          l10n.skinLabel(pet.skinPath.split('/').last),
+                          l10n.skinLabel(pet.packPath.split('/').last),
                           style: TextStyle(
                               fontSize: 11, color: Colors.blue.shade600),
                           maxLines: 1,

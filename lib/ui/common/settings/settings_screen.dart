@@ -10,7 +10,7 @@ import 'appearance_section.dart';
 import 'language_section.dart';
 import 'settings_common.dart';
 import 'shortcut_section.dart';
-import 'skin_section.dart';
+import 'pet_pack_section.dart';
 
 /// 设置页：只负责按顺序拼装各分区。
 ///
@@ -33,7 +33,7 @@ class SettingsScreen extends ConsumerWidget {
         children: [
           AppearanceSection(settings: settings),
           const SectionDivider(),
-          SkinSection(settings: settings),
+          PetPackSection(settings: settings),
           // 全局热键与鼠标中键是桌面端独有能力，Android 整段隐藏。
           if (Platform.isWindows) ...[
             const SectionDivider(),

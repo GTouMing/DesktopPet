@@ -19,8 +19,7 @@ const int behaviorTickMs = 50;
 const double petWalkSpeed = 100.0;
 /// 桌宠基帧/窗口的默认尺寸（逻辑像素）。
 const double defaultPetSize = 200.0;
-const String defaultSkinName = 'default';
-const String defaultSkinPath = 'assets/default_skin';
+const String defaultPackPath = 'assets/default_skin';
 const String mainOrSetting = 'mainOrSetting';
 /// 设置窗口（唯一的 dmw 子窗口）的启动参数。
 ///

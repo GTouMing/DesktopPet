@@ -5,8 +5,8 @@ import 'package:flutter/foundation.dart';
 
 import '../core/constants.dart';
 import '../input/input.dart';
-import '../skin/skin_package.dart';
-import '../skin/state/state_define.dart';
+import '../petpack/pet_pack.dart';
+import '../petpack/state/state_define.dart';
 
 /// 诊断日志(Debug 构建可见)。
 void _hk(String message) {
@@ -29,7 +29,7 @@ class _Binding {
 /// 工作方式（二维查找）：
 /// 1. 扫描皮肤的**所有状态**，收集 `trigger == Trigger.hotkey` 且写了 `key` 的规则，
 ///    按 `key+modifiers` 去重后注册进 [InputService]；
-/// 2. 该组合键按下时，用**当前状态**加该组合键去 [SkinPackage.findTransition] 查目标
+/// 2. 该组合键按下时，用**当前状态**加该组合键去 [PetPack.findTransition] 查目标
 ///    状态，命中就回调 `onStateChange`。
 ///
 /// 也就是说"哪个键在哪个状态下生效"完全由皮肤数据决定，本类不含任何键位映射表。
@@ -61,23 +61,23 @@ class HotkeyEngine {
   /// 引擎内共享的注册项：`composite → 注册信息`。
   final Set<String> _mine = {};
 
-  SkinPackage? _skin;
+  PetPack? _pack;
   String Function()? _currentState;
   void Function(String state)? _onStateChange;
 
   /// 注册皮肤声明的快捷键（幂等：只做增量增删，不整表重挂）。
   Future<void> bind({
-    required SkinPackage skin,
+    required PetPack pack,
     required String Function() currentState,
     required void Function(String) onStateChange,
   }) async {
-    _skin = skin;
+    _pack = pack;
     _currentState = currentState;
     _onStateChange = onStateChange;
 
     if (!supported) return; // 移动端剔除: 不注册任何全局快捷键
 
-    final wanted = collectRules(skin);
+    final wanted = collectRules(pack);
 
     for (final composite in _mine.toList()) {
       if (wanted.containsKey(composite)) continue;
@@ -100,7 +100,7 @@ class HotkeyEngine {
       _release(composite);
     }
     _mine.clear();
-    _skin = null;
+    _pack = null;
     _currentState = null;
     _onStateChange = null;
   }
@@ -110,12 +110,12 @@ class HotkeyEngine {
   /// 扫描皮肤的每个状态，返回 `composite → KeyIdentifier`。
   ///
   /// 对外可见仅为测试：它产出的 composite 必须与
-  /// `SkinPackage.findTransition(hotkeyComposite:)` 接受的格式完全一致，这是皮肤
+  /// `PetPack.findTransition(hotkeyComposite:)` 接受的格式完全一致，这是皮肤
   /// 数据与输入层之间唯一的耦合点。
   @visibleForTesting
-  static Map<String, KeyIdentifier> collectRules(SkinPackage skin) {
+  static Map<String, KeyIdentifier> collectRules(PetPack pack) {
     final found = <String, KeyIdentifier>{};
-    for (final state in skin.states.values) {
+    for (final state in pack.states.values) {
       for (final rules in state.transitions.values) {
         final rule = rules[Trigger.hotkey];
         final key = rule?.key;
@@ -161,14 +161,14 @@ class HotkeyEngine {
 
   /// 组合键按下：在当前状态里找 hotkey 规则命中的目标状态。
   void _fire(String composite) {
-    final skin = _skin;
+    final pack = _pack;
     final currentState = _currentState;
     final onStateChange = _onStateChange;
-    if (skin == null || currentState == null || onStateChange == null) return;
+    if (pack == null || currentState == null || onStateChange == null) return;
 
     final from = currentState();
     final next =
-        skin.findTransition(from, Trigger.hotkey, hotkeyComposite: composite);
+        pack.findTransition(from, Trigger.hotkey, hotkeyComposite: composite);
     if (next == null) return;
     _hk('$composite: $from -> $next');
     onStateChange(next);

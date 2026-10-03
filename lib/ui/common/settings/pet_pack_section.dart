@@ -2,29 +2,29 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
-import '../../../skin/import/skin_repository.dart';
-import '../../../skin/skin_lister.dart';
+import '../../../petpack/import/pet_pack_repository.dart';
+import '../../../petpack/pet_pack_lister.dart';
 import '../../../storage/models/settings_model.dart';
 import '../../widgets/info_overlay.dart';
-import '../skin_picker_screen.dart';
+import '../pet_pack_picker_screen.dart';
 import 'settings_common.dart';
 
 /// 皮肤分区：皮肤目录的选择、恢复默认、查看可用皮肤与迁移。
-class SkinSection extends StatefulWidget {
-  const SkinSection({super.key, required this.settings});
+class PetPackSection extends StatefulWidget {
+  const PetPackSection({super.key, required this.settings});
 
   final SettingsModel settings;
 
   @override
-  State<SkinSection> createState() => _SkinSectionState();
+  State<PetPackSection> createState() => _PetPackSectionState();
 }
 
-class _SkinSectionState extends State<SkinSection> {
+class _PetPackSectionState extends State<PetPackSection> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final skinDir = widget.settings.skinDir;
-    final isDefault = SkinLister.isDefaultPath(skinDir);
+    final packDir = widget.settings.packDir;
+    final isDefault = PetPackLister.isDefaultPath(packDir);
 
     return Column(
       children: [
@@ -36,14 +36,14 @@ class _SkinSectionState extends State<SkinSection> {
           ),
           title: Text(isDefault ? l10n.skinDirDefaultPath : l10n.skinDir),
           subtitle: Text(
-            isDefault ? l10n.skinBuiltInValue : skinDir!,
+            isDefault ? l10n.skinBuiltInValue : packDir!,
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
           ),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (skinDir != null && !isDefault)
+              if (packDir != null && !isDefault)
                 IconButton(
                   icon: const Icon(Icons.clear, size: 18),
                   tooltip: l10n.restoreDefault,
@@ -52,7 +52,7 @@ class _SkinSectionState extends State<SkinSection> {
               IconButton(
                 icon: const Icon(Icons.list, size: 18),
                 tooltip: l10n.viewAvailableSkins,
-                onPressed: _openSkinPicker,
+                onPressed: _openPackPicker,
               ),
               IconButton(
                 icon: const Icon(Icons.folder_open, size: 18),
@@ -71,18 +71,18 @@ class _SkinSectionState extends State<SkinSection> {
 
   /// 从内置目录切到自定义目录时，把已导入的皮肤搬过去。
   void _changeDir(String? newDir) {
-    final wasDefault = SkinLister.isDefaultPath(widget.settings.skinDir);
-    final nowCustom = !SkinLister.isDefaultPath(newDir);
+    final wasDefault = PetPackLister.isDefaultPath(widget.settings.packDir);
+    final nowCustom = !PetPackLister.isDefaultPath(newDir);
     if (wasDefault && nowCustom && newDir != null) {
-      _migrateSkins(newDir);
+      _migratePacks(newDir);
     }
-    applySettings((s) => s.copyWith(skinDir: newDir));
+    applySettings((s) => s.copyWith(packDir: newDir));
   }
 
-  Future<void> _migrateSkins(String targetDir) async {
+  Future<void> _migratePacks(String targetDir) async {
     final l10n = AppLocalizations.of(context);
     try {
-      await SkinRepository().migrateTo(targetDir);
+      await PetPackRepository().migrateTo(targetDir);
       if (!mounted) return;
       InfoOverlay.show(context, title: l10n.skinMigrated);
     } catch (e) {
@@ -91,10 +91,10 @@ class _SkinSectionState extends State<SkinSection> {
     }
   }
 
-  void _openSkinPicker() {
+  void _openPackPicker() {
     Navigator.push<String>(
       context,
-      MaterialPageRoute(builder: (_) => const SkinPickerScreen()),
+      MaterialPageRoute(builder: (_) => const PetPackPickerScreen()),
     );
   }
 }

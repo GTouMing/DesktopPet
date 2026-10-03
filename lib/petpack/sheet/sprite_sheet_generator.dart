@@ -8,7 +8,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/constants.dart';
 import '../../core/enums.dart';
-import '../skin_package.dart';
+import '../pet_pack.dart';
 
 /// 图集磁盘缓存的格式版本。
 ///
@@ -61,7 +61,7 @@ class SpriteSheetData {
 
 /// 将单帧 PNG 图片拼接为 GPU 友好的精灵图集。
 ///
-/// 生成的图集按 (皮肤, 动画) 缓存到磁盘(见 [generateFromSkin]):同一个皮肤
+/// 生成的图集按 (皮肤, 动画) 缓存到磁盘(见 [generateFromPack]):同一个皮肤
 /// 在多个引擎里各加载一遍时,只有第一次需要逐帧解码 + 拼接。
 class SpriteSheetGenerator {
 
@@ -111,28 +111,28 @@ class SpriteSheetGenerator {
     return _stitch(frames, frameSize);
   }
 
-  /// 从 [SkinPackage] 取得指定动画的精灵图集。
+  /// 从 [PetPack] 取得指定动画的精灵图集。
   ///
   /// 优先命中磁盘缓存:命中时只解一张图集 PNG,不再逐帧解码 + 画布拼接。
   /// 未命中则现场生成并落盘。缓存全程 best-effort——任何失败都回退到现场
   /// 生成,绝不影响渲染。
-  static Future<SpriteSheetData> generateFromSkin(
-    SkinPackage skin,
+  static Future<SpriteSheetData> generateFromPack(
+    PetPack pack,
     String animName,
   ) async {
-    final key = await _cacheKey(skin, animName);
+    final key = await _cacheKey(pack, animName);
 
     if (key != null) {
       final cached = await _readCache(key);
       if (cached != null) {
-        _log('hit $key (${skin.basePath}/$animName)');
+        _log('hit $key (${pack.basePath}/$animName)');
         return cached;
       }
     }
 
     final watch = Stopwatch()..start();
-    final sheet = await _build(skin, animName);
-    _log('build ${skin.basePath}/$animName '
+    final sheet = await _build(pack, animName);
+    _log('build ${pack.basePath}/$animName '
         '${watch.elapsedMilliseconds}ms${key == null ? '' : ' -> $key'}');
     if (key != null) await _writeCache(key, sheet);
     return sheet;
@@ -140,23 +140,23 @@ class SpriteSheetGenerator {
 
   /// 现场生成:逐帧解码 + 拼接图集。
   static Future<SpriteSheetData> _build(
-    SkinPackage skin,
+    PetPack pack,
     String animName,
   ) async {
-    final animDef = skin.anims[animName]!;
-    if (skin.source == SkinSource.asset) {
+    final animDef = pack.anims[animName]!;
+    if (pack.source == PetPackSource.asset) {
       final assetPaths = List.generate(
         animDef.frameCount,
-        (i) => '${skin.basePath}/${animDef.folder}/$i.png',
+        (i) => '${pack.basePath}/${animDef.folder}/$i.png',
       );
       return generateFromAssets(
         assetPaths: assetPaths,
-        frameSize: skin.frameSize,
+        frameSize: pack.frameSize,
       );
     }
     return generateFromFiles(
-      framePaths: skin.getFramePaths(animName),
-      frameSize: skin.frameSize,
+      framePaths: pack.getFramePaths(animName),
+      frameSize: pack.frameSize,
     );
   }
 
@@ -173,22 +173,22 @@ class SpriteSheetGenerator {
   ///
   /// filesystem 皮肤把每帧的文件名/大小/mtime 混入,资源一改就换 key;
   /// asset 皮肤靠 [_sheetCacheVersion] 手动失效。无法确定时返回 null(不缓存)。
-  static Future<String?> _cacheKey(SkinPackage skin, String animName) async {
+  static Future<String?> _cacheKey(PetPack pack, String animName) async {
     try {
-      final animDef = skin.anims[animName];
+      final animDef = pack.anims[animName];
       if (animDef == null) return null;
 
       final parts = <String>[
         'v$_sheetCacheVersion',
-        skin.source.name,
-        skin.basePath,
+        pack.source.name,
+        pack.basePath,
         animName,
         animDef.folder,
-        '${skin.frameSize.width}x${skin.frameSize.height}',
+        '${pack.frameSize.width}x${pack.frameSize.height}',
         '${animDef.frameCount}',
       ];
-      if (skin.source == SkinSource.filesystem) {
-        for (final path in skin.getFramePaths(animName)) {
+      if (pack.source == PetPackSource.filesystem) {
+        for (final path in pack.getFramePaths(animName)) {
           final stat = await File(path).stat();
           parts.add(
               '$path:${stat.size}:${stat.modified.millisecondsSinceEpoch}');
