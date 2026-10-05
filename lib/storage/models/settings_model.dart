@@ -15,8 +15,8 @@ class SettingsModel {
   /// 1.0 = 正常速度，2.0 = 2 倍速，0.5 = 半速。
   double baseSpeed;
 
-  /// 全局皮肤目录（绝对路径）。
-  /// 为 null 时使用内置皮肤；非 null 时 [PetConfig.packPath] 是相对于此的路径。
+  /// 全局宠物包目录（绝对路径）。
+  /// 为 null 时使用内置宠物包；非 null 时 [PetConfig.packPath] 是相对于此的路径。
   String? packDir;
 
   /// 快捷启动快捷键键名，如 `` ` ``、`'g'`。空字符串表示禁用。
@@ -44,7 +44,7 @@ class SettingsModel {
     'baseScale': baseScale,
     'baseOpacity': baseOpacity,
     'baseSpeed': baseSpeed,
-    'skinDir': packDir,
+    'packDir': packDir,
     'quickLaunchKey': quickLaunchKey,
     'quickLaunchModifiers': quickLaunchModifiers,
     'locale': locale,
@@ -55,7 +55,7 @@ class SettingsModel {
       baseScale: (json['baseScale'] as num?)?.toDouble() ?? 1.0,
       baseOpacity: (json['baseOpacity'] as num?)?.toDouble() ?? 1.0,
       baseSpeed: (json['baseSpeed'] as num?)?.toDouble() ?? 1.0,
-      packDir: json['skinDir'] as String?,
+      packDir: json['packDir'] as String?,
       quickLaunchKey: json['quickLaunchKey'] as String? ?? defaultQuickLaunchKey,
       quickLaunchModifiers: (json['quickLaunchModifiers'] as List<dynamic>?)
           ?.map((e) => e.toString())
@@ -67,7 +67,7 @@ class SettingsModel {
   /// 复制并覆盖部分字段。
   ///
   /// [packDir] 是唯一的可空字段，"没传"与"显式清空"必须区分：传 `null` 表示恢复
-  /// 默认（用内置皮肤），不传则保持原值。
+  /// 默认（用内置宠物包），不传则保持原值。
   SettingsModel copyWith({
     double? baseScale,
     double? baseOpacity,

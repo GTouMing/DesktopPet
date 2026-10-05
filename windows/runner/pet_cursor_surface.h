@@ -27,10 +27,11 @@
 // underneath receives no mouse input at all, and the cursor falls back to the
 // class cursor (the plain arrow).
 //
-// It only ever holds *pure hover*. Anything that is being done - presses, the
-// wheel, a gesture that started elsewhere and passes over a pet - makes it step
-// aside first, so clicks, context menus, scrolling and drags reach the window
-// underneath exactly as they did before (see Update).
+// It only ever holds *pure hover*, plus a press the pet owns (a left drag, or a
+// right press that started on a pet). Anything else being done - other presses,
+// the wheel, a gesture that started elsewhere and passes over a pet - makes it
+// step aside first, so scrolling and gestures that started elsewhere reach the
+// window underneath exactly as they did before (see Update).
 namespace pet_cursor_surface {
 
 // Creates the (hidden) surface and parks it just behind |overlay_window| in the
@@ -63,6 +64,17 @@ void Update(const POINT& point, bool inside, bool owned, bool is_move);
 // window of ours (e.g. the settings window) when deciding whether a press
 // grabbed a pet.
 bool IsSurfaceWindow(HWND window);
+
+// Re-parks the surface just below the overlay window (the z-order anchor set in
+// Install) without moving, resizing or showing it.
+//
+// The surface is created WS_EX_TOPMOST and is only ever placed relative to the
+// overlay once; afterwards ShowOn uses SWP_NOZORDER. Windows can drop both
+// windows out of the topmost band while leaving WS_EX_TOPMOST set (measured on
+// Windows 10 while another always-on-top overlay churns the z order), and the
+// overlay re-asserts its own membership periodically - this keeps the surface
+// following it. Call whenever the overlay raises itself.
+void ReassertBelowOverlay();
 
 // Destroys the surface. Call after the input hooks are gone, before the engine
 // goes away.

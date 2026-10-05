@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 
 import '../core/constants.dart';
 import '../core/enums.dart';
+import 'hotkey_action.dart';
 import 'live2d_pet_pack.dart';
+import 'mouse_params.dart';
 import 'sprite_pet_pack.dart';
 import 'state/state_define.dart';
 
@@ -27,6 +29,9 @@ abstract class PetPack {
     required this.basePath,
     this.states = const {},
     this.initialState = 'idle',
+    this.hotkeys = const [],
+    this.keyParams = const {},
+    this.mouseParams,
     required this.source,
   });
 
@@ -42,6 +47,19 @@ abstract class PetPack {
   final String basePath;
   final Map<String, StateDef> states;
   final String initialState;
+
+  /// 包级快捷键 → 动作（不经状态机，见 [HotkeyAction]）。
+  final List<HotkeyAction> hotkeys;
+
+  /// "打字反应"：键名 → 模型**参数 id**（如 `{"q": "Q1"}`）。
+  ///
+  /// 按住键 → 参数置 1、松开 → 置 0（见 `PetVisual.setParameter`）。仅 Live2D 实现；
+  /// 精灵图包不用。空表示该包不启用。
+  final Map<String, String> keyParams;
+
+  /// 鼠标反馈参数（光标跟随 + 鼠标按键）；null = 不启用。仅 Live2D 实现。
+  final MouseParams? mouseParams;
+
   final PetPackSource source;
 
   bool hasBehavior(String stateName) => states[stateName]?.behavior != null;
@@ -92,8 +110,8 @@ abstract class PetPack {
 
   // ── 清单 ────────────────────────────────────────────────────────────
 
-  /// 清单文件名：新名 `pet.json` 优先，兼容旧名 `skin.json`。
-  static const List<String> manifestNames = ['pet.json', 'skin.json'];
+  /// 清单文件名（`pet.json`）。
+  static const List<String> manifestNames = ['pet.json'];
 
   /// 读取清单 JSON（asset 走 rootBundle，文件系统走 File）；都没有则 null。
   static Future<Map<String, dynamic>?> readManifest(
@@ -147,6 +165,85 @@ Map<String, StateDef> parsePetPackStates(Map<String, dynamic> json) {
     }
   }
   return states;
+}
+
+/// 解析清单顶层的 `hotkeys`（包级快捷键 → 动作，见 [HotkeyAction]）。
+///
+/// 跳过没有 `key` 的无效项。
+List<HotkeyAction> parsePetPackHotkeys(Map<String, dynamic> json) {
+  final raw = json['hotkeys'];
+  if (raw is! Map) return const [];
+  final actions = <HotkeyAction>[];
+  for (final value in raw.values) {
+    if (value is! Map) continue;
+    final action = HotkeyAction.fromJson(Map<String, dynamic>.from(value));
+    if (action.key.isEmpty) continue;
+    actions.add(action);
+  }
+  return actions;
+}
+
+/// 解析清单顶层的 `keyParams`（键名 → 模型参数 id，见 [PetPack.keyParams]）。
+///
+/// 键名统一小写；跳过空值项。
+Map<String, String> parsePetPackKeyParams(Map<String, dynamic> json) {
+  final raw = json['keyParams'];
+  if (raw is! Map) return const {};
+  final params = <String, String>{};
+  for (final entry in raw.entries) {
+    final key = entry.key.toString().toLowerCase();
+    final value = entry.value;
+    if (key.isEmpty || value is! String || value.isEmpty) continue;
+    params[key] = value;
+  }
+  return params;
+}
+
+/// 解析一个轴的映射组：允许
+/// - 单个参数名字符串（`scale` 取 1），或
+/// - `{ "param": ..., "scale": ... }` 组成的列表。
+List<MouseAxisMapping> _parseMouseAxis(Object? raw) {
+  final out = <MouseAxisMapping>[];
+  void add(Object? value) {
+    if (value is String && value.isNotEmpty) {
+      out.add(MouseAxisMapping(param: value));
+    } else if (value is Map) {
+      final param = value['param'];
+      if (param is String && param.isNotEmpty) {
+        out.add(MouseAxisMapping(
+          param: param,
+          scale: (value['scale'] as num?)?.toDouble() ?? 1.0,
+          raw: value['raw'] == true,
+        ));
+      }
+    }
+  }
+
+  if (raw is List) {
+    for (final item in raw) {
+      add(item);
+    }
+  } else {
+    add(raw);
+  }
+  return out;
+}
+
+/// 解析清单顶层的 `mouseParams`（见 [MouseParams]）。全空时返回 null。
+MouseParams? parsePetPackMouseParams(Map<String, dynamic> json) {
+  final raw = json['mouseParams'];
+  if (raw is! Map) return null;
+
+  String? str(Object? v) => (v is String && v.isNotEmpty) ? v : null;
+  final params = MouseParams(
+    x: _parseMouseAxis(raw['x']),
+    y: _parseMouseAxis(raw['y']),
+    xy: _parseMouseAxis(raw['xy']),
+    left: str(raw['left']),
+    right: str(raw['right']),
+    smooth: (raw['smooth'] as num?)?.toDouble() ?? 0,
+  );
+  return params.enabled ? params : null;
 }
 
 /// 判别宠物包类型。

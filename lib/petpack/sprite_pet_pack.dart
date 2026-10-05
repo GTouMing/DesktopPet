@@ -17,6 +17,9 @@ class SpritePetPack extends PetPack {
     required this.anims,
     super.states,
     super.initialState,
+    super.hotkeys,
+    super.keyParams,
+    super.mouseParams,
   }) : super(type: PetPackType.sprite);
 
   /// 动画名 → 动画定义。
@@ -63,6 +66,9 @@ class SpritePetPack extends PetPack {
       anims: anims,
       states: parsePetPackStates(json),
       initialState: json['initialState'] as String? ?? 'idle',
+      hotkeys: parsePetPackHotkeys(json),
+      keyParams: parsePetPackKeyParams(json),
+      mouseParams: parsePetPackMouseParams(json),
     );
   }
 }

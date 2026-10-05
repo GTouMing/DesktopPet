@@ -9,7 +9,7 @@ import 'pet_pack.dart';
 /// [PetPack] 提供，Live2D 渲染器把 `StateDef.animation` 当作**动作组名**使用。
 ///
 /// 模型目录用**绝对路径**：导入的宠物包解压在
-/// `<app_documents>/imported_skins/<petId>/`（或自定义 `packDir`），Live2D 插件在
+/// `<app_documents>/imported_pet_packs/<petId>/`（或自定义 `packDir`），Live2D 插件在
 /// 所有原生平台都接受绝对路径（Windows 亦然，实测通过）。
 class Live2DPetPack extends PetPack {
   const Live2DPetPack({
@@ -22,6 +22,9 @@ class Live2DPetPack extends PetPack {
     required this.modelFileName,
     super.states,
     super.initialState,
+    super.hotkeys,
+    super.keyParams,
+    super.mouseParams,
   }) : super(type: PetPackType.live2d);
 
   /// 模型所在目录（[PetPack.basePath] 同值，语义化命名）。
@@ -53,6 +56,9 @@ class Live2DPetPack extends PetPack {
       modelFileName: modelFileName,
       states: parsePetPackStates(json),
       initialState: json['initialState'] as String? ?? 'idle',
+      hotkeys: parsePetPackHotkeys(json),
+      keyParams: parsePetPackKeyParams(json),
+      mouseParams: parsePetPackMouseParams(json),
     );
   }
 }

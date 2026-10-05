@@ -2,11 +2,16 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
+import 'hit_shape.dart';
+
 /// 悬浮窗场景里一只桌宠的落点与可交互性。
 ///
 /// 按绘制顺序排列：靠后者在上（与 `Stack` 子节点顺序一致），因此命中测试取
 /// "最后一个包含光标的条目"。
-typedef PetHit = ({String id, Rect rect, bool locked});
+///
+/// [shape] 说明 [rect] 之内哪一部分算命中（见 [HitShape]）：v1 恒为整矩形；
+/// [grid] 是为 Live2D 预留的可扩展 payload（`single-engine-overlay.md` §13.2）。
+typedef PetHit = ({String id, Rect rect, bool locked, HitShape shape});
 
 /// 悬浮窗场景的共享状态。
 ///
@@ -43,6 +48,12 @@ class OverlayController {
   /// - 指针路由据此做逐宠命中（跳过锁定的）。
   static final ValueNotifier<List<PetHit>> pets =
       ValueNotifier<List<PetHit>>(const []);
+
+  /// 归一化光标位置（场景坐标，`[-1, 1]`；null = 未知）。
+  ///
+  /// 由 [OverlayScene] 从全局鼠标接口换算写入；Live2D 桌宠的"光标跟随"据此驱动
+  /// `ParamMouseX/Y`（见 `PetPack.mouseParams`）。屏幕中心 = (0, 0)，右/上为正。
+  static final ValueNotifier<Offset?> cursorNorm = ValueNotifier<Offset?>(null);
 
   /// 被冻结移动的桌宠 id（环形菜单展开期间，避免环与宠物错位）；null = 无。
   ///

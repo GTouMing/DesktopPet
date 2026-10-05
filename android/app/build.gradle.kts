@@ -23,7 +23,9 @@ android {
         applicationId = "github.gtouming.desktop_pet"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // 显式 pin 24：live2d_flutter（Cubism Native SDK）要求 minSdk >= 24，
+        // 不用 flutter.minSdkVersion（它随 Flutter 版本浮动，可能低于 24）。
+        minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

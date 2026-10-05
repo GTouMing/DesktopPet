@@ -12,7 +12,7 @@
   "addPet": "Add pet",
   "petAdded": "Pet added",
   "sectionAppearance": "Appearance",
-  "sectionSkin": "Skin",
+  "sectionPetPack": "Pet packs",
   "sectionShortcut": "Shortcut",
   "sectionQuickLaunch": "Launch shortcuts",
   "sectionAbout": "About",
@@ -41,19 +41,12 @@
       "limit": { "type": "String" }
     }
   },
-  "skinDirDefaultPath": "Skin directory (default)",
-  "skinDir": "Skin directory",
-  "skinBuiltInValue": "assets/default_skin (built-in)",
-  "viewAvailableSkins": "View available skins",
+  "petPackDirDefaultPath": "Pet pack directory (default)",
+  "petPackDir": "Pet pack directory",
+  "petPackBuiltInValue": "assets/default_pet_pack (built-in)",
+  "viewAvailablePetPacks": "View available pet packs",
   "browseDirectory": "Browse directory",
-  "skinMigrated": "Imported skin packages migrated",
-  "skinMigrateFailed": "Failed to migrate skin packages",
-  "@skinMigrateFailed": {
-    "placeholders": {
-      "error": { "type": "String" }
-    }
-  },
-  "defaultSkinName": "Default skin",
+  "defaultPetPackName": "Default pet pack",
   "quickLaunchTitle": "Quick launch",
   "setShortcut": "Set shortcut",
   "noShortcuts": "No launch shortcuts yet",
@@ -76,10 +69,10 @@
   },
   "noPets": "No pets yet",
   "noPetsHint": "Tap the + button at the top right to add one",
-  "skinLabel": "Skin: {skin}",
-  "@skinLabel": {
+  "petPackLabel": "Pet pack: {petPack}",
+  "@petPackLabel": {
     "placeholders": {
-      "skin": { "type": "String" }
+      "petPack": { "type": "String" }
     }
   },
   "locked": "Locked",
@@ -103,16 +96,16 @@
   "scaleMultiplier": "Scale multiplier",
   "opacityMultiplier": "Opacity multiplier",
   "speedMultiplier": "Speed multiplier",
-  "skin": "Skin",
-  "useGlobalSkin": "Use skin from global settings",
-  "importZipSkin": "Import ZIP skin",
-  "chooseSkin": "Choose skin",
+  "petPack": "Pet pack",
+  "useGlobalPetPack": "Use pet pack from global settings",
+  "importZipPetPack": "Import ZIP pet pack",
+  "choosePetPack": "Choose pet pack",
   "finalSpeedFormula": "× global speed = final speed",
   "finalScaleFormula": "× global scale = final scale",
   "finalOpacityFormula": "× global opacity = final opacity",
-  "importingSkin": "Importing skin package...",
-  "skinImportSuccess": "Skin imported",
-  "skinImportFailed": "Skin import failed",
+  "importingPetPack": "Importing pet pack...",
+  "petPackImportSuccess": "Pet pack imported",
+  "petPackImportFailed": "Pet pack import failed",
   "scaleTooHigh": "Scale multiplier too high",
   "scaleTooHighHint": "Lower the multiplier or the global scale",
   "deletePetConfirm": "Delete \"{name}\"? This cannot be undone.",
@@ -121,17 +114,19 @@
       "name": { "type": "String" }
     }
   },
-  "chooseSkinTitle": "Choose skin",
-  "loadSkinsFailed": "Failed to load skins",
-  "noSkinsFound": "No skin packages found",
-  "noSkinsFoundHint": "No valid skin package (with skin.json) in this directory",
-  "skinSourceImported": "Source: imported skin package",
-  "skinSourceDir": "Directory: {path}",
-  "@skinSourceDir": {
+  "choosePetPackTitle": "Choose pet pack",
+  "loadPetPacksFailed": "Failed to load pet packs",
+  "noPetPacksFound": "No pet packs found",
+  "noPetPacksFoundHint": "No valid pet pack (with pet.json) in this directory",
+  "petPackSourceImported": "Source: imported pet pack",
+  "petPackSourceDir": "Directory: {path}",
+  "@petPackSourceDir": {
     "placeholders": {
       "path": { "type": "String" }
     }
   },
+  "petPackTypeSprite": "Sprite",
+  "petPackTypeLive2d": "Live2D",
   "builtIn": "Built-in",
   "addShortcutTitle": "Add launch shortcut",
   "editShortcutTitle": "Edit launch shortcut",
@@ -150,8 +145,8 @@
   "trayQuit": "Quit",
   "trayTooltip": "Desktop Pet",
   "defaultPetName": "My Pet",
-  "skinError": "error: {message}",
-  "@skinError": {
+  "petPackError": "error: {message}",
+  "@petPackError": {
     "placeholders": {
       "message": { "type": "String" }
     }

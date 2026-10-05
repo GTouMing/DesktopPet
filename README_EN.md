@@ -2,7 +2,7 @@
 
 A desktop pet application built with Flutter, supporting both **Windows** and **Android**.
 
-On Windows a single full-desktop transparent overlay window hosts every pet, the radial quick-launch dial and the tray icon, while the settings form opens in a separate child window on demand; on Android each pet is its own system overlay window floating above any app. Every pet is driven by a **JSON skin definition** — animations, behaviors and interaction triggers are all configurable, and you can import your own `.zip` skin packages.
+On Windows a single full-desktop transparent overlay window hosts every pet, the radial quick-launch dial and the tray icon, while the settings form opens in a separate child window on demand; on Android each pet is its own system overlay window floating above any app. Every pet is driven by a **Pet Pack** — a JSON manifest (`pet.json`) declaring animations/states/interaction triggers, with assets that are either **sprite frames** (sprite) or a **Live2D Cubism model** (live2d). You can also import your own `.zip` pet packs.
 
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android-blue)
 
@@ -10,16 +10,17 @@ On Windows a single full-desktop transparent overlay window hosts every pet, the
 
 - **Multiple pets at once**: Create several pets, each with its own position, scale and behavior — fully independent of one another. On Windows they share one overlay scene; on Android each gets its own system overlay window.
 - **Wander anywhere**: Pets are not pinned to one corner. They move around on their own, and respond to your clicks, drags and pokes.
-- **Behavior state machine**: `skin.json` declares states and transition rules (click, drag, timers, direction, arrival, animation complete, global hotkeys, etc.), combined with programmable transform expressions (scale / rotation / offset / opacity with `sin/cos/lerp/clamp`) for lively animation.
+- **Behavior state machine**: the pet pack manifest declares states and transition rules (click, drag, timers, direction, arrival, animation complete, global hotkeys, etc.), combined with programmable transform expressions (scale / rotation / offset / opacity with `sin/cos/lerp/clamp`) for lively animation.
+- **Two render backends**: sprite frame packs and **Live2D Cubism model packs** coexist under one state machine.
 - **The desktop stays usable**: the overlay is frameless, transparent and permanently **click-through** (the system skips it during hit-testing), so pets can never block anything else on your desktop. Each pet can be locked/unlocked; a locked pet neither reacts to the mouse nor takes part in hit-testing.
-- **Global hotkeys**: A state's `hotkey` rule in the skin JSON becomes a system-wide shortcut (e.g. `Ctrl+Alt+S` to sleep, `Ctrl+Alt+K` to walk to the screen edge). *Which* state a key applies in is decided entirely by the skin data: on press the app looks up “current state + combo”.
-- **Sound effects**: declare `audio` / `audioVolume` on a state and it plays on entry (`assets/...` for bundled resources, an absolute path for local files). The built-in skin ships no audio assets yet — fill one in and it plays.
+- **Global hotkeys**: A state's `hotkey` rule in the pet pack JSON becomes a system-wide shortcut (e.g. `Ctrl+Alt+S` to sleep, `Ctrl+Alt+K` to walk to the screen edge). *Which* state a key applies in is decided entirely by the pack data: on press the app looks up “current state + combo”.
+- **Sound effects**: declare `audio` / `audioVolume` on a state and it plays on entry (`assets/...` for bundled resources, an absolute path for local files). The built-in pet pack ships no audio assets yet — fill one in and it plays.
 - **Quick Launch (Windows)**: Hold the middle mouse button to summon a radial quick-launch dial (up to 8 apps); release over an item to launch it.
 - **System tray (Windows)**: Lock / unlock all pets, open settings, and quit.
-- **Skin system**:
-  - Built-in default skin (idle / walk / sleep / happy / eat / drag animations).
-  - One-click import from **ZIP skin packages** — automatically extracted, validated and registered.
-  - Configurable **custom skin directory**, auto-scanned for packages, with one-click migration of already-imported skins.
+- **Pet pack system**:
+  - Built-in default pet pack (sprite: idle / walk / sleep / happy / eat / drag animations).
+  - One-click import from **ZIP pet packs** — automatically extracted, validated per type and registered; **sprite / Live2D** is detected on import.
+  - Configurable **custom pet pack directory**, auto-scanned for packs, with one-click migration of already-imported packs.
 - **Settings hub**: Global scale / opacity / playback speed (multiplied with each pet's own multipliers), applied live across all pets.
 - **Persistence**: MMKV multi-process storage — config changes are written back and broadcast to every pet in real time.
 
@@ -32,13 +33,21 @@ On Windows a single full-desktop transparent overlay window hosts every pet, the
 
 > Other platforms (Linux / macOS / iOS) throw an `UnsupportedError` at startup and are not currently supported.
 
+### Live2D Support
+
+- **Platforms**: Windows is implemented (the in-repo renderer arrives as a D3D11 GPU-surface texture inside the Flutter scene); Android is a later stage.
+- **Model layout**: one directory plus its `.model3.json`. The **`.model3.json` must live at the pack root**; the `.moc3` (versions 3.0–5.3), textures and motions it references resolve relatively next to it.
+- **Shared state machine**: `StateDef.animation` is treated as a **motion group name** (`startMotion`) for Live2D; states, transitions and expressions are identical to sprites.
+- **Hit-testing**: v1 uses the whole **bounding rectangle**; the extensible payload for per-pixel hit-testing is reserved (see “Technical Highlights”).
+- **License**: the model and the Cubism runtime belong to Live2D Inc. — see “License”.
+
 ## Getting Started
 
 ### Prerequisites
 
 - Flutter SDK `^3.12.2` (Dart `^3.12.2`)
-- Windows: Windows 10 / 11
-- Android: Android 7.0+ (API 24+; overlays need system authorization)
+- Windows: Windows 10 / 11 (needs D3D11 for Live2D)
+- Android: Android 7.0+ (**API 24+**; overlays need system authorization)
 
 ### Run
 
@@ -50,7 +59,17 @@ flutter run -d <device>  # Android device / emulator
 
 On first launch the app seeds default data in the app documents directory and creates a pet named "默认桌宠" (Default Pet).
 
-### Build & Release
+> ⚠️ After cloning, fetch the Live2D SDK once (it is not committed) — see “Build Notes” below.
+
+### Build Notes
+
+- **Live2D SDK (required)**: the Cubism runtime is used by the in-repo renderer in `plugins/pet_live2d/`; the **SDK itself is not committed**. After cloning, run once:
+  `powershell -ExecutionPolicy Bypass -File tool/fetch_live2d_sdk.ps1`
+  It fetches a pinned version (plus sha256 verification) declared in `third_party/live2d.sdk.json` and extracts the needed subset into `third_party/live2d/` (gitignored). Live2D's official SDK zip sits behind a license-acceptance page and cannot be fetched by a stable direct link, so the script also accepts `-SdkZip <path>` for a manually downloaded copy. CMake fails with a readable message pointing at the script when the subset is missing.
+- **No more `live2d_flutter`**: the old third-party plugin (and its out-of-repo vendored copy behind `dependency_overrides`) is gone. The patches we wrote for it and the architectural traps it had are recorded in `doc/live2d-renderer-notes.md` and `plugins/pet_live2d/`.
+- **Android `minSdk`**: explicitly pinned to `24`, reserved for the future Android Live2D path (a Cubism runtime requirement) rather than `flutter.minSdkVersion`.
+- **Windows toolchain**: the native code compiles and links under `cxx_std_17 + /W4 /WX + _HAS_EXCEPTIONS=0`; the shared `apply_standard_settings` needs no relaxation.
+- **Debug-build caveat**: the renderer **never** requests `D3D11_CREATE_DEVICE_DEBUG` — on a machine without the D3D11 debug layer that request fails and falls back to WARP, whose shared textures the engine's hardware device cannot bind (it shows up as "nothing renders"). One of the traps recorded in `doc/live2d-renderer-notes.md`.
 
 ```bash
 # Windows
@@ -66,63 +85,75 @@ flutter build apk
 lib/
 ├── main.dart                     # main(): platform dispatch, single-instance lock, window-role wiring
 ├── app.dart                      # MaterialApp entry (shared by the main UI & the pet overlay)
-├── core/                         # Leaf layer: constants, enums, DPR, shared scene state, cross-engine messages
-├── input/                        # Global input: InputService / KeyRegistry / platform input source
-├── pet/                          # Pet runtime: state machine, behavior, animation, hotkeys, pointer routing
-│   ├── pet_notifier.dart         #   State manager (Riverpod StateNotifier)
-│   ├── pet_state.dart            #   Runtime state snapshot of a pet
-│   ├── pet_providers.dart        #   petId / petState providers
-│   ├── pet_metrics.dart          #   Derived render values (global × per-pet, pure functions)
-│   ├── pet_window_binding.dart   #   Android-only system overlay sync
-│   ├── behavior_engine.dart      #   Target generation & interpolation, direction/arrival events
-│   ├── pet_pointer_router.dart   #   Hook pointer events → per-pet hit-testing and dragging
-│   ├── hotkey_engine.dart        #   Skin `hotkey` rules → global input layer
-│   ├── pet_animation.dart        #   Load & play a single animation (loop / repeat)
-│   ├── pet_widget.dart           #   Rendering widget (sprite sheet + transform + opacity)
-│   └── pet_context.dart          #   Context interface consumed by the behavior engine
-├── skin/                         # Skin system
-│   ├── skin_package.dart         #   Skin package model (animations / states / skin.json)
-│   ├── expression.dart           #   Lightweight expression evaluator (sin/cos/lerp/clamp…)
-│   ├── audio/                    #   Per-state sound service (plays on state entry; built-in skin ships none)
-│   ├── sheet/                    #   Frame PNG → sprite atlas (runtime stitching) + renderer
-│   ├── import/                   #   ZIP import, validation, repository, directory migration
-│   └── state/  animation/        #   JSON models for states / animations
-├── platform/                     # Platform abstraction & implementations
-│   ├── window_interface.dart     #   WindowController abstract interface (Android only)
-│   ├── windows/                  #   Windows: host wiring, overlay/settings channels, tray
-│   └── android/                  #   Android: multi overlay (vendored plugin), settings-change broadcast
-├── shortcut/                     # Quick launch: ring geometry & painting, host gesture machine, icon extraction
-├── storage/                      # MMKV persistence + data models (settings / pets / skins / shortcuts)
+├── core/                        # Leaf layer: constants, enums, DPR, hit shape, shared scene state, cross-engine channel
+├── input/                       # Global input: InputService / KeyRegistry / platform input source / watch regions (shape)
+├── pet/                         # Pet runtime: state machine, behavior, render boundary, hotkeys, pointer routing
+│   ├── pet_notifier.dart        #   State manager (Riverpod StateNotifier)
+│   ├── pet_state.dart           #   Runtime state snapshot of a pet
+│   ├── pet_providers.dart       #   petId / petState providers
+│   ├── pet_metrics.dart         #   Derived render values (global × per-pet, pure functions)
+│   ├── pet_window_binding.dart  #   Android-only system overlay sync
+│   ├── behavior_engine.dart     #   Target generation & interpolation, direction/arrival events
+│   ├── pet_pointer_router.dart  #   Hook pointer events → per-pet hit-testing and dragging
+│   ├── hotkey_engine.dart       #   Pet pack `hotkey` rules → global input layer
+│   ├── pet_visual.dart          #   Render boundary abstraction (PetVisual)
+│   ├── sprite_pet_visual.dart   #   Sprite implementation (animation + atlas + transform)
+│   ├── live2d_pet_visual.dart   #   Live2D implementation (Texture + motion groups; warm-up swap on resize)
+│   ├── live2d/                  #   Live2D channel wrapper (native runtime ↔ Dart)
+│   ├── pet_widget.dart          #   Does two things: draws PetState + picks a PetVisual by type
+│   └── pet_context.dart         #   Context interface consumed by the behavior engine
+├── petpack/                     # Pet pack system (renderer-agnostic)
+│   ├── pet_pack.dart            #   Abstract base + manifest reading + type detection (PetPackDetector)
+│   ├── sprite_pet_pack.dart     #   Sprite pack (animations / frame images)
+│   ├── live2d_pet_pack.dart     #   Live2D pack (model3.json / motion groups)
+│   ├── pet_pack_lister.dart     #   Available-pack discovery (with type badge)
+│   ├── expression.dart          #   Lightweight expression evaluator (sin/cos/lerp/clamp…)
+│   ├── audio/                   #   Per-state sound service (plays on state entry)
+│   ├── sheet/                   #   Frame PNG → sprite atlas (runtime stitching) + renderer
+│   ├── import/                  #   ZIP import, per-type validation, repository, directory migration
+│   └── state/  animation/       #   JSON models for states / animations
+├── platform/                    # Platform abstraction & implementations
+│   ├── window_interface.dart    #   WindowController abstract interface (Android only)
+│   ├── windows/                 #   Windows: host wiring, overlay/settings channels, tray
+│   └── android/                 #   Android: multi overlay (vendored plugin), settings-change broadcast
+├── shortcut/                    # Quick launch: ring geometry & painting, host gesture machine, icon extraction
+├── storage/                     # MMKV persistence + data models (settings / pets / pet packs / shortcuts)
 └── ui/
-    ├── common/                   #   Main list, pet editor, skin picker, language, dialogs
-    │   └── settings/             #   Settings page split into sections (appearance / skin / shortcuts / language / about)
-    ├── host/                     #   Roots of the two windows and their support pieces
-    │   ├── overlay_scene.dart    #     The pet overlay scene (every pet + the radial dial)
+    ├── common/                  #   Main list, pet editor, pet pack picker, language, dialogs
+    │   └── settings/            #   Settings page split into sections (appearance / pet packs / shortcuts / language / about)
+    ├── host/                    #   Roots of the two windows and their support pieces
+    │   ├── overlay_scene.dart   #     The pet overlay scene (every pet + the radial dial)
     │   ├── settings_window_root.dart #  Settings window root
-    │   ├── scene_geometry.dart   #     Scene geometry (= desktop geometry) and DPR conversion
-    │   ├── grab_rects.dart       #     Publishes pet rectangles to the global hook
+    │   ├── scene_geometry.dart  #     Scene geometry (= desktop geometry) and DPR conversion
+    │   ├── grab_rects.dart      #     Publishes pet hit regions to the global hook
     │   └── settings_window_channel.dart # Listens for "storage changed" from the settings window
-    ├── android/                  #   Content of one pet's system overlay
-    └── widgets/                  #   Shared widgets (window frame, pet list/card, info overlay)
+    ├── android/                 #   Content of one pet's system overlay
+    └── widgets/                 #   Shared widgets (window frame, pet list/card, info overlay)
 ```
 
-## Skin Packages
+## Pet Packs
 
-A skin is a directory containing `skin.json` plus animation frame images; `frameWidth/frameHeight` define the single-frame canvas.
+A pet pack is a directory containing a manifest — **`pet.json`** — plus assets.
 
-- The **built-in skin** lives in `assets/default_skin/`.
-- **Imported skins** are extracted to `<app documents>/imported_skins/<petId>/` by default, or to `<skinDir>/<petId>/` when a custom skin directory is configured.
-- **Custom directory**: pick any folder in Settings to use as the skin directory; every subdirectory containing a `skin.json` is discovered automatically.
+- The **built-in pet pack** lives in `assets/default_pet_pack/`.
+- **Imported packs** are extracted to `<app documents>/imported_pet_packs/<petId>/` by default, or to `<packDir>/<petId>/` when a custom pet pack directory is configured.
+- **Custom directory**: pick any folder in Settings to use as the pet pack directory; every subdirectory containing a manifest (`pet.json`) is discovered automatically.
+- **Type detection**: the manifest's `type` wins (`"sprite"` / `"live2d"`); otherwise it is detected from content — a `*.model3.json` in the directory means Live2D, anything else is a sprite pack.
 
-### skin.json Reference
+### Manifest Reference (`pet.json`)
 
 | Field                        | Description                                                                                                                 |
 |------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
-| `name` / `version`           | Skin name and version                                                                                                       |
-| `frameWidth` / `frameHeight` | Single-frame canvas size (logical pixels)                                                                                   |
+| `name` / `version`           | Pack name and version                                                                                                       |
+| `type`                       | `"sprite"` (default) or `"live2d"`; detected from content when omitted                                                      |
+| `frameWidth` / `frameHeight` | Render base size (logical pixels): sprite = single frame; live2d = logical canvas                                           |
 | `initialState`               | Initial state name (defaults to `idle`)                                                                                     |
-| `animations`                 | Animation definitions: `{ folder, fps, frameCount, framePrefix?, frameStart? }`; frames are `folder/0.png`, `folder/1.png`… |
-| `states`                     | State definitions: reference an animation + optional behavior + transform expressions + transitions                         |
+| `animations`                 | (sprite) Animation definitions: `{ folder, fps, frameCount, framePrefix?, frameStart? }`; frames are `folder/0.png`, `folder/1.png`… |
+| `model`                      | (live2d) `.model3.json` file name; when omitted, the first `*.model3.json` at the pack root is used                          |
+| `states`                     | State definitions: reference an animation/motion group + optional behavior + transform expressions + transitions             |
+| `hotkeys`                    | Pack-level hotkey → action (**bypasses the state machine**, see below): `{ "<id>": { key, modifiers?, animation?, motionIndex?, motionPriority?, expression?, durationMs? } }` |
+| `keyParams`                  | Typing reaction (Live2D only): `{ "<key>": "<model parameter id>" }` — holding the key sets the parameter to 1, releasing to 0 |
+| `mouseParams`                | Mouse feedback (Live2D only): `{ x?, y?, xy?, left?, right?, smooth? }` — each axis is a list of `{param, scale}` mappings, so one axis can drive several parameters |
 
 Example state definition:
 
@@ -183,6 +214,109 @@ Every state can describe how it transforms over time `t` (0→1, reset each loop
 
 Expressions support `+ - * / ^ ( )`, numbers, the constant `PI`, the variable `t`, and the functions `sin cos abs clamp lerp`.
 
+### Pack-level Hotkeys (`hotkeys`)
+
+The top-level `hotkeys` map binds a key **directly** to an action/expression, **bypassing the
+state machine** — unlike a state's `hotkey` transition (which switches the current state), this
+just means “press this key, play this motion/expression”. It suits Live2D models that ship a
+pile of motions you want to fire one key at a time (toggle accessories, switch expressions…).
+
+```json
+"hotkeys": {
+  "ear": { "key": "1", "modifiers": ["ctrl", "alt"],
+           "animation": "CAT_motion_lock", "motionIndex": 1, "motionPriority": 3 },
+  "cry": { "key": "2", "modifiers": ["ctrl", "alt"], "expression": 3 }
+}
+```
+
+- `key` (required) + `modifiers?`: physical key and modifiers, same notation as a state's
+  `hotkey` rule.
+- `animation?`: motion group name (Live2D) / animation name (sprite); omit for an
+  expression-only action.
+- `motionIndex?` / `motionPriority?`: index within the group and priority (`0` none / `1` idle /
+  `2` normal / `3` force, default `3`).
+- `expression?`: Live2D only, switches the expression index.
+- `durationMs?`: the action's length in ms (from the motion's `Meta.Duration`). When set, actions
+  are **serialized**: while one is playing, later requests **queue** (the newest replaces the
+  pending one) and play only after it finishes — matching Bongo ("the next animation is allowed
+  only after the current one finishes"). `0`/omitted = preempt immediately.
+
+Priority: **state transitions win** — if the current state declares a `hotkey` transition for
+the combo, the state machine runs; otherwise the pack-level action fires. Global hotkeys are
+Windows-only, and the key is **not swallowed** (other apps still receive it).
+
+> Pack-level actions are currently implemented by the Live2D renderer only; the sprite renderer ignores them.
+
+### Typing Reaction (`keyParams`)
+
+The top-level `keyParams` map binds a **physical key** to a Live2D **parameter id**: holding the
+key sets the parameter to `1`, releasing sets it to `0` (i.e. “press a key and the cat presses
+it too”). An empty map disables it; the sprite renderer ignores it.
+
+```json
+"keyParams": {
+  "space": "Space", "enter": "Enter1", "alt": "Alt", "ctrl": "Ctrl", "shift": "Shift",
+  "q": "Q1", "w": "W1", "e": "E1", "r": "R1", "t": "T1",
+  "a": "A1", "s": "S1", "d": "D1", "f": "F1", "g": "G1",
+  "z": "Z1", "x": "X1", "c": "C1", "v": "V1", "b": "B1",
+  "1": "F0", "2": "F2", "3": "F3", "4": "F4", "5": "F5"
+}
+```
+
+Key names are lowercase (`space`/`enter`/`alt`/…; letters/digits as themselves). Global hotkeys
+are Windows-only, and the key is **not swallowed** (other apps still receive it).
+
+### Mouse Feedback (`mouseParams`)
+
+The top-level `mouseParams` map binds the **cursor** to Live2D parameters (Live2D only). Each
+axis can drive **several** parameters at once:
+
+```json
+"mouseParams": {
+  "x": [
+    { "param": "ParamAngleX",   "scale": 30 },
+    { "param": "ParamEyeBallX", "scale": 1 },
+    { "param": "ParamMouseX",   "scale": 30, "raw": true }
+  ],
+  "y": [
+    { "param": "ParamAngleY",   "scale": 30 },
+    { "param": "ParamEyeBallY", "scale": 1 },
+    { "param": "ParamMouseY",   "scale": 30, "raw": true }
+  ],
+  "xy": [
+    { "param": "ParamAngleZ", "scale": -30 }
+  ],
+  "left": "ParamMouseLeftDown",
+  "right": "ParamMouseRightDown",
+  "smooth": 1.0
+}
+```
+
+- `x`: cursor left/right (screen centre = 0, right positive); `y`: cursor up/down (up positive);
+  `xy`: `x*y` (for product curves such as head tilt).
+- Each entry is `{ "param": "<id>", "scale": <factor>, "raw"? }`, or just the parameter name as a
+  string (`scale` defaults to 1).
+- `scale` must match the parameter's range in the model (e.g. `ParamAngleX` ≈ ±30,
+  `ParamEyeBallX` ≈ ±1).
+- `raw: true`: that entry bypasses the easing and uses the raw cursor value. In Bongo the
+  smoothing only drives the look-at (angles/eyeballs); the hand / drawn mouse tracks the cursor
+  directly — mark those `raw: true`.
+- `left` / `right`: left/right mouse button down → `1`, up → `0`.
+- `smooth`: easing speed multiplier (default `0` = instant follow). When `> 0` the follow uses
+  Bongo's / Cubism's `CubismTargetPoint` model — an **acceleration-limited** servo: max speed
+  `4.0/s`, `0.15 s` to reach max speed, braking near the target, stop threshold `0.01` (all in the
+  normalized `±1` range). `1.0` is **exactly Bongo**; `> 1` is faster, `< 1` slower.
+- An empty map disables it (and then no global cursor reporting happens at all).
+
+> Cursor reporting only turns on when a pack declares `mouseParams`; if an axis is inverted or has
+> the wrong magnitude, tune that entry's `scale` (negative flips it).
+
+### Live2D Pet Packs
+
+- Put the `.model3.json` along with the `.moc3` / textures / motions it references in the directory. The **`.model3.json` must be at the pack root** (a subdirectory is rejected) so the pack directory is the model directory and the model's internal relative references resolve.
+- The state machine is shared with sprites: `state.animation` is treated as a **motion group name** (`startMotion`).
+- v1 trade-offs: only “state → motion group” is wired up — **no** expression/parameter mapping; hit-testing is the whole **rectangle**; hiding the pet unloads the model (showing it again reloads).
+
 ## Usage
 
 **Interacting with a pet**
@@ -192,7 +326,7 @@ Expressions support `+ - * / ^ ( )`, numbers, the constant `PI`, the variable `t
 
 **Managing pets**
 - The main window lists every pet, letting you:
-  - Create a pet (name it, pick a skin, adjust scale / opacity / speed)
+  - Create a pet (name it, pick a pet pack, adjust scale / opacity / speed)
   - Edit or delete existing pets
 - Global settings tune base scale, opacity and animation speed for all pets (multiplied with per-pet multipliers).
 
@@ -207,21 +341,24 @@ Expressions support `+ - * / ^ ( )`, numbers, the constant `PI`, the variable `t
 ## Technical Highlights
 
 - **Single-overlay architecture (Windows)**: every pet and the radial quick-launch dial are drawn in one full-desktop transparent overlay, and the settings form opens on demand in a `desktop_multi_window` child engine. The desktop stays usable because that window is permanently `WS_EX_LAYERED | WS_EX_TRANSPARENT` — the system skips it during hit-testing, so not even a hung Flutter side can block a click.
-- **Global input hooks**: the overlay receives no mouse messages, so pet clicks/drags and global hotkeys all go through process-wide `WH_MOUSE_LL` / `WH_KEYBOARD_LL` hooks. Dart publishes each unlocked pet's rectangles as "grabbable regions"; the hook forwards pointer events only inside them and *swallows* the press so it never reaches the window underneath.
+- **Global input hooks**: the overlay receives no mouse messages, so pet clicks/drags and global hotkeys all go through process-wide `WH_MOUSE_LL` / `WH_KEYBOARD_LL` hooks. Dart publishes each unlocked pet's **hit regions** as "grabbable regions"; the hook forwards pointer events only inside them and *swallows* the press so it never reaches the window underneath. Each region carries an extensible `shape` field (`rect` / `grid`): v1 is always the whole rectangle, while **per-pixel (grid) hit-testing is reserved** — native decides **synchronously** inside the hook callback, with no native→Dart→native round-trip.
+- **Render boundary `PetVisual`**: `PetWidget` does exactly two things — draw `PetState`, and pick a visual implementation by pack type. Sprites use `SpritePetVisual` (animation + atlas + `CustomPaint`); Live2D uses `Live2DPetVisual` (native runtime + `Texture` + motion groups). The behavior engine / `PetNotifier` / `PetState` are **decoupled** from the renderer.
 - **Single-instance lock**: On Windows a mutex (`flutter_alone`) guarantees a single overlay instance; relaunching focuses the existing instance instead.
 - **Cross-process storage**: MMKV is opened in `MULTI_PROCESS_MODE`, so all engines share one config store; writes trigger a broadcast refresh callback.
-- **Runtime sprite atlas**: Frame PNGs are stitched into one GPU-friendly atlas at runtime (sides capped at ≤ 4096 px with an optimal auto grid), drawn frame-by-frame via `CustomPaint` to cut texture-switch overhead. Atlases are **cached on disk** per (skin, animation): the expensive decode-and-stitch pass happens once per skin, shared by every pet engine and reused across restarts.
-- **Locking & dragging**: on Windows "locked" simply means the pet's rectangle is not published to the hook, so clicking it is clicking the desktop; dragging is pure Dart scene-coordinate movement (the raw click was already swallowed by the hook). On Android each pet is a real system overlay window, so "locked" uses `FLAG_NOT_TOUCHABLE` for whole-window pass-through and dragging is handed to the OS window drag (`startDragging`).
-- **Expression evaluator**: A tiny hand-written recursive-descent parser lets skin transforms be authored as plain math formulas — bouncing, swaying and breathing effects with zero code changes.
+- **Runtime sprite atlas**: Frame PNGs are stitched into one GPU-friendly atlas at runtime (sides capped at ≤ 4096 px with an optimal auto grid), drawn frame-by-frame via `CustomPaint` to cut texture-switch overhead. Atlases are **cached on disk** per (pack, animation): the expensive decode-and-stitch pass happens once per pack, shared by every pet engine and reused across restarts.
+- **Locking & dragging**: on Windows "locked" simply means the pet's hit regions are not published to the hook, so clicking it is clicking the desktop; dragging is pure Dart scene-coordinate movement (the raw click was already swallowed by the hook). On Android each pet is a real system overlay window, so "locked" uses `FLAG_NOT_TOUCHABLE` for whole-window pass-through and dragging is handed to the OS window drag (`startDragging`).
+- **Expression evaluator**: A tiny hand-written recursive-descent parser lets pack transforms be authored as plain math formulas — bouncing, swaying and breathing effects with zero code changes.
 - **State ownership**: three kinds of state, each with exactly one source of truth — kept deliberately separate:
-  1. **Persisted data** (settings / pets / skins / shortcuts): owned by `StorageService`, which **broadcasts on every write** (the `changes` stream). The UI only reads `appDataProvider` — a plain `Provider` driven by that stream — so there is **no** manual `ref.invalidate` anywhere. Across engines only one fact is sent ("storage changed"): a dmw message on Windows, the native `settings_updated` on Android; the receiving side just calls `notifySettingsChanged()`, and the rest of the refresh is identical to the in-engine case.
-  2. **Transient scene state** (scene size, pet rectangles, the frozen pet, the ring presentation): in-process, never persisted, written only by `OverlayScene` / `QuickLaunchInputHost`, read-only everywhere else.
+  1. **Persisted data** (settings / pets / pet packs / shortcuts): owned by `StorageService`, which **broadcasts on every write** (the `changes` stream). The UI only reads `appDataProvider` — a plain `Provider` driven by that stream — so there is **no** manual `ref.invalidate` anywhere. Across engines only one fact is sent ("storage changed"): a dmw message on Windows, the native `settings_updated` on Android; the receiving side just calls `notifySettingsChanged()`, and the rest of the refresh is identical to the in-engine case.
+  2. **Transient scene state** (scene size, pet rectangles/hit shapes, the frozen pet, the ring presentation): in-process, never persisted, written only by `OverlayScene` / `QuickLaunchInputHost`, read-only everywhere else.
   3. **Process-level services** (`InputService` / `ShortcutLauncher` / tray / settings-window host): must exist before `runApp` or across window roles, so they stay singletons — but they are only driven from the assembly points (`main` / `AppHost`).
 
 ## Roadmap
 
-- [x] Wire global hotkeys (skin `hotkey` rules now go through the global input layer)
-- [x] Wire up skin audio (entering a state plays its `audio` at `audioVolume`; the built-in skin ships no audio assets yet)
+- [x] Wire global hotkeys (pet pack `hotkey` rules now go through the global input layer)
+- [x] Wire up pack audio (entering a state plays its `audio` at `audioVolume`; the built-in pack ships no audio assets yet)
+- [x] Live2D Cubism pet packs (Windows + Android)
+- [ ] Live2D per-pixel hit-testing (grid shape) and expression/parameter mapping
 - [ ] More events & behaviors (feeding, dialogue, weather…)
 - [ ] Pet-to-pet interaction (approach, chase, hang out together)
 - [ ] More platform support
@@ -229,3 +366,8 @@ Expressions support `+ - * / ^ ( )`, numbers, the constant `PI`, the variable `t
 ## License
 
 This project is licensed under the [MIT](LICENSE) license.
+
+Third-party components and licenses (see [NOTICES](NOTICES)):
+
+- **live2d_flutter**: BSD-3-Clause.
+- **Live2D Cubism Core / Native SDK**: owned by Live2D Inc., subject to its Free Material / Proprietary / Distribution Licenses; the `live2d_flutter` copy distributed with this repo bundles that SDK. `.moc3` supports versions 3.0–5.3. Please follow Live2D Inc.'s terms when using the Live2D features.

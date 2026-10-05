@@ -45,7 +45,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sectionAppearance => 'Appearance';
 
   @override
-  String get sectionSkin => 'Skin';
+  String get sectionPetPack => 'Pet packs';
 
   @override
   String get sectionShortcut => 'Shortcut';
@@ -80,30 +80,22 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get skinDirDefaultPath => 'Skin directory (default)';
+  String get petPackDirDefaultPath => 'Pet pack directory (default)';
 
   @override
-  String get skinDir => 'Skin directory';
+  String get petPackDir => 'Pet pack directory';
 
   @override
-  String get skinBuiltInValue => 'assets/default_skin (built-in)';
+  String get petPackBuiltInValue => 'assets/default_pet_pack (built-in)';
 
   @override
-  String get viewAvailableSkins => 'View available skins';
+  String get viewAvailablePetPacks => 'View available pet packs';
 
   @override
   String get browseDirectory => 'Browse directory';
 
   @override
-  String get skinMigrated => 'Imported skin packages migrated';
-
-  @override
-  String skinMigrateFailed(String error) {
-    return 'Failed to migrate skin packages';
-  }
-
-  @override
-  String get defaultSkinName => 'Default skin';
+  String get defaultPetPackName => 'Default pet pack';
 
   @override
   String get quickLaunchTitle => 'Quick launch';
@@ -146,8 +138,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noPetsHint => 'Tap the + button at the top right to add one';
 
   @override
-  String skinLabel(String skin) {
-    return 'Skin: $skin';
+  String petPackLabel(String petPack) {
+    return 'Pet pack: $petPack';
   }
 
   @override
@@ -195,16 +187,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get speedMultiplier => 'Speed multiplier';
 
   @override
-  String get skin => 'Skin';
+  String get petPack => 'Pet pack';
 
   @override
-  String get useGlobalSkin => 'Use skin from global settings';
+  String get useGlobalPetPack => 'Use pet pack from global settings';
 
   @override
-  String get importZipSkin => 'Import ZIP skin';
+  String get importZipPetPack => 'Import ZIP pet pack';
 
   @override
-  String get chooseSkin => 'Choose skin';
+  String get choosePetPack => 'Choose pet pack';
 
   @override
   String get finalSpeedFormula => '× global speed = final speed';
@@ -216,13 +208,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get finalOpacityFormula => '× global opacity = final opacity';
 
   @override
-  String get importingSkin => 'Importing skin package...';
+  String get importingPetPack => 'Importing pet pack...';
 
   @override
-  String get skinImportSuccess => 'Skin imported';
+  String get petPackImportSuccess => 'Pet pack imported';
 
   @override
-  String get skinImportFailed => 'Skin import failed';
+  String get petPackImportFailed => 'Pet pack import failed';
 
   @override
   String get scaleTooHigh => 'Scale multiplier too high';
@@ -236,25 +228,31 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get chooseSkinTitle => 'Choose skin';
+  String get choosePetPackTitle => 'Choose pet pack';
 
   @override
-  String get loadSkinsFailed => 'Failed to load skins';
+  String get loadPetPacksFailed => 'Failed to load pet packs';
 
   @override
-  String get noSkinsFound => 'No skin packages found';
+  String get noPetPacksFound => 'No pet packs found';
 
   @override
-  String get noSkinsFoundHint =>
-      'No valid skin package (with skin.json) in this directory';
+  String get noPetPacksFoundHint =>
+      'No valid pet pack (with pet.json) in this directory';
 
   @override
-  String get skinSourceImported => 'Source: imported skin package';
+  String get petPackSourceImported => 'Source: imported pet pack';
 
   @override
-  String skinSourceDir(String path) {
+  String petPackSourceDir(String path) {
     return 'Directory: $path';
   }
+
+  @override
+  String get petPackTypeSprite => 'Sprite';
+
+  @override
+  String get petPackTypeLive2d => 'Live2D';
 
   @override
   String get builtIn => 'Built-in';
@@ -311,7 +309,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get defaultPetName => 'My Pet';
 
   @override
-  String skinError(String message) {
+  String petPackError(String message) {
     return 'error: $message';
   }
 }

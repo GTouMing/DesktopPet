@@ -8,8 +8,10 @@ import 'package:flutter_riverpod/legacy.dart';
 
 import '../core/constants.dart';
 import '../core/overlay_controller.dart';
-import '../input/key_input.dart';
+import '../input/input.dart';
 import '../petpack/audio/audio_service.dart';
+import '../petpack/hotkey_action.dart';
+import '../petpack/mouse_params.dart';
 import '../petpack/pet_pack.dart';
 import '../storage/models/pet_config.dart';
 import '../storage/storage_service.dart';
@@ -47,7 +49,7 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
 
   late final PetPack pack;
 
-  /// 皮肤是否已就绪（[pack] 是 late final，未就绪前不可读）。
+  /// 宠物包是否已就绪（[pack] 是 late final，未就绪前不可读）。
   bool _packReady = false;
 
   /// 音效（每只桌宠一个播放器，见 [AudioService]）。
@@ -56,9 +58,43 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
   late final BehaviorEngine engine = BehaviorEngine(context: this);
   late final HotkeyEngine hotkey = HotkeyEngine(keyInput);
 
+  /// 包级快捷键 → 瞬时动作：由 [PetWidget] 在渲染器就绪后挂上。
+  ///
+  /// 与状态迁移不同，这类动作**不改变状态机**，只让渲染器直接播一次动作；渲染器
+  /// 尚未就绪（或已销毁）时为 null，事件被丢弃。
+  void Function(HotkeyAction action)? onHotkeyAction;
+
+  /// 模型参数出口（"打字反应" + 鼠标反馈），由 [PetWidget] 挂到渲染器。
+  void Function(String parameterId, double value)? onParameter;
+
+  /// 鼠标反馈（见 [MouseParams]）：光标跟随 + 鼠标按键。
+  MouseParams? _mouseParams;
+  StreamSubscription<({MouseButton button, bool down})>? _mouseSub;
+  bool _mouseTracking = false;
+
+  /// 光标跟随的缓动状态（[MouseParams.smooth] > 0 时启用）。
+  ///
+  /// 照搬 Cubism 官方 `CubismTargetPoint`（Bongo 用的同一套）：不是指数缓动，而是
+  /// **加速度受限**的伺服——按上限速度朝目标移动、0.15s 加到满速、接近时刹车。
+  Timer? _mouseTimer;
+  double _faceTargetX = 0, _faceTargetY = 0;
+  double _faceX = 0, _faceY = 0;
+  double _faceVX = 0, _faceVY = 0;
+  double _userTimeSeconds = 0, _lastTimeSeconds = 0;
+  bool _mouseInited = false;
+
+  /// 最近一次原始光标值（供 `raw: true` 的映射直接用）。
+  Offset _mouseRaw = Offset.zero;
+
+  // `CubismTargetPoint.cpp` 里的常量。
+  static const double _faceFrameRate = 30.0;
+  static const double _faceMaxParamV = 4.0; // 归一化 ±1 下的最大速度（/秒）
+  static const double _faceTimeToMaxSpeed = 0.15; // 秒
+  static const double _faceEpsilon = 0.01;
+
   bool _tickBusy = false;
 
-  /// 状态定时器的最小间隔(自定义皮肤可能给出 0ms,直接使用会自激忙循环)。
+  /// 状态定时器的最小间隔(自定义宠物包可能给出 0ms,直接使用会自激忙循环)。
   static const Duration _minStateTimerDelay = Duration(milliseconds: 16);
 
   /// 当前状态最短 delay 的 timer。
@@ -100,10 +136,11 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
 
       this.pack = pack;
       _packReady = true;
+      _setupMouseParams();
       state = state.copyWith(
           basePetSize: pack.baseSize, currentState: pack.initialState);
 
-      // 注册快捷键(皮肤里声明的 hotkey 规则 → 全局输入层)。
+      // 注册快捷键(宠物包里声明的 hotkey 规则 → 全局输入层)。
       await hotkey.bind(
         pack: pack,
         currentState: () => state.currentState,
@@ -111,6 +148,8 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
           state = state.copyWith(
               currentState: next, lastInteractionTime: DateTime.now());
         },
+        onHotkeyAction: (action) => onHotkeyAction?.call(action),
+        onKeyParam: (id, down) => onParameter?.call(id, down ? 1.0 : 0.0),
       );
       if (!mounted) return;
 
@@ -145,12 +184,152 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
     }
   }
 
+  /// 装配鼠标反馈（见 [MouseParams]）：
+  /// - 光标跟随听 [OverlayController.cursorNorm]（场景归一化坐标）；
+  /// - 鼠标按键订 [InputService.mouseButtons]；
+  /// - 并向输入层**申请**开启全局鼠标上报（引用计数，多宠安全）。
+  void _setupMouseParams() {
+    final mp = pack.mouseParams;
+    if (mp == null) return;
+    _mouseParams = mp;
+
+    if (mp.followsCursor) {
+      OverlayController.cursorNorm.addListener(_onCursorNorm);
+    }
+    if (mp.hasButtons) {
+      _mouseSub = InputService.instance.mouseButtons.listen(_onMouseButton);
+    }
+    if (HotkeyEngine.supported) {
+      _mouseTracking = true;
+      unawaited(InputService.instance.setMouseTracking(true));
+    }
+  }
+
+  void _onCursorNorm() {
+    final mp = _mouseParams;
+    final norm = OverlayController.cursorNorm.value;
+    if (mp == null || norm == null) return;
+
+    _mouseRaw = norm;
+    if (mp.smooth <= 0) {
+      _applyMouseNorm(mp, norm, norm);
+      return;
+    }
+    // 缓动：只记目标，由 60Hz 定时器按 CubismTargetPoint 逐步逼近。
+    if (!_mouseInited) {
+      _mouseInited = true;
+      _faceX = norm.dx;
+      _faceY = norm.dy;
+      _faceVX = 0;
+      _faceVY = 0;
+      _userTimeSeconds = 0;
+      _lastTimeSeconds = 0;
+    }
+    _faceTargetX = norm.dx;
+    _faceTargetY = norm.dy;
+    // 缓动项用当前 face 值，raw 项立刻用最新光标。
+    _applyMouseNorm(mp, Offset(_faceX, _faceY), norm);
+    _mouseTimer ??= Timer.periodic(
+        const Duration(milliseconds: 16), (_) => _tickMouseEase(mp));
+  }
+
+  /// 一帧的缓动积分（`CubismTargetPoint::Update` 的 Dart 版，`dt` 固定 1/60）。
+  void _tickMouseEase(MouseParams mp) {
+    const dt = 1 / 60;
+    final maxV = _faceMaxParamV * mp.smooth / _faceFrameRate; // 每帧最大速度
+
+    _userTimeSeconds += dt;
+    if (_lastTimeSeconds == 0) {
+      _lastTimeSeconds = _userTimeSeconds;
+      return;
+    }
+    final deltaWeight = (_userTimeSeconds - _lastTimeSeconds) * _faceFrameRate;
+    _lastTimeSeconds = _userTimeSeconds;
+
+    final frameToMaxSpeed = _faceTimeToMaxSpeed * _faceFrameRate;
+    final maxA = deltaWeight * maxV / frameToMaxSpeed; // 每帧最大加速度
+
+    final dx = _faceTargetX - _faceX;
+    final dy = _faceTargetY - _faceY;
+    if (dx.abs() <= _faceEpsilon && dy.abs() <= _faceEpsilon) {
+      // 到目标附近：停止（与原实现一致，保留当前值）。
+      _applyMouseNorm(mp, Offset(_faceX, _faceY), _mouseRaw);
+      _mouseTimer?.cancel();
+      _mouseTimer = null;
+      return;
+    }
+
+    final d = sqrt(dx * dx + dy * dy);
+    final vx = maxV * dx / d;
+    final vy = maxV * dy / d;
+    var ax = vx - _faceVX;
+    var ay = vy - _faceVY;
+    final a = sqrt(ax * ax + ay * ay);
+    if (maxA > 0 && a > maxA) {
+      ax *= maxA / a;
+      ay *= maxA / a;
+    }
+    _faceVX += ax;
+    _faceVY += ay;
+
+    // 接近目标时按刹车距离限制速度（原公式 `0.5*(sqrt(a²+16ah-8ah)-a)`）。
+    if (maxA > 0) {
+      final maxVBrake =
+          0.5 * (sqrt(maxA * maxA + 16 * maxA * d - 8 * maxA * d) - maxA);
+      final curV = sqrt(_faceVX * _faceVX + _faceVY * _faceVY);
+      if (maxVBrake > 0 && curV > maxVBrake) {
+        _faceVX *= maxVBrake / curV;
+        _faceVY *= maxVBrake / curV;
+      }
+    }
+
+    _faceX += _faceVX;
+    _faceY += _faceVY;
+    _applyMouseNorm(mp, Offset(_faceX, _faceY), _mouseRaw);
+  }
+
+  /// 下发跟随值：[eased] 给缓动项，[raw] 给 `raw: true` 的项（直接跟光标）。
+  void _applyMouseNorm(MouseParams mp, Offset eased, Offset raw) {
+    for (final m in mp.x) {
+      onParameter?.call(m.param, (m.raw ? raw.dx : eased.dx) * m.scale);
+    }
+    for (final m in mp.y) {
+      onParameter?.call(m.param, (m.raw ? raw.dy : eased.dy) * m.scale);
+    }
+    if (mp.xy.isNotEmpty) {
+      final easedBoth = eased.dx * eased.dy;
+      final rawBoth = raw.dx * raw.dy;
+      for (final m in mp.xy) {
+        onParameter?.call(m.param, (m.raw ? rawBoth : easedBoth) * m.scale);
+      }
+    }
+  }
+
+  void _onMouseButton(({MouseButton button, bool down}) event) {
+    final mp = _mouseParams;
+    if (mp == null) return;
+    final id = event.button == MouseButton.left ? mp.left : mp.right;
+    if (id != null) onParameter?.call(id, event.down ? 1.0 : 0.0);
+  }
+
+  void _teardownMouseParams() {
+    OverlayController.cursorNorm.removeListener(_onCursorNorm);
+    _mouseTimer?.cancel();
+    _mouseTimer = null;
+    unawaited(_mouseSub?.cancel());
+    _mouseSub = null;
+    if (_mouseTracking) {
+      _mouseTracking = false;
+      unawaited(InputService.instance.setMouseTracking(false));
+    }
+  }
+
   /// 当前桌宠的配置（尚未落库 / 已被删除时为 null）。
   ///
   /// 直接按 id 读单键，不再把全部桌宠读出来再筛。
   PetConfig? get _petConfig => StorageService.readPet(petId);
 
-  /// 由皮肤帧尺寸 × 全局缩放 × 该宠缩放得出最终渲染尺寸，并收敛到场景内。
+  /// 由宠物包帧尺寸 × 全局缩放 × 该宠缩放得出最终渲染尺寸，并收敛到场景内。
   ///
   /// 这就是全部：不再需要把它写进任何窗口。
   Future<void> _applyScale() async {
@@ -352,6 +531,7 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
   void dispose() {
     _cancelStateTimer();
     _cancelBehaviorTimer();
+    _teardownMouseParams();
     hotkey.dispose();
     _audio.dispose();
     _savePosition();

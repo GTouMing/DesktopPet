@@ -4,7 +4,6 @@ import 'dart:ui';
 import 'package:desktop_multi_window/desktop_multi_window.dart' as dmw;
 import 'package:desktop_pet/core/device.dart';
 import 'package:desktop_pet/core/overlay_channel.dart';
-import 'package:desktop_pet/platform/windows/windows_channels.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
@@ -14,15 +13,13 @@ import 'package:window_manager/window_manager.dart';
 /// 与悬浮窗的分工：
 /// - 悬浮窗通过 [OverlayChannel.settingsShow] / [OverlayChannel.settingsHide]
 ///   消息驱动本窗口显隐；
-/// - 本窗口自己应用窗口几何、置顶与透明度门控（沿用改造前 ring 子窗口的模式：
-///   宿主侧的 `dmw.WindowController` 没有 setBounds，窗口只能自己管自己）。
+/// - 本窗口自己应用窗口几何与透明度门控（沿用改造前 ring 子窗口的模式：宿主侧的
+///   `dmw.WindowController` 没有 setBounds，窗口只能自己管自己）。
 ///
-/// 置顶只在**本窗口是活动窗口**期间保持。
-///
-/// 悬浮窗铺满整个虚拟桌面且常驻 topmost，设置窗口不置顶就会被桌宠压在下面；但
-/// 常驻置顶又不符合普通窗口的使用习惯——用户切去别的程序时它还挡在最上。因此
-/// 焦点进来才置顶、失焦立刻撤掉（见 [setPinned]，触发点在
-/// `ui/host/settings_window_root.dart` 的 onWindowFocus/onWindowBlur）。
+/// **本窗口刻意不置顶**：悬浮窗铺满整个虚拟桌面且常驻 topmost，而它整窗
+/// `WS_EX_LAYERED | WS_EX_TRANSPARENT` 穿透——所以设置面板被桌宠压在下面时依然完全
+/// 可见、可点，桌宠则永远绘制在面板之上（正是要的效果）。反之，这里一旦给设置窗口
+/// 置顶，它就会盖住桌宠，恰恰是要避免的（见 known-issues 问题 ①）。
 class SettingsWindow {
   SettingsWindow._();
 
@@ -30,13 +27,6 @@ class SettingsWindow {
   static const Size windowSize = Size(800, 600);
 
   static Future<void>? _initFuture;
-
-  /// 当前是否已置顶（避免把同样的状态重复下发给原生）。
-  static bool _pinned = false;
-
-  /// 本窗口引擎独有的原生窗口控制（见 windows/runner/settings_window.cpp）。
-  static const MethodChannel _native =
-      MethodChannel(SettingsWindowChannel.name);
 
   /// 配置窗口并注册跨引擎消息处理器（幂等）。
   ///
@@ -104,14 +94,8 @@ class SettingsWindow {
     await windowManager.setBounds(bump);
     await windowManager.setBounds(rect);
     await windowManager.focus();
-    // 先按"这个窗口是用户要用的"置顶，否则会先露出一帧被桌宠压住的面板。
-    await setPinned(true);
     await SchedulerBinding.instance.endOfFrame;
     await windowManager.setOpacity(1);
-    // 但置顶要以真的拿到焦点为准：Windows 可能拒绝前台焦点请求
-    // （SetForegroundWindow 失败时窗口只闪任务栏），那就撤掉置顶，别留下一个
-    // 谁也没在用的置顶窗口——用户点它一下会重新拿到焦点并置顶。
-    await setPinned(await windowManager.isFocused());
   }
 
   /// 隐藏回托盘（窗口与引擎都保留，下次打开是即时的）。
@@ -119,28 +103,6 @@ class SettingsWindow {
     await init();
     await windowManager.setOpacity(0);
     await windowManager.hide();
-  }
-
-  /// 设置是否置顶（幂等；只在状态真的变化时下发原生）。
-  ///
-  /// 见类文档：只在本窗口是活动窗口期间置顶。
-  static Future<void> setPinned(bool pinned) async {
-    if (_pinned == pinned) return;
-    _pinned = pinned;
-    if (pinned) {
-      await windowManager.setAlwaysOnTop(true);
-      return;
-    }
-    // 撤置顶不能只调 windowManager.setAlwaysOnTop(false)：那在原生是
-    // SetWindowPos(HWND_NOTOPMOST)，而该标志会把窗口抬到所有非置顶窗口之上——
-    // 也就是抬到用户刚点的那个程序前面。表现就是"点了别的应用，设置界面仍在前台"。
-    // 原生因此多了一步：清掉 topmost 后把窗口插回当前前台窗口之后。
-    try {
-      await _native.invokeMethod(SettingsWindowChannel.toBack);
-    } catch (_) {
-      // 通道不可用（子引擎已注册，仅作兜底）：退回 window_manager 的行为。
-      await windowManager.setAlwaysOnTop(false);
-    }
   }
 
   /// 以当前显示器为中心的窗口矩形（逻辑像素）。

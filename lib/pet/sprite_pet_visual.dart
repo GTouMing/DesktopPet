@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../petpack/hotkey_action.dart';
 import '../petpack/sprite_pet_pack.dart';
 import '../petpack/sheet/sprite_renderer.dart';
 import '../petpack/state/state_define.dart';
@@ -39,6 +40,11 @@ class SpritePetVisual implements PetVisual {
   @override
   String? get animationName => _current;
 
+  /// 精灵图的播放速度由每帧时长（`AnimationDef.fps`）决定，与 `finalSpeed` 无关，
+  /// 因此这里明确忽略（速度目前只影响行走，见 `BehaviorEngine`）。
+  @override
+  void setSpeed(double speed) {}
+
   @override
   Future<void> prepare(String currentState) async {
     if (_ready || _disposed) return;
@@ -70,6 +76,14 @@ class SpritePetVisual implements PetVisual {
     _current = animName;
     _onAnimChanged(animName);
   }
+
+  /// 精灵图不支持包级瞬时动作（其动画绑定在状态上）——忽略。
+  @override
+  void playAction(HotkeyAction action) {}
+
+  /// 精灵图没有模型参数——忽略。
+  @override
+  void setParameter(String parameterId, double value) {}
 
   @override
   Widget build(BuildContext context, Size size, StateDef? stateDef) {

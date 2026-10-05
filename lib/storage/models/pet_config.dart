@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 /// 生成一个新的桌宠 id。
 ///
-/// 新建桌宠（列表页 / 编辑页 / 导入皮肤）都走这里，避免同一段拼串散落多处。
+/// 新建桌宠（列表页 / 编辑页 / 导入宠物包）都走这里，避免同一段拼串散落多处。
 String newPetId() => 'pet_${DateTime.now().millisecondsSinceEpoch}';
 
 /// 单个桌宠的配置信息。
@@ -14,7 +14,7 @@ String newPetId() => 'pet_${DateTime.now().millisecondsSinceEpoch}';
 /// finalOpacity = SettingsModel.baseOpacity * opacityMultiplier
 /// ```
 ///
-/// [width]/[height] 是未经缩放的基帧尺寸（从皮肤加载后自动写入），
+/// [width]/[height] 是未经缩放的基帧尺寸（从宠物包加载后自动写入），
 /// 显示窗口时由控制器读取并结合全局缩放合成最终窗口尺寸：
 /// ```dart
 /// finalWindowWidth  = width  × baseScale × scaleMultiplier
@@ -33,7 +33,7 @@ class PetConfig {
   /// 桌宠级速度乘数（0.1 - 3.0）。与 [SettingsModel.baseSpeed] 乘算得到最终速度。
   double speedMultiplier;
 
-  /// 皮肤路径。
+  /// 宠物包路径。
   /// - 如果 [SettingsModel.packDir] 非 null，此为相对路径；
   /// - 否则为绝对路径或 ZIP 文件路径。
   String packPath;
@@ -44,10 +44,10 @@ class PetConfig {
   double positionY;
   int order;
 
-  /// 未经缩放的基帧宽度（来自皮肤），窗口控制器用于合成窗口尺寸。
+  /// 未经缩放的基帧宽度（来自宠物包），窗口控制器用于合成窗口尺寸。
   double width;
 
-  /// 未经缩放的基帧高度（来自皮肤），窗口控制器用于合成窗口尺寸。
+  /// 未经缩放的基帧高度（来自宠物包），窗口控制器用于合成窗口尺寸。
   double height;
 
   PetConfig({
@@ -113,7 +113,7 @@ class PetConfig {
     'scaleMultiplier': scaleMultiplier,
     'opacityMultiplier': opacityMultiplier,
     'speedMultiplier': speedMultiplier,
-    'skinPath': packPath,
+    'packPath': packPath,
     'isLocked': isLocked,
     'isVisible': isVisible,
     'x': positionX,
@@ -129,7 +129,7 @@ class PetConfig {
     scaleMultiplier: (json['scaleMultiplier'] as num?)?.toDouble() ?? 1.0,
     opacityMultiplier: (json['opacityMultiplier'] as num?)?.toDouble() ?? 1.0,
     speedMultiplier: (json['speedMultiplier'] as num?)?.toDouble() ?? 1.0,
-    packPath: json['skinPath'] as String? ?? defaultPackPath,
+    packPath: json['packPath'] as String? ?? defaultPackPath,
     isLocked: json['isLocked'] as bool? ?? false,
     isVisible: json['isVisible'] as bool? ?? true,
     positionX: (json['x'] as num?)?.toDouble() ?? 0,

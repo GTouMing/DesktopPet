@@ -45,7 +45,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sectionAppearance => '外观';
 
   @override
-  String get sectionSkin => '皮肤';
+  String get sectionPetPack => '宠物包';
 
   @override
   String get sectionShortcut => '快捷键';
@@ -80,30 +80,22 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get skinDirDefaultPath => '皮肤目录 (默认路径)';
+  String get petPackDirDefaultPath => '宠物包目录 (默认路径)';
 
   @override
-  String get skinDir => '皮肤目录';
+  String get petPackDir => '宠物包目录';
 
   @override
-  String get skinBuiltInValue => 'assets/default_skin（内置）';
+  String get petPackBuiltInValue => 'assets/default_pet_pack（内置）';
 
   @override
-  String get viewAvailableSkins => '查看可用皮肤';
+  String get viewAvailablePetPacks => '查看可用宠物包';
 
   @override
   String get browseDirectory => '浏览目录';
 
   @override
-  String get skinMigrated => '已迁移已导入的皮肤包';
-
-  @override
-  String skinMigrateFailed(String error) {
-    return '迁移皮肤包失败';
-  }
-
-  @override
-  String get defaultSkinName => '默认皮肤';
+  String get defaultPetPackName => '默认宠物包';
 
   @override
   String get quickLaunchTitle => '快捷启动';
@@ -146,8 +138,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noPetsHint => '点击右上角 + 按钮添加';
 
   @override
-  String skinLabel(String skin) {
-    return '皮肤: $skin';
+  String petPackLabel(String petPack) {
+    return '宠物包: $petPack';
   }
 
   @override
@@ -195,16 +187,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get speedMultiplier => '速度乘数';
 
   @override
-  String get skin => '皮肤';
+  String get petPack => '宠物包';
 
   @override
-  String get useGlobalSkin => '使用全局设置中的皮肤';
+  String get useGlobalPetPack => '使用全局设置中的宠物包';
 
   @override
-  String get importZipSkin => '导入 ZIP 皮肤包';
+  String get importZipPetPack => '导入 ZIP 宠物包';
 
   @override
-  String get chooseSkin => '选择皮肤';
+  String get choosePetPack => '选择宠物包';
 
   @override
   String get finalSpeedFormula => '× 全局速度 = 最终速度';
@@ -216,13 +208,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get finalOpacityFormula => '× 全局透明度 = 最终透明度';
 
   @override
-  String get importingSkin => '正在导入皮肤包...';
+  String get importingPetPack => '正在导入宠物包...';
 
   @override
-  String get skinImportSuccess => '皮肤导入成功';
+  String get petPackImportSuccess => '宠物包导入成功';
 
   @override
-  String get skinImportFailed => '皮肤导入失败';
+  String get petPackImportFailed => '宠物包导入失败';
 
   @override
   String get scaleTooHigh => '缩放乘数过高';
@@ -236,24 +228,30 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get chooseSkinTitle => '选择皮肤';
+  String get choosePetPackTitle => '选择宠物包';
 
   @override
-  String get loadSkinsFailed => '加载皮肤列表失败';
+  String get loadPetPacksFailed => '加载宠物包列表失败';
 
   @override
-  String get noSkinsFound => '未找到皮肤包';
+  String get noPetPacksFound => '未找到宠物包';
 
   @override
-  String get noSkinsFoundHint => '该目录下没有包含 skin.json 的有效皮肤包';
+  String get noPetPacksFoundHint => '该目录下没有包含 pet.json 的有效宠物包';
 
   @override
-  String get skinSourceImported => '来源: 已导入的皮肤包';
+  String get petPackSourceImported => '来源: 已导入的宠物包';
 
   @override
-  String skinSourceDir(String path) {
+  String petPackSourceDir(String path) {
     return '目录: $path';
   }
+
+  @override
+  String get petPackTypeSprite => '精灵图';
+
+  @override
+  String get petPackTypeLive2d => 'Live2D';
 
   @override
   String get builtIn => '内置';
@@ -310,7 +308,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get defaultPetName => '默认桌宠';
 
   @override
-  String skinError(String message) {
+  String petPackError(String message) {
     return '错误：$message';
   }
 }

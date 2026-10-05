@@ -170,11 +170,11 @@ abstract class AppLocalizations {
   /// **'Appearance'**
   String get sectionAppearance;
 
-  /// No description provided for @sectionSkin.
+  /// No description provided for @sectionPetPack.
   ///
   /// In en, this message translates to:
-  /// **'Skin'**
-  String get sectionSkin;
+  /// **'Pet packs'**
+  String get sectionPetPack;
 
   /// No description provided for @sectionShortcut.
   ///
@@ -224,29 +224,29 @@ abstract class AppLocalizations {
   /// **'Global scale cannot exceed {limit}x'**
   String scaleLimitExceeded(String limit);
 
-  /// No description provided for @skinDirDefaultPath.
+  /// No description provided for @petPackDirDefaultPath.
   ///
   /// In en, this message translates to:
-  /// **'Skin directory (default)'**
-  String get skinDirDefaultPath;
+  /// **'Pet pack directory (default)'**
+  String get petPackDirDefaultPath;
 
-  /// No description provided for @skinDir.
+  /// No description provided for @petPackDir.
   ///
   /// In en, this message translates to:
-  /// **'Skin directory'**
-  String get skinDir;
+  /// **'Pet pack directory'**
+  String get petPackDir;
 
-  /// No description provided for @skinBuiltInValue.
+  /// No description provided for @petPackBuiltInValue.
   ///
   /// In en, this message translates to:
-  /// **'assets/default_skin (built-in)'**
-  String get skinBuiltInValue;
+  /// **'assets/default_pet_pack (built-in)'**
+  String get petPackBuiltInValue;
 
-  /// No description provided for @viewAvailableSkins.
+  /// No description provided for @viewAvailablePetPacks.
   ///
   /// In en, this message translates to:
-  /// **'View available skins'**
-  String get viewAvailableSkins;
+  /// **'View available pet packs'**
+  String get viewAvailablePetPacks;
 
   /// No description provided for @browseDirectory.
   ///
@@ -254,23 +254,11 @@ abstract class AppLocalizations {
   /// **'Browse directory'**
   String get browseDirectory;
 
-  /// No description provided for @skinMigrated.
+  /// No description provided for @defaultPetPackName.
   ///
   /// In en, this message translates to:
-  /// **'Imported skin packages migrated'**
-  String get skinMigrated;
-
-  /// No description provided for @skinMigrateFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Failed to migrate skin packages'**
-  String skinMigrateFailed(String error);
-
-  /// No description provided for @defaultSkinName.
-  ///
-  /// In en, this message translates to:
-  /// **'Default skin'**
-  String get defaultSkinName;
+  /// **'Default pet pack'**
+  String get defaultPetPackName;
 
   /// No description provided for @quickLaunchTitle.
   ///
@@ -344,11 +332,11 @@ abstract class AppLocalizations {
   /// **'Tap the + button at the top right to add one'**
   String get noPetsHint;
 
-  /// No description provided for @skinLabel.
+  /// No description provided for @petPackLabel.
   ///
   /// In en, this message translates to:
-  /// **'Skin: {skin}'**
-  String skinLabel(String skin);
+  /// **'Pet pack: {petPack}'**
+  String petPackLabel(String petPack);
 
   /// No description provided for @locked.
   ///
@@ -434,29 +422,29 @@ abstract class AppLocalizations {
   /// **'Speed multiplier'**
   String get speedMultiplier;
 
-  /// No description provided for @skin.
+  /// No description provided for @petPack.
   ///
   /// In en, this message translates to:
-  /// **'Skin'**
-  String get skin;
+  /// **'Pet pack'**
+  String get petPack;
 
-  /// No description provided for @useGlobalSkin.
+  /// No description provided for @useGlobalPetPack.
   ///
   /// In en, this message translates to:
-  /// **'Use skin from global settings'**
-  String get useGlobalSkin;
+  /// **'Use pet pack from global settings'**
+  String get useGlobalPetPack;
 
-  /// No description provided for @importZipSkin.
+  /// No description provided for @importZipPetPack.
   ///
   /// In en, this message translates to:
-  /// **'Import ZIP skin'**
-  String get importZipSkin;
+  /// **'Import ZIP pet pack'**
+  String get importZipPetPack;
 
-  /// No description provided for @chooseSkin.
+  /// No description provided for @choosePetPack.
   ///
   /// In en, this message translates to:
-  /// **'Choose skin'**
-  String get chooseSkin;
+  /// **'Choose pet pack'**
+  String get choosePetPack;
 
   /// No description provided for @finalSpeedFormula.
   ///
@@ -476,23 +464,23 @@ abstract class AppLocalizations {
   /// **'× global opacity = final opacity'**
   String get finalOpacityFormula;
 
-  /// No description provided for @importingSkin.
+  /// No description provided for @importingPetPack.
   ///
   /// In en, this message translates to:
-  /// **'Importing skin package...'**
-  String get importingSkin;
+  /// **'Importing pet pack...'**
+  String get importingPetPack;
 
-  /// No description provided for @skinImportSuccess.
+  /// No description provided for @petPackImportSuccess.
   ///
   /// In en, this message translates to:
-  /// **'Skin imported'**
-  String get skinImportSuccess;
+  /// **'Pet pack imported'**
+  String get petPackImportSuccess;
 
-  /// No description provided for @skinImportFailed.
+  /// No description provided for @petPackImportFailed.
   ///
   /// In en, this message translates to:
-  /// **'Skin import failed'**
-  String get skinImportFailed;
+  /// **'Pet pack import failed'**
+  String get petPackImportFailed;
 
   /// No description provided for @scaleTooHigh.
   ///
@@ -512,41 +500,53 @@ abstract class AppLocalizations {
   /// **'Delete \"{name}\"? This cannot be undone.'**
   String deletePetConfirm(String name);
 
-  /// No description provided for @chooseSkinTitle.
+  /// No description provided for @choosePetPackTitle.
   ///
   /// In en, this message translates to:
-  /// **'Choose skin'**
-  String get chooseSkinTitle;
+  /// **'Choose pet pack'**
+  String get choosePetPackTitle;
 
-  /// No description provided for @loadSkinsFailed.
+  /// No description provided for @loadPetPacksFailed.
   ///
   /// In en, this message translates to:
-  /// **'Failed to load skins'**
-  String get loadSkinsFailed;
+  /// **'Failed to load pet packs'**
+  String get loadPetPacksFailed;
 
-  /// No description provided for @noSkinsFound.
+  /// No description provided for @noPetPacksFound.
   ///
   /// In en, this message translates to:
-  /// **'No skin packages found'**
-  String get noSkinsFound;
+  /// **'No pet packs found'**
+  String get noPetPacksFound;
 
-  /// No description provided for @noSkinsFoundHint.
+  /// No description provided for @noPetPacksFoundHint.
   ///
   /// In en, this message translates to:
-  /// **'No valid skin package (with skin.json) in this directory'**
-  String get noSkinsFoundHint;
+  /// **'No valid pet pack (with pet.json) in this directory'**
+  String get noPetPacksFoundHint;
 
-  /// No description provided for @skinSourceImported.
+  /// No description provided for @petPackSourceImported.
   ///
   /// In en, this message translates to:
-  /// **'Source: imported skin package'**
-  String get skinSourceImported;
+  /// **'Source: imported pet pack'**
+  String get petPackSourceImported;
 
-  /// No description provided for @skinSourceDir.
+  /// No description provided for @petPackSourceDir.
   ///
   /// In en, this message translates to:
   /// **'Directory: {path}'**
-  String skinSourceDir(String path);
+  String petPackSourceDir(String path);
+
+  /// No description provided for @petPackTypeSprite.
+  ///
+  /// In en, this message translates to:
+  /// **'Sprite'**
+  String get petPackTypeSprite;
+
+  /// No description provided for @petPackTypeLive2d.
+  ///
+  /// In en, this message translates to:
+  /// **'Live2D'**
+  String get petPackTypeLive2d;
 
   /// No description provided for @builtIn.
   ///
@@ -656,11 +656,11 @@ abstract class AppLocalizations {
   /// **'My Pet'**
   String get defaultPetName;
 
-  /// No description provided for @skinError.
+  /// No description provided for @petPackError.
   ///
   /// In en, this message translates to:
   /// **'error: {message}'**
-  String skinError(String message);
+  String petPackError(String message);
 }
 
 class _AppLocalizationsDelegate

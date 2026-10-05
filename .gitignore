@@ -25,6 +25,14 @@ migrate_working_dir/
 # is commented out by default.
 #.vscode/
 
+# Local Live2D pet packs (Cubism models are large and separately licensed -
+# never commit them). Point the app's pet-pack directory here to try them.
+/.pet/
+
+# Cubism SDK subset used by the in-repo Live2D renderer. Fetched by
+# tool/fetch_live2d_sdk.ps1 - never committed.
+/third_party/live2d/
+
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id

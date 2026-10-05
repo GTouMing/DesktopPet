@@ -1,0 +1,22 @@
+name: pet_live2d
+description: "In-repo Live2D (Cubism) renderer for DesktopPet: process-wide runtime, fixed-capacity render targets, per-pet lifecycle."
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      windows:
+        # NOTE: spelled "Live2d" (not "Live2D") on purpose. The Flutter tool
+        # derives the C API header name and registration function by camelCase
+        # -> snake_case, which splits a digit-to-uppercase boundary and would
+        # turn "PetLive2D" into "pet_live2_d_...".
+        pluginClass: PetLive2dPluginCApi

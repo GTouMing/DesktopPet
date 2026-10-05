@@ -1,4 +1,4 @@
-/// 已安装的皮肤包条目。
+/// 已安装的宠物包条目。
 class PetPackEntry {
   final String name;
   final String folderPath;

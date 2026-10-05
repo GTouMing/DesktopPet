@@ -12,8 +12,8 @@ import '../sprite_pet_pack.dart';
 
 /// 图集磁盘缓存的格式版本。
 ///
-/// 内置皮肤(asset 源)的字节随构建固定,只能靠改这个常量手动失效:
-/// **修改 `assets/` 下的皮肤资源后必须 +1**,否则旧缓存会被继续命中。
+/// 内置宠物包(asset 源)的字节随构建固定,只能靠改这个常量手动失效:
+/// **修改 `assets/` 下的宠物包资源后必须 +1**,否则旧缓存会被继续命中。
 const int _sheetCacheVersion = 1;
 
 /// 诊断日志(Debug 构建可见)。
@@ -61,7 +61,7 @@ class SpriteSheetData {
 
 /// 将单帧 PNG 图片拼接为 GPU 友好的精灵图集。
 ///
-/// 生成的图集按 (皮肤, 动画) 缓存到磁盘(见 [generateFromPack]):同一个皮肤
+/// 生成的图集按 (宠物包, 动画) 缓存到磁盘(见 [generateFromPack]):同一个宠物包
 /// 在多个引擎里各加载一遍时,只有第一次需要逐帧解码 + 拼接。
 class SpriteSheetGenerator {
 
@@ -162,17 +162,17 @@ class SpriteSheetGenerator {
 
   // ── 磁盘缓存 ──────────────────────────────────────────────────────────
   //
-  // 同一个皮肤会被多个引擎各加载一遍(每只桌宠一个引擎),逐帧解码 + 画布
-  // 拼接本来要做 N 次。这里按 (皮肤, 动画) 落一张图集 PNG + 一份元数据,
+  // 同一个宠物包会被多个引擎各加载一遍(每只桌宠一个引擎),逐帧解码 + 画布
+  // 拼接本来要做 N 次。这里按 (宠物包, 动画) 落一张图集 PNG + 一份元数据,
   // 命中时只解一张图。
 
   /// 写临时文件的序号:保证同一引擎内并发写也不重名。
   static int _tmpSeq = 0;
 
-  /// 缓存 key:皮肤来源 + 帧标识的稳定摘要(FNV-1a 64,不引入额外依赖)。
+  /// 缓存 key:宠物包来源 + 帧标识的稳定摘要(FNV-1a 64,不引入额外依赖)。
   ///
-  /// filesystem 皮肤把每帧的文件名/大小/mtime 混入,资源一改就换 key;
-  /// asset 皮肤靠 [_sheetCacheVersion] 手动失效。无法确定时返回 null(不缓存)。
+  /// filesystem 宠物包把每帧的文件名/大小/mtime 混入,资源一改就换 key;
+  /// asset 宠物包靠 [_sheetCacheVersion] 手动失效。无法确定时返回 null(不缓存)。
   static Future<String?> _cacheKey(SpritePetPack pack, String animName) async {
     try {
       final animDef = pack.anims[animName];

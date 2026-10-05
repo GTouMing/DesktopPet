@@ -47,7 +47,7 @@ class PetCard extends ConsumerWidget {
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
-                          l10n.skinLabel(pet.packPath.split('/').last),
+                          l10n.petPackLabel(pet.packPath.split('/').last),
                           style: TextStyle(
                               fontSize: 11, color: Colors.blue.shade600),
                           maxLines: 1,

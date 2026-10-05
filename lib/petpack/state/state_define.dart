@@ -61,6 +61,15 @@ class StateDef {
   /// - `N>0` — 播放 N 次
   final int playCount;
 
+  /// 渲染器相关提示：动作组内的**索引**（Live2D 用；精灵图实现忽略）。
+  ///
+  /// 一个动作组里通常有多个动作——例如一只“跟着按键做动作”的模型，把各键的
+  /// 按下/松开都放在同一组里。没有这个字段就只能播到 index 0。缺省 0。
+  final int? motionIndex;
+
+  /// 渲染器相关提示：动作优先级（Live2D：0 none / 1 idle / 2 normal / 3 force）。缺省按渲染器默认。
+  final int? motionPriority;
+
   /// 行为目标坐标。
   ///
   /// - `null`  → 随机坐标
@@ -95,6 +104,8 @@ class StateDef {
     required this.name,
     required this.animation,
     this.playCount = 0,
+    this.motionIndex,
+    this.motionPriority,
     this.targetPos,
     this.behavior,
     this.audio,
@@ -140,6 +151,8 @@ class StateDef {
       name: name,
       animation: json['animation'] as String,
       playCount: (json['playCount'] as num?)?.toInt() ?? 0,
+      motionIndex: (json['motionIndex'] as num?)?.toInt(),
+      motionPriority: (json['motionPriority'] as num?)?.toInt(),
       targetPos: _parseTargetPos(json['targetPos']),
       behavior: json['behavior'] as String?,
       mirrorH: json['mirrorH'] as bool? ?? false,

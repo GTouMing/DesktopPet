@@ -11,7 +11,6 @@
 #include "global_input.h"
 #include "overlay_window.h"
 #include "pet_cursor_surface.h"
-#include "settings_window.h"
 #include "tray_icon.h"
 
 namespace {
@@ -77,19 +76,9 @@ bool FlutterWindow::OnCreate() {
   DesktopMultiWindowSetWindowCreatedCallback([](void *controller) {
     auto *flutter_view_controller =
         reinterpret_cast<flutter::FlutterViewController *>(controller);
-    auto *registry = flutter_view_controller->engine();
     // Child engines register only the plugins they need (see
     // RegisterChildPlugins); the host gets the full set above.
-    RegisterChildPlugins(registry);
-    // Native window control for the settings window itself (the only child
-    // engine): z-order changes window_manager cannot express. Taken straight
-    // from the engine/view - going through PluginRegistrarManager would need
-    // flutter_wrapper_plugin, which this target does not link.
-    auto *view = flutter_view_controller->view();
-    settings_window::Install(
-        registry->messenger(),
-        view != nullptr ? ::GetAncestor(view->GetNativeWindow(), GA_ROOT)
-                        : nullptr);
+    RegisterChildPlugins(flutter_view_controller->engine());
   });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 

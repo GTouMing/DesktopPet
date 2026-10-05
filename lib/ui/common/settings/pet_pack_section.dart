@@ -2,14 +2,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
-import '../../../petpack/import/pet_pack_repository.dart';
 import '../../../petpack/pet_pack_lister.dart';
 import '../../../storage/models/settings_model.dart';
-import '../../widgets/info_overlay.dart';
 import '../pet_pack_picker_screen.dart';
 import 'settings_common.dart';
 
-/// 皮肤分区：皮肤目录的选择、恢复默认、查看可用皮肤与迁移。
+/// 宠物包分区：宠物包目录的选择、恢复默认与查看可用宠物包。
 class PetPackSection extends StatefulWidget {
   const PetPackSection({super.key, required this.settings});
 
@@ -28,15 +26,15 @@ class _PetPackSectionState extends State<PetPackSection> {
 
     return Column(
       children: [
-        SectionHeader(title: l10n.sectionSkin),
+        SectionHeader(title: l10n.sectionPetPack),
         ListTile(
           leading: Icon(
             isDefault ? Icons.auto_awesome : Icons.folder_open,
             color: isDefault ? Theme.of(context).colorScheme.primary : null,
           ),
-          title: Text(isDefault ? l10n.skinDirDefaultPath : l10n.skinDir),
+          title: Text(isDefault ? l10n.petPackDirDefaultPath : l10n.petPackDir),
           subtitle: Text(
-            isDefault ? l10n.skinBuiltInValue : packDir!,
+            isDefault ? l10n.petPackBuiltInValue : packDir!,
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
           ),
@@ -51,7 +49,7 @@ class _PetPackSectionState extends State<PetPackSection> {
                 ),
               IconButton(
                 icon: const Icon(Icons.list, size: 18),
-                tooltip: l10n.viewAvailableSkins,
+                tooltip: l10n.viewAvailablePetPacks,
                 onPressed: _openPackPicker,
               ),
               IconButton(
@@ -69,26 +67,8 @@ class _PetPackSectionState extends State<PetPackSection> {
     );
   }
 
-  /// 从内置目录切到自定义目录时，把已导入的皮肤搬过去。
   void _changeDir(String? newDir) {
-    final wasDefault = PetPackLister.isDefaultPath(widget.settings.packDir);
-    final nowCustom = !PetPackLister.isDefaultPath(newDir);
-    if (wasDefault && nowCustom && newDir != null) {
-      _migratePacks(newDir);
-    }
     applySettings((s) => s.copyWith(packDir: newDir));
-  }
-
-  Future<void> _migratePacks(String targetDir) async {
-    final l10n = AppLocalizations.of(context);
-    try {
-      await PetPackRepository().migrateTo(targetDir);
-      if (!mounted) return;
-      InfoOverlay.show(context, title: l10n.skinMigrated);
-    } catch (e) {
-      if (!mounted) return;
-      InfoOverlay.show(context, title: l10n.skinMigrateFailed('$e'));
-    }
   }
 
   void _openPackPicker() {

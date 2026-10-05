@@ -405,13 +405,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.1.0"
-  live2d_flutter:
-    dependency: "direct main"
-    description:
-      path: "E:/Projects/live2d_flutter-1.0.3-vendored"
-      relative: false
-    source: path
-    version: "1.0.3"
   logging:
     dependency: transitive
     description:
@@ -588,6 +581,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.3.0"
+  pet_live2d:
+    dependency: "direct main"
+    description:
+      path: "plugins/pet_live2d"
+      relative: true
+    source: path
+    version: "0.1.0"
   petitparser:
     dependency: transitive
     description:

@@ -2,6 +2,8 @@ import 'package:desktop_pet/core/constants.dart';
 import 'package:desktop_pet/core/enums.dart';
 import 'package:desktop_pet/input/input.dart';
 import 'package:desktop_pet/pet/hotkey_engine.dart';
+import 'package:desktop_pet/petpack/hotkey_action.dart';
+import 'package:desktop_pet/petpack/pet_pack.dart';
 import 'package:desktop_pet/petpack/sprite_pet_pack.dart';
 import 'package:desktop_pet/petpack/state/state_define.dart';
 import 'package:flutter/material.dart';
@@ -13,18 +15,23 @@ StateDef _state(String name, Map<String, Map<String, TransitionRule>> transition
 TransitionRule _hotkey(String key, List<String> modifiers) =>
     TransitionRule(trigger: Trigger.hotkey, key: key, modifiers: modifiers);
 
-SpritePetPack _pack(List<StateDef> states) => SpritePetPack(
-  name: 'test',
-  version: 1,
-  baseSize: const Size(100, 100),
-  basePath: '',
-  anims: const {},
-  states: {for (final s in states) s.name: s},
-  source: PetPackSource.asset,
-);
+SpritePetPack _pack(List<StateDef> states,
+        {List<HotkeyAction> hotkeys = const [],
+        Map<String, String> keyParams = const {}}) =>
+    SpritePetPack(
+      name: 'test',
+      version: 1,
+      baseSize: const Size(100, 100),
+      basePath: '',
+      anims: const {},
+      states: {for (final s in states) s.name: s},
+      source: PetPackSource.asset,
+      hotkeys: hotkeys,
+      keyParams: keyParams,
+    );
 
 void main() {
-  test('收集皮肤声明的 hotkey 组合键', () {
+  test('收集宠物包声明的 hotkey 组合键', () {
     final pack = _pack([
       _state('idle', {
         'happy': {Trigger.hotkey: _hotkey('h', ['alt'])},
@@ -95,7 +102,7 @@ void main() {
     );
 
     // 注意：同一个组合键在两个世界里**不同名**——输入层用 KeyIdentifier.composite
-    // （key 在前，`h+alt`），皮肤侧用 TransitionRule.compositeKey（全部参与排序，
+    // （key 在前，`h+alt`），宠物包侧用 TransitionRule.compositeKey（全部参与排序，
     // `alt+h`）。见 key_event.dart 的说明。
     expect(input.registered, ['h+alt']);
     expect(input.flushes, 1);
@@ -179,6 +186,155 @@ void main() {
     a.dispose();
     b.dispose();
   });
+
+  test('解析清单 hotkeys 表（跳过无 key 项）', () {
+    final actions = parsePetPackHotkeys({
+      'hotkeys': {
+        'ear': {
+          'key': '1',
+          'modifiers': ['ctrl', 'alt'],
+          'animation': 'CAT_motion_lock',
+          'motionIndex': 1,
+          'motionPriority': 2,
+          'durationMs': 517,
+        },
+        'cry': {'key': '2', 'expression': 3},
+        'bad': {'animation': 'X'},
+      },
+    });
+
+    expect(actions.length, 2);
+    expect(actions.first.composite, '1+alt+ctrl');
+    expect(actions.first.animation, 'CAT_motion_lock');
+    expect(actions.first.motionIndex, 1);
+    expect(actions.first.motionPriority, 2);
+    expect(actions.first.hasMotion, isTrue);
+    expect(actions.first.durationMs, 517);
+    expect(actions.last.expression, 3);
+    expect(actions.last.hasMotion, isFalse);
+    expect(actions.last.durationMs, 0, reason: '缺省不串行');
+  });
+
+  test('解析清单 keyParams 表（键名小写，跳过非字符串）', () {
+    final params = parsePetPackKeyParams({
+      'keyParams': {'Q': 'Q1', 'space': 'Space', 'bad': 5},
+    });
+    expect(params, {'q': 'Q1', 'space': 'Space'});
+  });
+
+  test('解析清单 mouseParams 表（多组映射 + 字符串简写；全空返回 null）', () {
+    final mp = parsePetPackMouseParams({
+      'mouseParams': {
+        'x': [
+          {'param': 'ParamAngleX', 'scale': 30},
+          'ParamEyeBallX',
+          {'param': 'ParamMouseX', 'scale': 30, 'raw': true},
+        ],
+        'y': 'ParamAngleY',
+        'xy': [
+          {'param': 'ParamAngleZ', 'scale': -30},
+        ],
+        'left': 'LDown',
+        'right': 'RDown',
+        'smooth': 1.0,
+      },
+    });
+    expect(mp, isNotNull);
+    expect(mp!.followsCursor, isTrue);
+    expect(mp.hasButtons, isTrue);
+    expect(mp.smooth, 1.0);
+    expect(mp.x.length, 3);
+    expect(mp.x[0].param, 'ParamAngleX');
+    expect(mp.x[0].scale, 30.0);
+    expect(mp.x[0].raw, isFalse);
+    expect(mp.x[1].param, 'ParamEyeBallX');
+    expect(mp.x[1].scale, 1.0, reason: '字符串简写 → scale 1');
+    expect(mp.x[2].param, 'ParamMouseX');
+    expect(mp.x[2].raw, isTrue, reason: 'raw: true → 不缓动');
+    expect(mp.y.single.param, 'ParamAngleY');
+    expect(mp.xy.single.scale, -30.0);
+
+    expect(parsePetPackMouseParams({'mouseParams': {}}), isNull);
+    expect(parsePetPackMouseParams(const {}), isNull);
+  });
+
+  test('打字反应：按键 down/up 驱动参数 1/0', () async {
+    final input = _FakeKeyInput();
+    final engine = HotkeyEngine(input);
+    final events = <String>[];
+
+    await engine.bind(
+      pack: _pack([_state('idle', const {})], keyParams: {'q': 'Q1'}),
+      currentState: () => 'idle',
+      onStateChange: (_) => fail('不应发生状态迁移'),
+      onKeyParam: (id, down) => events.add('$id=${down ? 1 : 0}'),
+    );
+
+    expect(input.registered, ['q']);
+    input.press('q');
+    input.release('q');
+    expect(events, ['Q1=1', 'Q1=0']);
+
+    engine.dispose();
+    expect(input.unregistered, ['q']);
+  });
+
+  test('包级 hotkey 直接触发动作（不经状态机）', () async {
+    final input = _FakeKeyInput();
+    final engine = HotkeyEngine(input);
+    HotkeyAction? fired;
+
+    await engine.bind(
+      pack: _pack(
+        [_state('idle', const {})],
+        hotkeys: [
+          const HotkeyAction(
+              key: 'q', animation: 'CAT_motion_lock', motionIndex: 3),
+        ],
+      ),
+      currentState: () => 'idle',
+      onStateChange: (_) => fail('不应发生状态迁移'),
+      onHotkeyAction: (a) => fired = a,
+    );
+
+    expect(input.registered, ['q']);
+    input.press('q');
+    expect(fired?.animation, 'CAT_motion_lock');
+    expect(fired?.motionIndex, 3);
+
+    engine.dispose();
+    expect(input.unregistered, ['q']);
+  });
+
+  test('同一组合键：状态迁移优先于包级动作', () async {
+    final input = _FakeKeyInput();
+    final engine = HotkeyEngine(input);
+    String? next;
+    HotkeyAction? fired;
+
+    await engine.bind(
+      pack: _pack(
+        [
+          _state('idle', {
+            'happy': {Trigger.hotkey: _hotkey('h', ['alt'])},
+          }),
+          _state('happy', const {}),
+        ],
+        hotkeys: [
+          const HotkeyAction(key: 'h', modifiers: ['alt'], animation: 'X'),
+        ],
+      ),
+      currentState: () => 'idle',
+      onStateChange: (v) => next = v,
+      onHotkeyAction: (a) => fired = a,
+    );
+
+    input.press('h+alt');
+    expect(next, 'happy');
+    expect(fired, isNull, reason: '命中了状态迁移就不该再触发包级动作');
+
+    engine.dispose();
+  });
 }
 
 /// 假输入层：记录注册/注销，并允许手动"按键"。
@@ -191,6 +347,7 @@ class _FakeKeyInput implements KeyInput {
   int flushes = 0;
 
   final Map<String, void Function()> _down = {};
+  final Map<String, void Function()> _up = {};
 
   @override
   Future<void> register(KeyIdentifier id,
@@ -198,6 +355,9 @@ class _FakeKeyInput implements KeyInput {
     registered.add(id.composite);
     if (onDown != null) {
       _down[id.composite] = () => onDown(InputKeyEvent(id, KeyState.down));
+    }
+    if (onUp != null) {
+      _up[id.composite] = () => onUp(InputKeyEvent(id, KeyState.up));
     }
   }
 
@@ -210,4 +370,7 @@ class _FakeKeyInput implements KeyInput {
 
   /// 模拟按下某个组合键。
   void press(String composite) => _down[composite]?.call();
+
+  /// 模拟松开某个组合键。
+  void release(String composite) => _up[composite]?.call();
 }

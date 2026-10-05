@@ -17,7 +17,7 @@ class PetState {
 
   // ── 渲染状态 ─────────────────────────────────────────────────────────
 
-  /// 皮肤加载状态：`null`=加载中，`''`=正常，非空字符串=错误描述。
+  /// 宠物包加载状态：`null`=加载中，`''`=正常，非空字符串=错误描述。
   final String? packError;
 
   /// 当前播放的动画名，由 PetNotifier 在切换动画时更新。
@@ -32,7 +32,7 @@ class PetState {
   /// 宠物在屏幕上的渲染尺寸，由 PetNotifier 根据缩放计算后同步。
   final Size finalPetSize;
 
-  /// 皮肤原生帧尺寸（缩放前），由 [PetNotifier._init] 设置。
+  /// 宠物包原生帧尺寸（缩放前），由 [PetNotifier._init] 设置。
   final Size? basePetSize;
 
   const PetState({

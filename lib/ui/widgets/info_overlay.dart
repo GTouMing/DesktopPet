@@ -11,7 +11,7 @@ enum InfoType { error, info }
 /// ## 使用
 /// ```dart
 /// InfoOverlay.show(context, title: '保存失败', message: '磁盘空间不足', type: InfoType.error);
-/// InfoOverlay.show(context, title: '导入成功', message: '已导入 3 个皮肤');
+/// InfoOverlay.show(context, title: '导入成功', message: '已导入 3 个宠物包');
 /// ```
 class InfoOverlay {
   InfoOverlay._();

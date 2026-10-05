@@ -13,7 +13,6 @@ add_executable(${BINARY_NAME} WIN32
   "main.cpp"
   "overlay_window.cpp"
   "pet_cursor_surface.cpp"
-  "settings_window.cpp"
   "tray_icon.cpp"
   "utils.cpp"
   "win32_window.cpp"

@@ -3,6 +3,7 @@
 
 #include <windows.h>
 
+#include <atomic>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -36,6 +37,12 @@ std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> g_channel;
 HHOOK g_keyboard_hook = nullptr;
 HHOOK g_mouse_hook = nullptr;
 
+// Cursor-follow / mouse-button feedback for Live2D packs that ask for it (see
+// setMouseTracking). Off unless a pack declares mouseParams; emitted in its own
+// phases so the pet-drag path (down/move/up) is untouched.
+std::atomic<bool> g_track_mouse{false};
+ULONGLONG g_last_hover_emit = 0;
+
 // A registered key binding: either a keyboard combo (vk + required modifiers)
 // or a mouse button. `down` tracks whether a down event was reported and the
 // matching up has not fired yet (also suppresses key auto-repeat).
@@ -68,8 +75,9 @@ std::vector<Binding> g_bindings;
 // on to whatever is underneath the pet (selecting a desktop icon, pressing a
 // button in another app). So the hook also *swallows* those events: a low-level
 // hook returns nonzero to have the event discarded instead of being delivered to
-// any window or application. Sessions that start on a pet are therefore consumed
-// for their whole duration; everything else falls through untouched.
+// any window or application. A left-button drag, or a right-button press, that
+// starts on a pet is therefore consumed for its whole duration; everything else
+// falls through untouched.
 //
 // Capture semantics: move events are only forwarded after a press inside a pet
 // rectangle, so moving the cursor anywhere else costs no channel traffic.
@@ -101,6 +109,13 @@ bool g_capturing = false;
 // Mouse button whose press started on a pet and is currently held, so its release
 // (and the moves in between) are swallowed too. -1 when nothing is held.
 int g_swallowed_button = -1;
+
+// The right button, held after a press that started on a pet. An unlocked pet
+// owns the right press and its release for the whole gesture, so neither a
+// single nor a double right-click reaches the window underneath. Only down/up
+// are swallowed - moves are left alone for the same reason as the left drag
+// (swallowing a move cancels it and freezes the cursor).
+bool g_right_capturing = false;
 
 // The host (overlay) window: the only window the pets are drawn in, and the only
 // one that is topmost for its whole lifetime. Set through SetOverlayWindow.
@@ -362,6 +377,20 @@ LRESULT CALLBACK MouseHookProc(int n_code, WPARAM w_param, LPARAM l_param) {
           swallow = true;
         }
         break;
+      case WM_RBUTTONDOWN:
+        // Not a drag button, but an unlocked pet still owns the click: swallow
+        // the press so it - and, on a second click, the double-click the window
+        // underneath would synthesize - never reaches that window. Re-evaluated
+        // on every down, so the capture cannot get stuck.
+        g_right_capturing = press_on_pet;
+        if (g_right_capturing) swallow = true;
+        break;
+      case WM_RBUTTONUP:
+        if (g_right_capturing) {
+          g_right_capturing = false;
+          swallow = true;
+        }
+        break;
       default:
         break;
     }
@@ -462,7 +491,7 @@ LRESULT CALLBACK MouseHookProc(int n_code, WPARAM w_param, LPARAM l_param) {
     // bound mouse button pressed on a pet: those are consumed for their whole
     // duration, so the pet may keep the cursor instead of letting it pick up
     // the shape of whatever it is being dragged over.
-    owns_gesture = g_capturing || g_swallowed_button >= 0;
+    owns_gesture = g_capturing || g_swallowed_button >= 0 || g_right_capturing;
   }
 
   // Drive the pet cursor surface before this event is routed, so it is up while
@@ -470,6 +499,35 @@ LRESULT CALLBACK MouseHookProc(int n_code, WPARAM w_param, LPARAM l_param) {
   // there (windows/runner/pet_cursor_surface.h).
   pet_cursor_surface::Update(point, on_pet, owns_gesture,
                              w_param == WM_MOUSEMOVE);
+
+  // Cursor following / mouse-button feedback (only while a pack asked for it).
+  // Hover is throttled to ~60Hz so a global cursor stream stays cheap.
+  if (g_track_mouse.load()) {
+    switch (w_param) {
+      case WM_MOUSEMOVE: {
+        const ULONGLONG now = ::GetTickCount64();
+        if (now - g_last_hover_emit >= 16) {
+          g_last_hover_emit = now;
+          EmitMouse(ch::kPhaseHover, point);
+        }
+        break;
+      }
+      case WM_LBUTTONDOWN:
+        EmitMouse(ch::kPhaseLDown, point);
+        break;
+      case WM_LBUTTONUP:
+        EmitMouse(ch::kPhaseLUp, point);
+        break;
+      case WM_RBUTTONDOWN:
+        EmitMouse(ch::kPhaseRDown, point);
+        break;
+      case WM_RBUTTONUP:
+        EmitMouse(ch::kPhaseRUp, point);
+        break;
+      default:
+        break;
+    }
+  }
 
   if (!pointer_phase.empty()) {
     EmitMouse(pointer_phase.c_str(), point);
@@ -514,6 +572,7 @@ void UninstallHooks() {
   }
   g_capturing = false;
   g_swallowed_button = -1;
+  g_right_capturing = false;
   g_press_button = -1;
   g_press_target = nullptr;
 }
@@ -557,6 +616,20 @@ std::vector<std::vector<int>> GetVkGroups(const flutter::EncodableMap& map,
     if (!vks.empty()) groups.push_back(std::move(vks));
   }
   return groups;
+}
+
+// "shape": {"kind": "rect"|"grid", ...} - the hit area inside a region's
+// rectangle (single-engine-overlay.md 13.2). Returns the kind string, or empty
+// when absent/unrecognized; callers treat that as "rect".
+//
+// The per-cell grid fields (cols/rows/bits) are part of the reserved payload and
+// are deliberately not read yet: v1 only ever sends "rect".
+std::string ShapeKindOf(const flutter::EncodableMap& map) {
+  const auto it = map.find(flutter::EncodableValue(ch::kShape));
+  if (it == map.end()) return {};
+  const auto* shape = std::get_if<flutter::EncodableMap>(&it->second);
+  if (shape == nullptr) return {};
+  return GetString(*shape, ch::kKind);
 }
 
 std::vector<Binding> ParseBindings(const flutter::EncodableValue* arguments) {
@@ -605,10 +678,18 @@ void HandleMethodCall(
       HK_LOG("configure bindings=" << g_bindings.size());
     }
     result->Success(flutter::EncodableValue(true));
-  } else if (method == ch::kSetWatchRects) {
-    // Pet rectangles declared by Dart (physical screen pixels): a left-button
+  } else if (method == ch::kSetWatchRegions) {
+    // Pet hit regions declared by Dart (physical screen pixels): a left-button
     // press inside one of them counts as grabbing a pet.
+    //
+    // Each region carries a `shape` (single-engine-overlay.md 13.2) so the
+    // decision can be made *here*, synchronously - the low-level hook runs with
+    // a system timeout and must not round-trip to Dart. v1 only ever sends
+    // {kind:'rect'}: the whole bounding rectangle is the hit area. 'grid' is
+    // reserved for Live2D's alpha bitmap; until that lands, a grid region is
+    // judged as its bounding rectangle (v1 stays whole-rectangle).
     std::vector<RECT> rects;
+    bool saw_grid = false;
     if (const auto* list =
             std::get_if<flutter::EncodableList>(call.arguments())) {
       rects.reserve(list->size());
@@ -620,12 +701,18 @@ void HandleMethodCall(
         const int right = GetInt(*map, ch::kRight, 0);
         const int bottom = GetInt(*map, ch::kBottom, 0);
         if (right > left && bottom > top) {
+          if (ShapeKindOf(*map) == ch::kShapeGrid) saw_grid = true;
           rects.push_back(RECT{left, top, right, bottom});
         }
       }
     }
-    // The rectangles have a single owner: the cursor surface module, which the
-    // hook then queries (pet_cursor_surface::ContainsPoint).
+    if (saw_grid) {
+      HK_LOG("setWatchRegions: grid shape not implemented yet, "
+             "using the bounding rect");
+    }
+    // The regions have a single owner: the cursor surface module, which the
+    // hook then queries (pet_cursor_surface::ContainsPoint). For now it only
+    // needs the rectangles; the shape is judged here (rect) until grid lands.
     //
     // With no pet left to grab, drop the capture so we stop forwarding moves -
     // and stop swallowing clicks - immediately.
@@ -635,7 +722,16 @@ void HandleMethodCall(
       std::lock_guard<std::mutex> lock(g_mutex);
       g_capturing = false;
       g_swallowed_button = -1;
+      g_right_capturing = false;
     }
+    result->Success(flutter::EncodableValue(true));
+  } else if (method == ch::kSetMouseTracking) {
+    // Cursor-follow + mouse-button feedback (Live2D packs with mouseParams).
+    bool on = false;
+    if (const auto* value = std::get_if<bool>(call.arguments())) {
+      on = *value;
+    }
+    g_track_mouse.store(on);
     result->Success(flutter::EncodableValue(true));
   } else if (method == ch::kStart) {
     const bool installed = InstallHooks();

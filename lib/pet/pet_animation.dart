@@ -30,7 +30,7 @@ class PetAnimation {
     controller.addStatusListener(_onStatus);
   }
 
-  /// 从皮肤包加载指定动画，生成精灵图和 [AnimationController]。
+  /// 从宠物包加载指定动画，生成精灵图和 [AnimationController]。
   static Future<PetAnimation> load({
     required SpritePetPack pack,
     required String animName,

@@ -9,12 +9,12 @@ import '../../storage/storage_service.dart';
 import '../../storage/models/pet_pack_entry.dart';
 import '../pet_pack_lister.dart';
 
-/// 皮肤包导入工具。
+/// 宠物包导入工具。
 ///
 /// 支持将 `.zip` 文件解压到指定目录并注册到 [PetPackRepository]。
 ///
 /// ## 导入目标
-/// - 全局路径为默认（asset）：解压到 `<app_documents>/imported_skins/<petId>/`
+/// - 全局路径为默认（asset）：解压到 `<app_documents>/imported_pet_packs/<petId>/`
 /// - 全局路径为自定义：解压到 `<packDir>/<petId>/`
 class PetPackImporter {
   static Future<String> importZip({
@@ -34,7 +34,7 @@ class PetPackImporter {
     final settings = StorageService.readSettings();
     String destDir;
     if (PetPackLister.isDefaultPath(settings.packDir)) {
-      destDir = '${(await getApplicationDocumentsDirectory()).path}/imported_skins/$petId';
+      destDir = '${(await getApplicationDocumentsDirectory()).path}/imported_pet_packs/$petId';
     } else {
       destDir = '${settings.packDir}/$petId';
     }
@@ -66,7 +66,7 @@ class PetPackImporter {
       await outFile.writeAsBytes(entry.content as List<int>);
     }
 
-    // 5. 校验（透出校验器的具体原因，别用一句笼统的“缺 skin.json”盖掉）
+    // 5. 校验（透出校验器的具体原因，别用一句笼统的“缺 pet.json”盖掉）
     final validation = await PetPackValidator.validate(destDir);
     if (!validation.isValid) {
       await dest.delete(recursive: true);

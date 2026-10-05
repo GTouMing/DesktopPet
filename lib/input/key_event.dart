@@ -37,9 +37,9 @@ class KeyIdentifier {
 
   /// 复合标识: keyboard = `key+mod1+mod2`(排序后); mouse = `mouse:middle`。
   ///
-  /// **注意**：它和皮肤侧的 `TransitionRule.compositeKey` **不是同一个字符串**——
+  /// **注意**：它和宠物包侧的 `TransitionRule.compositeKey` **不是同一个字符串**——
   /// 这里 key 在前（`h+alt`），那边连 key 一起排序（`alt+h`）。两边各自内部一致即可
-  /// 工作，但**不要**把它们互相比较：皮肤规则与组合键的匹配一律用
+  /// 工作，但**不要**把它们互相比较：宠物包规则与组合键的匹配一律用
   /// `TransitionRule.compositeKey`（见 `PetPack.findTransition`），本标识只用于
   /// 输入层自己的映射表（`KeyRegistry`、`WindowsInputSource._byId`）。
   String get composite {

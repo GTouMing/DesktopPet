@@ -62,8 +62,21 @@ void Install(HWND window, flutter::BinaryMessenger* messenger);
 // Releases the channel. Call from FlutterWindow::OnDestroy.
 void Shutdown();
 
-// Routes window messages (WM_GETMINMAXINFO / WM_DPICHANGED). Returns a result
-// when the message is handled; call before the Flutter controller handles it.
+// Puts the overlay back at the top of the topmost band, without moving,
+// resizing or activating it. Idempotent; safe to call at any time.
+//
+// Windows can silently drop a topmost window out of the topmost band while
+// leaving WS_EX_TOPMOST set (measured on Windows 10 while another
+// always-on-top overlay churns the z order): the style bit alone then stops
+// keeping the window above ordinary windows, and because the overlay is
+// WS_EX_NOACTIVATE it can never be activated to be raised back. The window
+// therefore re-asserts itself on foreground changes and on a timer (see
+// HandleWindowMessage); call this to do it on demand.
+void RaiseToTopMost();
+
+// Routes window messages (WM_GETMINMAXINFO / WM_DPICHANGED / WM_ACTIVATEAPP /
+// the topmost watchdog WM_TIMER). Returns a result when the message is handled;
+// call before the Flutter controller handles it.
 std::optional<LRESULT> HandleWindowMessage(HWND window, UINT message,
                                            WPARAM wparam, LPARAM lparam);
 

@@ -1,6 +1,7 @@
 #include "overlay_window.h"
 
 #include "channels.h"
+#include "pet_cursor_surface.h"
 
 #include <memory>
 #include <string>
@@ -14,6 +15,11 @@ namespace {
 
 HWND g_window = nullptr;
 std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> g_channel;
+
+// Topmost watchdog (see RaiseToTopMost). One SetWindowPos per tick, with no
+// move/size/activate, so it costs nothing visible.
+constexpr UINT_PTR kTopmostTimerId = 0xDE5C;
+constexpr UINT kTopmostTimerMs = 1000;
 
 // The union of every monitor, in physical pixels.
 RECT VirtualScreenRect() {
@@ -31,6 +37,13 @@ void ApplyOverlayGeometry() {
   ::SetWindowPos(g_window, HWND_TOPMOST, target.left, target.top,
                  target.right - target.left, target.bottom - target.top,
                  SWP_NOACTIVATE | SWP_FRAMECHANGED);
+}
+
+// Re-asserts the overlay's topmost band membership and keeps the pet cursor
+// surface parked right under it (see RaiseToTopMost).
+void ReassertTopMost() {
+  RaiseToTopMost();
+  pet_cursor_surface::ReassertBelowOverlay();
 }
 
 void HandleMethodCall(
@@ -54,6 +67,12 @@ void HandleMethodCall(
 }
 
 }  // namespace
+
+void RaiseToTopMost() {
+  if (g_window == nullptr) return;
+  ::SetWindowPos(g_window, HWND_TOPMOST, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+}
 
 RECT OverlayWindowRect() {
   const RECT screen = VirtualScreenRect();
@@ -93,6 +112,11 @@ void Install(HWND window, flutter::BinaryMessenger* messenger) {
 
   ApplyOverlayGeometry();
 
+  // Watchdog: Windows can drop the window out of the topmost band while leaving
+  // WS_EX_TOPMOST set (see RaiseToTopMost), so re-assert on a timer in addition
+  // to foreground changes.
+  ::SetTimer(window, kTopmostTimerId, kTopmostTimerMs, nullptr);
+
   if (messenger != nullptr) {
     g_channel = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
         messenger, channels::overlay::kName,
@@ -102,6 +126,9 @@ void Install(HWND window, flutter::BinaryMessenger* messenger) {
 }
 
 void Shutdown() {
+  if (g_window != nullptr) {
+    ::KillTimer(g_window, kTopmostTimerId);
+  }
   g_channel = nullptr;
   g_window = nullptr;
 }
@@ -133,6 +160,20 @@ std::optional<LRESULT> HandleWindowMessage(HWND window, UINT message,
       // Dart owns the scene rectangles; ask it to re-derive them.
       g_channel->InvokeMethod(channels::overlay::kOnGeometryChanged, nullptr);
     }
+    return 0;
+  }
+
+  if (message == WM_ACTIVATEAPP) {
+    // Another app took (or gave back) the foreground - the z order is being
+    // reshuffled, which is when the window tends to slip out of the topmost
+    // band. Re-assert now; the timer is the safety net for band changes that
+    // happen without an activation event.
+    ReassertTopMost();
+    return std::nullopt;
+  }
+
+  if (message == WM_TIMER && wparam == kTopmostTimerId) {
+    ReassertTopMost();
     return 0;
   }
 

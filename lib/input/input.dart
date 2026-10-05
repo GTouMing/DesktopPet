@@ -2,6 +2,7 @@
 library;
 
 export 'input_service.dart';
+export 'input_source.dart';
 export 'key_event.dart';
 export 'key_input.dart';
 export 'key_registry.dart';

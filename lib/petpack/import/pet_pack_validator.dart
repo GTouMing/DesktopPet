@@ -33,7 +33,7 @@ class PetPackValidator {
         await PetPack.readManifest(extractedPath, PetPackSource.filesystem);
     if (json == null) {
       return const PetPackValidationResult(
-          isValid: false, error: 'pet.json (or skin.json) not found');
+          isValid: false, error: 'pet.json not found');
     }
 
     for (final field in ['name', 'version', 'frameWidth', 'frameHeight']) {

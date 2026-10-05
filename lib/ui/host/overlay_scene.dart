@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/device.dart';
+import '../../core/hit_shape.dart';
 import '../../core/overlay_controller.dart';
 import '../../input/input.dart';
 import '../../l10n/app_localizations.dart';
@@ -70,6 +71,7 @@ class _OverlaySceneState extends ConsumerState<OverlayScene>
     WidgetsBinding.instance.addObserver(this);
     InputService.instance.onPointer = (event) =>
         _router.handle(event, currentDevicePixelRatio, _geometry.origin);
+    InputService.instance.onCursor = _onCursor;
     OverlayWindow.registerHandler();
     OverlayWindow.onGeometryChanged = () {
       // 原生重铺了几何（DPI 变化等）：重取边界并重推抓取矩形。
@@ -83,6 +85,7 @@ class _OverlaySceneState extends ConsumerState<OverlayScene>
   void dispose() {
     OverlayWindow.onGeometryChanged = null;
     InputService.instance.onPointer = null;
+    InputService.instance.onCursor = null;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -91,6 +94,18 @@ class _OverlaySceneState extends ConsumerState<OverlayScene>
   void didChangeMetrics() {
     // 显示器拓扑/缩放变化：窗口尺寸可能已由原生重设，重新取一次。
     unawaited(_refreshScene());
+  }
+
+  /// 全局光标（物理像素）→ 归一化场景坐标（`[-1, 1]`），供"光标跟随"用。
+  void _onCursor(Offset physical) {
+    final bounds = OverlayController.sceneBounds.value;
+    if (bounds.isEmpty) return;
+    final scene = (physical - _geometry.origin) / currentDevicePixelRatio;
+    final nx =
+        ((scene.dx - bounds.width / 2) / (bounds.width / 2)).clamp(-1.0, 1.0);
+    final ny =
+        -((scene.dy - bounds.height / 2) / (bounds.height / 2)).clamp(-1.0, 1.0);
+    OverlayController.cursorNorm.value = Offset(nx, ny);
   }
 
   /// 重取场景几何，并重推抓取矩形（几何变了，此前声明的矩形已失效）。
@@ -124,12 +139,14 @@ class _OverlaySceneState extends ConsumerState<OverlayScene>
     for (final pet in data.pets) {
       if (!pet.isVisible) continue;
       final petState = ref.watch(petStateProvider(pet.id));
-      // 皮肤未就绪时还没有可渲染的尺寸，先不登记（否则会声明一块空的抓取区）。
+      // 宠物包未就绪时还没有可渲染的尺寸，先不登记（否则会声明一块空的抓取区）。
       if (petState.finalPetSize.isEmpty) continue;
       pets.add((
         id: pet.id,
         rect: petState.position & petState.finalPetSize,
         locked: pet.isLocked,
+        // v1：整矩形命中。Live2D 的逐格命中留待后续填入（预留 payload）。
+        shape: const HitShape.rect(),
       ));
       children.add(PetView(key: ValueKey(pet.id), petId: pet.id));
     }
@@ -198,7 +215,8 @@ class _OverlaySceneState extends ConsumerState<OverlayScene>
     for (var i = 0; i < a.length; i++) {
       if (a[i].id != b[i].id ||
           a[i].rect != b[i].rect ||
-          a[i].locked != b[i].locked) {
+          a[i].locked != b[i].locked ||
+          a[i].shape != b[i].shape) {
         return false;
       }
     }

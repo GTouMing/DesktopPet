@@ -31,6 +31,19 @@ class InputService implements KeyInput {
   /// 桌宠指针事件出口(由宿主设置为 PetPointerRouter)。
   void Function(InputPointerEvent event)? onPointer;
 
+  /// 鼠标反馈：光标位置出口（**物理屏幕像素**，由宿主换算为场景坐标）。
+  void Function(Offset physical)? onCursor;
+
+  /// 鼠标按键事件广播（多只桌宠可各自订阅）。
+  final StreamController<({MouseButton button, bool down})> _mouseButtons =
+      StreamController<({MouseButton button, bool down})>.broadcast();
+
+  Stream<({MouseButton button, bool down})> get mouseButtons =>
+      _mouseButtons.stream;
+
+  /// 鼠标反馈上报的引用计数：任一订阅者需要就开着。
+  int _mouseTracking = 0;
+
   late final InputSource _source =
       Platform.isWindows ? WindowsInputSource() : NoopInputSource();
 
@@ -44,15 +57,26 @@ class InputService implements KeyInput {
     _started = true;
     _source.onEvent = registry.dispatch;
     _source.onPointer = (event) => onPointer?.call(event);
+    _source.onCursor = (physical) => onCursor?.call(physical);
+    _source.onMouseButton =
+        (button, down) => _mouseButtons.add((button: button, down: down));
     await _rearm();
   }
 
-  /// 声明桌宠的可抓取矩形([physicalRects] 为**物理屏幕像素**)。
+  /// 声明桌宠的可抓取区域([regions] 为**物理屏幕像素**)。
   ///
   /// 悬浮窗整窗穿透、收不到鼠标消息,桌宠的点击/拖拽全靠全局钩子;钩子用这份
-  /// 矩形判断"左键按下算不算抓到了桌宠"。
-  Future<void> setWatchRects(List<Rect> physicalRects) =>
-      _source.setWatchRects(physicalRects);
+  /// 区域判断"左键按下算不算抓到了桌宠"。每条区域的 [WatchRegion.shape] 是预留的
+  /// 可扩展命中 payload(v1 恒为整矩形)。
+  Future<void> setWatchRegions(List<WatchRegion> regions) =>
+      _source.setWatchRegions(regions);
+
+  /// 申请/释放鼠标反馈上报（引用计数：任一桌宠需要就开着）。见 [InputSource.setMouseTracking]。
+  Future<void> setMouseTracking(bool on) {
+    _mouseTracking += on ? 1 : -1;
+    if (_mouseTracking < 0) _mouseTracking = 0;
+    return _source.setMouseTracking(_mouseTracking > 0);
+  }
 
   /// 注册一个按键(注册后自动初始化/重挂输入源)。
   @override

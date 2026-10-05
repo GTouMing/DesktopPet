@@ -15,7 +15,8 @@ constexpr char kName[] = "desktop_pet/global_input";
 
 // Dart -> native
 constexpr char kConfigure[] = "configure";
-constexpr char kSetWatchRects[] = "setWatchRects";
+constexpr char kSetWatchRegions[] = "setWatchRegions";
+constexpr char kSetMouseTracking[] = "setMouseTracking";
 constexpr char kStart[] = "start";
 constexpr char kStop[] = "stop";
 
@@ -39,12 +40,27 @@ constexpr char kTop[] = "top";
 constexpr char kRight[] = "right";
 constexpr char kBottom[] = "bottom";
 
+// Hit shape payload (extensible, see single-engine-overlay.md 13.2):
+// shape: {kind:'rect'|'grid', cols?, rows?, bits?}.
+constexpr char kShape[] = "shape";
+constexpr char kKind[] = "kind";
+constexpr char kCols[] = "cols";
+constexpr char kRows[] = "rows";
+constexpr char kBits[] = "bits";
+
 // values
 constexpr char kTypeKey[] = "key";
 constexpr char kTypeMouse[] = "mouse";
 constexpr char kPhaseDown[] = "down";
 constexpr char kPhaseUp[] = "up";
 constexpr char kPhaseMove[] = "move";
+constexpr char kPhaseHover[] = "hover";
+constexpr char kPhaseLDown[] = "leftDown";
+constexpr char kPhaseLUp[] = "leftUp";
+constexpr char kPhaseRDown[] = "rightDown";
+constexpr char kPhaseRUp[] = "rightUp";
+constexpr char kShapeRect[] = "rect";
+constexpr char kShapeGrid[] = "grid";
 }  // namespace global_input
 
 // "desktop_pet/overlay" (windows/runner/overlay_window.cpp).
@@ -57,12 +73,6 @@ constexpr char kTop[] = "top";
 constexpr char kWidth[] = "width";
 constexpr char kHeight[] = "height";
 }  // namespace overlay
-
-// "desktop_pet/settings_window" (windows/runner/settings_window.cpp).
-namespace settings {
-constexpr char kName[] = "desktop_pet/settings_window";
-constexpr char kToBack[] = "toBack";
-}  // namespace settings
 
 }  // namespace channels
 

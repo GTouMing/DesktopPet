@@ -1,0 +1,20 @@
+{
+  "//": "自研 Live2D 渲染器所需的 Cubism SDK 子集。SDK 不入库（third_party/live2d/ 已 gitignore），由 tool/fetch_live2d_sdk.ps1 在拉取项目后获取。",
+  "source": "pub.dev",
+  "package": "live2d_flutter",
+  "version": "1.0.3",
+  "archiveSha256": "b16d5d861661427609a692e311f469941526d33a32912616191b8ca5efc84332",
+  "include": [
+    "android/src/main/cpp/CubismCore",
+    "android/src/main/cpp/CubismFramework",
+    "android/src/main/cpp/stb_image.h",
+    "windows/libs",
+    "windows/LICENSE.core.md"
+  ],
+  "exclude": [
+    "CubismFramework/Rendering/D3D9",
+    "CubismFramework/Rendering/Metal",
+    "CubismFramework/Rendering/OpenGL",
+    "CubismFramework/Rendering/Vulkan"
+  ]
+}

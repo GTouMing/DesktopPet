@@ -141,10 +141,12 @@ void Update(const POINT& point, bool inside, bool owned, bool is_move) {
     return;
   }
 
-  // Pure hovering is the only thing the surface holds; every press, wheel or
-  // already-running gesture (AnyMouseButtonDown) hands the event - this one
-  // included - back to the window underneath, which is what keeps right-clicks,
-  // scrolling and drags behaving exactly as before.
+  // Pure hovering is what the surface holds by itself; a press, wheel or
+  // already-running gesture (AnyMouseButtonDown) that the pet does NOT own hands
+  // the event - this one included - back to the window underneath, which keeps
+  // scrolling and gestures that started elsewhere behaving exactly as before. An
+  // owned press (a pet drag, or a right press that started on a pet) keeps it up
+  // for the gesture's duration.
   if (!owned && !(is_move && !AnyMouseButtonDown())) {
     Hide();
     return;
@@ -160,6 +162,19 @@ void Update(const POINT& point, bool inside, bool owned, bool is_move) {
 
 bool IsSurfaceWindow(HWND window) {
   return window != nullptr && window == g_surface;
+}
+
+void ReassertBelowOverlay() {
+  if (g_surface == nullptr || g_anchor == nullptr) {
+    return;
+  }
+  // Insert-after the overlay puts the surface directly below it. The overlay is
+  // topmost, so this keeps the surface in the topmost band right under it; it no
+  // longer relies on the one-shot placement in ShowOn. Move/size/visibility are
+  // left untouched.
+  ::SetWindowPos(g_surface, g_anchor, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+  g_placed = true;
 }
 
 void Shutdown() {

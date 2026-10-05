@@ -1,11 +1,12 @@
 import 'dart:ui';
 
+import 'package:desktop_pet/core/hit_shape.dart';
 import 'package:desktop_pet/core/overlay_controller.dart';
 import 'package:desktop_pet/shortcut/quick_launch_target.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 PetHit _pet(String id, Rect rect, {bool locked = false}) =>
-    (id: id, rect: rect, locked: locked);
+    (id: id, rect: rect, locked: locked, shape: const HitShape.rect());
 
 void main() {
   const a = Rect.fromLTWH(0, 0, 100, 100);

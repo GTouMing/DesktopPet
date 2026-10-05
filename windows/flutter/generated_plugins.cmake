@@ -6,8 +6,8 @@ list(APPEND FLUTTER_PLUGIN_LIST
   audioplayers_windows
   desktop_multi_window
   flutter_alone
-  live2d_flutter
   mmkv_win32
+  pet_live2d
   screen_retriever_windows
   system_tray
   window_manager

@@ -42,6 +42,9 @@ class _PetWidgetState extends ConsumerState<PetWidget>
   /// 渲染器。宠物包就绪后按类型创建（[PetNotifier.pack] 是 late final）。
   PetVisual? _visual;
 
+  /// 上一次下发的播放速度，用于只在变化时通知渲染器。
+  double? _lastSpeed;
+
   @override
   void initState() {
     super.initState();
@@ -77,11 +80,16 @@ class _PetWidgetState extends ConsumerState<PetWidget>
           onAnimationComplete: () => _notifier.onEvent(Trigger.complete),
         );
       } else if (pack is Live2DPetPack) {
-        visual = Live2DPetVisual(pack: pack);
+        visual = Live2DPetVisual(petId: widget.petId, pack: pack);
       } else {
         return;
       }
       _visual = visual;
+      _lastSpeed = null; // 新渲染器要补发一次当前速度
+      // 包级快捷键 → 渲染器瞬时动作（渲染器销毁后 _visual 为 null，自动丢弃）。
+      _notifier.onHotkeyAction = (action) => _visual?.playAction(action);
+      // "打字反应" + 鼠标反馈 → 模型参数。
+      _notifier.onParameter = (id, value) => _visual?.setParameter(id, value);
     }
     unawaited(visual.prepare(_notifier.currentState));
   }
@@ -115,7 +123,7 @@ class _PetWidgetState extends ConsumerState<PetWidget>
         color: Colors.red,
         child: Center(
           child: Text(
-            AppLocalizations.of(context).skinError(petState.packError ?? ''),
+            AppLocalizations.of(context).petPackError(petState.packError ?? ''),
           ),
         ),
       );
@@ -125,6 +133,12 @@ class _PetWidgetState extends ConsumerState<PetWidget>
     final visual = _visual;
     if (petState.packError == null || visual == null) {
       return const SizedBox.shrink();
+    }
+
+    // ── 播放速度（全局 × 本宠）→ 渲染器 ───────────────────────────────
+    if (_lastSpeed != petState.finalSpeed) {
+      _lastSpeed = petState.finalSpeed;
+      visual.setSpeed(petState.finalSpeed);
     }
 
     // ── 渲染 ──────────────────────────────────────────────────────────

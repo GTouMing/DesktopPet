@@ -22,7 +22,7 @@ void main() {
     expect(zh.myPets(3), '我的桌宠 (3)');
     expect(en.myPets(3), 'My pets (3)');
     expect(zh.globalOpacity(50), '全局透明度 — 50%');
-    expect(en.skinLabel('foo'), 'Skin: foo');
+    expect(en.petPackLabel('foo'), 'Pet pack: foo');
   });
 
   test('语言设置解析: system 回退中文, 显式 zh/en 生效', () {

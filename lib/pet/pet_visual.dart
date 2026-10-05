@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../petpack/hotkey_action.dart';
 import '../petpack/state/state_define.dart';
 
 /// 桌宠「怎么画」的边界（对应方案 §13.1 的渲染边界约束）。
@@ -18,12 +19,27 @@ abstract class PetVisual {
   /// 当前状态变为 [stateName] 时调用。可重复、可乱序到达，实现需自判幂等。
   void playState(String stateName, StateDef? stateDef);
 
+  /// 播放一次「瞬时动作」（宠物包顶层 `hotkeys` 触发，见 [HotkeyAction]）：直接播
+  /// 这个动作/表情，**不改变状态机**。
+  ///
+  /// 默认忽略——只有支持它的渲染器（Live2D）才覆写；实现需自判幂等与就绪状态。
+  void playAction(HotkeyAction action) {}
+
+  /// "打字反应"：把模型参数 [parameterId] 设为 [value]（按住 1 / 松开 0），由包顶层
+  /// `keyParams` 驱动。默认忽略——只有 Live2D 实现。
+  void setParameter(String parameterId, double value) {}
+
+  /// 最终播放速度（`PetState.finalSpeed`，全局 × 本宠）。默认忽略——只有 Live2D
+  /// 实现会把它接到动作播放速度上；精灵图的播放速度由每帧时长决定，不在此列。
+  void setSpeed(double speed) {}
+
   /// 产出一帧画面。[size] 是 `PetState.finalPetSize`（**逻辑像素**）：实现内部
   /// 自行缩放到该尺寸，**不得**自建坐标系或反向回写坐标（见方案 §13.3）。
   Widget build(BuildContext context, Size size, StateDef? stateDef);
 
   /// 当前正在播放的动画/动作名，写回 `PetState.currentAnim`。
   String? get animationName;
+
 
   /// 释放资源（控制器、图集、原生对象……）。
   void dispose();

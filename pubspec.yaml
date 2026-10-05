@@ -28,16 +28,12 @@ dependencies:
   flutter_alone: ^4.1.0
   audioplayers: ^6.1.0
   styled_widget: ^0.4.1
-  live2d_flutter: ^1.0.3
-
-# 上游 live2d_flutter 1.0.3 的发布包缺少其 pubspec 里声明的 assets/web/*，
-# 会让任何依赖它的工程在 flutter_assemble 阶段失败（找不到资产）。
-# 这里指向项目外的一份 vendored 副本，仅移除该 web 资产声明，其余与 1.0.3 一致。
-# 该副本刻意放在仓库之外（E:/Projects/live2d_flutter-1.0.3-vendored），
-# 以免把 Cubism SDK 源码与二进制纳入 git，且不受 flutter clean 影响。
-dependency_overrides:
-  live2d_flutter:
-    path: E:/Projects/live2d_flutter-1.0.3-vendored
+  # 自研 Live2D 渲染器（进程级运行时 + 定尺寸渲染目标 + 预热切换）。
+  # 取代了 live2d_flutter：后者的架构与本项目不合（模型归视图所有、重注册会破坏
+  # 引擎持有的纹理对象、渲染目标尺寸只能创建时确定），我们为它打过的补丁已沉淀在
+  # doc/live2d-renderer-notes.md 与 plugins/pet_live2d/ 里。
+  pet_live2d:
+    path: plugins/pet_live2d
 
 dev_dependencies:
   flutter_test:
@@ -47,12 +43,12 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/default_skin/
+    - assets/default_pet_pack/
     - assets/app_icon.ico
-    - assets/default_skin/drag/
-    - assets/default_skin/eat/
-    - assets/default_skin/happy/
-    - assets/default_skin/idle/
-    - assets/default_skin/sleep/
-    - assets/default_skin/walk/
+    - assets/default_pet_pack/drag/
+    - assets/default_pet_pack/eat/
+    - assets/default_pet_pack/happy/
+    - assets/default_pet_pack/idle/
+    - assets/default_pet_pack/sleep/
+    - assets/default_pet_pack/walk/
   generate: true # 务必开启此选项，以启用代码生成器

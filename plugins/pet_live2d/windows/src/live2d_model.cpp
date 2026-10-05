@@ -1,0 +1,447 @@
+#include "live2d_model.h"
+
+#include <CubismDefaultParameterId.hpp>
+#include <CubismModelSettingJson.hpp>
+#include <Effect/CubismEyeBlink.hpp>
+#include <Id/CubismIdManager.hpp>
+#include <Motion/CubismMotion.hpp>
+#include <Physics/CubismPhysics.hpp>
+#include <Rendering/D3D11/CubismRenderer_D3D11.hpp>
+
+#include <algorithm>
+#include <cstdio>
+#include <cstring>
+
+#include "live2d_log.h"
+#include "live2d_pal.h"
+
+using namespace Live2D::Cubism::Framework;
+using namespace Live2D::Cubism::Framework::DefaultParameterId;
+
+namespace pet_live2d {
+namespace {
+
+/// Safety margin around the model's content, as a fraction of the view. Without
+/// it the artwork sits flush against the pet's box edge, which reads as clipped.
+constexpr float kFitMargin = 0.04f;
+
+/// Callers hand us a directory; every path we build from it is
+/// `dir + fileName`, so a missing separator silently produces ".../packName.json".
+std::string WithTrailingSeparator(const char* directory) {
+  std::string value = directory ? directory : "";
+  if (!value.empty() && value.back() != '\\' && value.back() != '/') {
+    value.push_back('\\');
+  }
+  return value;
+}
+
+}  // namespace
+
+Live2DModel::Live2DModel(Live2DTextureManager* texture_manager)
+    : CubismUserModel(), texture_manager_(texture_manager) {
+  id_param_angle_x_ = CubismFramework::GetIdManager()->GetId(ParamAngleX);
+  id_param_angle_y_ = CubismFramework::GetIdManager()->GetId(ParamAngleY);
+  id_param_angle_z_ = CubismFramework::GetIdManager()->GetId(ParamAngleZ);
+  id_param_body_angle_x_ = CubismFramework::GetIdManager()->GetId(ParamBodyAngleX);
+  id_param_eye_ball_x_ = CubismFramework::GetIdManager()->GetId(ParamEyeBallX);
+  id_param_eye_ball_y_ = CubismFramework::GetIdManager()->GetId(ParamEyeBallY);
+}
+
+Live2DModel::~Live2DModel() {
+  ReleaseMotions();
+  ReleaseExpressions();
+  delete model_setting_;
+  model_setting_ = nullptr;
+}
+
+Csm::csmByte* Live2DModel::CreateBuffer(const Csm::csmChar* path,
+                                        Csm::csmSizeInt* size) {
+  return pal::LoadFileAsBytes(path, size);
+}
+
+void Live2DModel::DeleteBuffer(Csm::csmByte* buffer) {
+  pal::ReleaseBytes(buffer);
+}
+
+void Live2DModel::LoadAssets(const Csm::csmChar* model_dir,
+                             const Csm::csmChar* model_file_name) {
+  model_home_dir_ = WithTrailingSeparator(model_dir);
+  Csm::csmSizeInt size = 0;
+  const Csm::csmString path =
+      Csm::csmString(model_home_dir_.c_str()) + model_file_name;
+  Csm::csmByte* buffer = CreateBuffer(path.GetRawString(), &size);
+  if (!buffer || size <= 0) return;
+
+  model_setting_ = new CubismModelSettingJson(buffer, size);
+  DeleteBuffer(buffer);
+  SetupModel();
+}
+
+void Live2DModel::SetupModel() {
+  _updating = true;
+  _initialized = false;
+  parameter_overrides_.Clear();
+
+  {
+    Csm::csmSizeInt size = 0;
+    const Csm::csmString path =
+        Csm::csmString(model_home_dir_.c_str()) + model_setting_->GetModelFileName();
+    Csm::csmByte* buffer = CreateBuffer(path.GetRawString(), &size);
+    if (!buffer || size <= 0) return;
+    LoadModel(buffer, size);
+    DeleteBuffer(buffer);
+    if (!_model) return;
+  }
+
+  for (Csm::csmInt32 i = 0; i < model_setting_->GetExpressionCount(); ++i) {
+    const Csm::csmChar* name = model_setting_->GetExpressionName(i);
+    const Csm::csmString path = Csm::csmString(model_home_dir_.c_str()) +
+                                model_setting_->GetExpressionFileName(i);
+    Csm::csmSizeInt size = 0;
+    Csm::csmByte* buffer = CreateBuffer(path.GetRawString(), &size);
+    if (!buffer) continue;
+    expressions_[name] = LoadExpression(buffer, size, name);
+    DeleteBuffer(buffer);
+  }
+
+  if (strcmp(model_setting_->GetPhysicsFileName(), "") != 0) {
+    const Csm::csmString path = Csm::csmString(model_home_dir_.c_str()) +
+                                model_setting_->GetPhysicsFileName();
+    Csm::csmSizeInt size = 0;
+    Csm::csmByte* buffer = CreateBuffer(path.GetRawString(), &size);
+    if (buffer) {
+      LoadPhysics(buffer, size);
+      DeleteBuffer(buffer);
+    }
+  }
+
+  if (strcmp(model_setting_->GetPoseFileName(), "") != 0) {
+    const Csm::csmString path = Csm::csmString(model_home_dir_.c_str()) +
+                                model_setting_->GetPoseFileName();
+    Csm::csmSizeInt size = 0;
+    Csm::csmByte* buffer = CreateBuffer(path.GetRawString(), &size);
+    if (buffer) {
+      LoadPose(buffer, size);
+      DeleteBuffer(buffer);
+    }
+  }
+
+  if (model_setting_->GetEyeBlinkParameterCount() > 0) {
+    _eyeBlink = CubismEyeBlink::Create(model_setting_);
+  }
+
+  for (Csm::csmInt32 i = 0; i < model_setting_->GetLipSyncParameterCount(); ++i) {
+    lip_sync_ids_.PushBack(model_setting_->GetLipSyncParameterId(i));
+  }
+
+  if (strcmp(model_setting_->GetUserDataFile(), "") != 0) {
+    const Csm::csmString path = Csm::csmString(model_home_dir_.c_str()) +
+                                model_setting_->GetUserDataFile();
+    Csm::csmSizeInt size = 0;
+    Csm::csmByte* buffer = CreateBuffer(path.GetRawString(), &size);
+    if (buffer) {
+      LoadUserData(buffer, size);
+      DeleteBuffer(buffer);
+    }
+  }
+
+  for (Csm::csmInt32 i = 0; i < model_setting_->GetMotionGroupCount(); ++i) {
+    PreloadMotionGroup(model_setting_->GetMotionGroupName(i));
+  }
+
+  _model->SaveParameters();
+  bounds_valid_ = false;  // recomputed from the new model's vertices
+  _updating = false;
+  _initialized = true;
+}
+
+void Live2DModel::SetupTextures() {
+  auto* renderer = GetRenderer<Rendering::CubismRenderer_D3D11>();
+  if (!renderer || !model_setting_) return;
+
+  for (Csm::csmInt32 i = 0; i < model_setting_->GetTextureCount(); ++i) {
+    if (strcmp(model_setting_->GetTextureFileName(i), "") == 0) continue;
+    const Csm::csmString path = Csm::csmString(model_home_dir_.c_str()) +
+                                model_setting_->GetTextureFileName(i);
+    auto* texture = texture_manager_->CreateTextureFromPngFile(path.GetRawString());
+    if (texture) renderer->BindTexture(i, texture->texture_view.Get());
+  }
+  renderer->IsPremultipliedAlpha(false);
+}
+
+void Live2DModel::PreloadMotionGroup(const Csm::csmChar* group) {
+  for (Csm::csmInt32 i = 0; i < model_setting_->GetMotionCount(group); ++i) {
+    const Csm::csmString path = Csm::csmString(model_home_dir_.c_str()) +
+                                model_setting_->GetMotionFileName(group, i);
+    Csm::csmSizeInt size = 0;
+    Csm::csmByte* buffer = CreateBuffer(path.GetRawString(), &size);
+    if (!buffer) continue;
+    auto* motion = static_cast<CubismMotion*>(LoadMotion(buffer, size, nullptr));
+    DeleteBuffer(buffer);
+    if (!motion) continue;
+
+    Csm::csmFloat32 fade_time = model_setting_->GetMotionFadeInTimeValue(group, i);
+    if (fade_time >= 0.0f) motion->SetFadeInTime(fade_time);
+    fade_time = model_setting_->GetMotionFadeOutTimeValue(group, i);
+    if (fade_time >= 0.0f) motion->SetFadeOutTime(fade_time);
+
+    char index[16];
+    snprintf(index, sizeof(index), "%d", i);
+    const Csm::csmString name = Csm::csmString(group) + "_" + index;
+    motions_[name.GetRawString()] = motion;
+  }
+}
+
+void Live2DModel::ReleaseMotions() {
+  for (auto it = motions_.Begin(); it != motions_.End(); ++it) {
+    Csm::ACubismMotion::Delete(it->Second);
+  }
+  motions_.Clear();
+}
+
+void Live2DModel::ReleaseExpressions() {
+  for (auto it = expressions_.Begin(); it != expressions_.End(); ++it) {
+    Csm::ACubismMotion::Delete(it->Second);
+  }
+  expressions_.Clear();
+}
+
+void Live2DModel::Update(Csm::csmFloat32 delta_time) {
+  if (!_model) return;
+
+  _dragManager->Update(delta_time);
+  const Csm::csmFloat32 drag_x = _dragManager->GetX();
+  const Csm::csmFloat32 drag_y = _dragManager->GetY();
+
+  _model->LoadParameters();
+  // Re-apply app-driven parameters: Cubism's LoadParameters() restores the
+  // motion-saved values, which would otherwise discard a one-shot write from
+  // Dart before it is ever rendered.
+  for (auto it = parameter_overrides_.Begin(); it != parameter_overrides_.End();
+       ++it) {
+    const Csm::CubismId* id =
+        CubismFramework::GetIdManager()->GetId(it->First.GetRawString());
+    if (_model->GetParameterIndex(id) < 0) continue;
+    _model->SetParameterValue(id, it->Second);
+  }
+
+  if (_motionManager->IsFinished()) {
+    // Explicit loop: replay only when the caller asked for it. The old plugin
+    // hard-coded a restart of the "Idle" group here, which fought the app's own
+    // state machine.
+    if (loop_requested_) {
+      StartPreloadedMotion(loop_group_.GetRawString(), loop_index_, loop_priority_);
+    }
+  } else {
+    _motionManager->UpdateMotion(_model, delta_time * motion_speed_);
+  }
+  _model->SaveParameters();
+
+  _model->AddParameterValue(id_param_angle_x_, drag_x * 30.0f);
+  _model->AddParameterValue(id_param_angle_y_, drag_y * 30.0f);
+  _model->AddParameterValue(id_param_angle_z_, drag_x * drag_y * -30.0f);
+  _model->AddParameterValue(id_param_body_angle_x_, drag_x * 10.0f);
+  _model->AddParameterValue(id_param_eye_ball_x_, drag_x);
+  _model->AddParameterValue(id_param_eye_ball_y_, drag_y);
+
+  if (_eyeBlink) _eyeBlink->UpdateParameters(_model, delta_time);
+  if (_expressionManager) _expressionManager->UpdateMotion(_model, delta_time);
+  if (_physics) _physics->Evaluate(_model, delta_time);
+  if (_pose) _pose->UpdateParameters(_model, delta_time);
+  _model->Update();
+}
+
+void Live2DModel::Draw(const Csm::CubismMatrix44& matrix) {
+  if (!_model) return;
+  Csm::CubismMatrix44 mvp = matrix;
+  mvp.MultiplyByMatrix(_modelMatrix);
+  auto* renderer = GetRenderer<Rendering::CubismRenderer_D3D11>();
+  if (!renderer) return;
+  renderer->SetMvpMatrix(&mvp);
+  renderer->DrawModel();
+}
+
+bool Live2DModel::StartPreloadedMotion(const Csm::csmChar* group,
+                                       Csm::csmInt32 index,
+                                       Csm::csmInt32 priority) {
+  if (!model_setting_ || !group) return false;
+  char index_text[16];
+  snprintf(index_text, sizeof(index_text), "%d", index);
+  const Csm::csmString name = Csm::csmString(group) + "_" + index_text;
+  if (!motions_.IsExist(name)) return false;
+
+  if (priority == 3) {
+    _motionManager->SetReservePriority(priority);
+  } else if (!_motionManager->ReserveMotion(priority)) {
+    return false;
+  }
+  _motionManager->StartMotionPriority(motions_[name], false, priority);
+  return true;
+}
+
+void Live2DModel::StartMotion(const Csm::csmChar* group, Csm::csmInt32 index,
+                              Csm::csmInt32 priority, bool loop) {
+  if (!model_setting_ || !group) return;
+  const Csm::csmInt32 count = model_setting_->GetMotionCount(group);
+  if (index < 0 || index >= count) return;
+  if (!StartPreloadedMotion(group, index, priority)) return;
+
+  loop_requested_ = loop;
+  loop_group_ = Csm::csmString(group);
+  loop_index_ = index;
+  loop_priority_ = priority;
+}
+
+void Live2DModel::StopMotions() {
+  if (_motionManager) _motionManager->StopAllMotions();
+  loop_requested_ = false;
+}
+
+void Live2DModel::SetExpression(Csm::csmInt32 index) {
+  if (!model_setting_ || index < 0 ||
+      index >= model_setting_->GetExpressionCount()) {
+    return;
+  }
+  const Csm::csmChar* name = model_setting_->GetExpressionName(index);
+  if (expressions_.IsExist(name)) {
+    _expressionManager->StartMotion(expressions_[name], false);
+  }
+}
+
+void Live2DModel::SetMotionSpeed(Csm::csmFloat32 speed) {
+  motion_speed_ = speed > 0.0f ? speed : 0.0f;
+}
+
+void Live2DModel::SetDragging(Csm::csmFloat32 x, Csm::csmFloat32 y) {
+  _dragManager->Set(x, y);
+}
+
+void Live2DModel::SetParameter(const Csm::csmChar* parameter_id,
+                               Csm::csmFloat32 value) {
+  if (!_model || !parameter_id) return;
+  const Csm::CubismId* id = CubismFramework::GetIdManager()->GetId(parameter_id);
+  // An unknown id would make CubismModel::SetParameterValue write out of bounds.
+  if (_model->GetParameterIndex(id) < 0) return;
+  parameter_overrides_[Csm::csmString(parameter_id)] = value;
+  _model->SetParameterValue(id, value);
+}
+
+void Live2DModel::ClearParameterOverrides() { parameter_overrides_.Clear(); }
+
+void Live2DModel::FitToView(int width, int height) {
+  if (!_model) return;
+  view_width_ = width > 0 ? width : 1;
+  view_height_ = height > 0 ? height : 1;
+
+  if (!bounds_valid_) ComputeContentBounds();
+
+  // Fit the CONTENT, not the declared canvas: this pack's artwork extends past
+  // its (normalized 1x1) canvas, so a canvas fit crops the desk. Fall back to the
+  // canvas when the bounds are not available yet - they only become meaningful
+  // once the vertices have been deformed by an Update().
+  float min_x = 0.0f;
+  float min_y = 0.0f;
+  float max_x = 0.0f;
+  float max_y = 0.0f;
+  if (bounds_valid_) {
+    min_x = bounds_min_x_;
+    min_y = bounds_min_y_;
+    max_x = bounds_max_x_;
+    max_y = bounds_max_y_;
+  } else {
+    const float canvas_width = _model->GetCanvasWidth();
+    const float canvas_height = _model->GetCanvasHeight();
+    min_x = -canvas_width * 0.5f;
+    max_x = canvas_width * 0.5f;
+    min_y = -canvas_height * 0.5f;
+    max_y = canvas_height * 0.5f;
+  }
+
+  const float content_width = max_x - min_x;
+  const float content_height = max_y - min_y;
+  if (content_width <= 0.0f || content_height <= 0.0f) return;
+
+  auto* matrix = GetModelMatrix();
+  // Scale/Translate MULTIPLY onto the current matrix, so reset first or the fit
+  // accumulates across resizes.
+  matrix->LoadIdentity();
+
+  // Contain the content with a small margin, so nothing sits flush against the
+  // pet's box edge (flush artwork reads as "clipped").
+  const float usable = 2.0f * (1.0f - kFitMargin);
+  const float scale = (std::min)(usable / content_width, usable / content_height);
+  matrix->Scale(scale, scale);
+  matrix->Translate(-(min_x + max_x) * 0.5f * scale,
+                    -(min_y + max_y) * 0.5f * scale);
+}
+
+void Live2DModel::ComputeContentBounds() {
+  if (!_model) return;
+  bool seen = false;
+  float min_x = 0.0f;
+  float min_y = 0.0f;
+  float max_x = 0.0f;
+  float max_y = 0.0f;
+
+  const Csm::csmInt32 drawable_count = _model->GetDrawableCount();
+  for (Csm::csmInt32 i = 0; i < drawable_count; ++i) {
+    // Skip fully transparent drawables: a pack parks hidden props somewhere, and
+    // letting their geometry into the bounds makes the visible pet fill only ~60%
+    // of its box (measured) and sit off-centre.
+    //
+    // NOTE: only the OPACITY is used. `GetDrawableDynamicFlagIsVisible` was tried
+    // too and is wrong here - this pack has parts that the flag reports as
+    // hidden while they are in fact drawn, and excluding them clipped the desk.
+    if (_model->GetDrawableOpacity(i) <= 0.01f) continue;
+    const Csm::csmInt32 vertex_count = _model->GetDrawableVertexCount(i);
+    const auto* vertices = _model->GetDrawableVertexPositions(i);
+    if (!vertices) continue;
+    for (Csm::csmInt32 v = 0; v < vertex_count; ++v) {
+      const float x = vertices[v].X;
+      const float y = vertices[v].Y;
+      if (!seen) {
+        min_x = max_x = x;
+        min_y = max_y = y;
+        seen = true;
+      } else {
+        min_x = (std::min)(min_x, x);
+        min_y = (std::min)(min_y, y);
+        max_x = (std::max)(max_x, x);
+        max_y = (std::max)(max_y, y);
+      }
+    }
+  }
+  if (!seen) return;
+
+  // Skip degenerate/invalid results (e.g. queried before the first Update).
+  if (max_x - min_x <= 0.0f || max_y - min_y <= 0.0f) return;
+
+  bounds_min_x_ = min_x;
+  bounds_min_y_ = min_y;
+  bounds_max_x_ = max_x;
+  bounds_max_y_ = max_y;
+  bounds_valid_ = true;
+  LogLine("[l2d] bounds " + std::to_string(min_x) + "," + std::to_string(min_y) +
+          " .. " + std::to_string(max_x) + "," + std::to_string(max_y));
+}
+
+void Live2DModel::ResizeMaskBuffer(int width, int height) {
+  auto* renderer = GetRenderer<Rendering::CubismRenderer_D3D11>();
+  if (renderer) {
+    renderer->SetDrawableClippingMaskBufferSize(
+        static_cast<Csm::csmFloat32>(width),
+        static_cast<Csm::csmFloat32>(height));
+  }
+}
+
+bool Live2DModel::IsMotionPlaying() const {
+  if (!_motionManager) return false;
+  return !_motionManager->IsFinished() || loop_requested_;
+}
+
+Csm::csmInt32 Live2DModel::MotionCount(const Csm::csmChar* group) const {
+  if (!model_setting_ || !group) return 0;
+  return model_setting_->GetMotionCount(group);
+}
+
+}  // namespace pet_live2d

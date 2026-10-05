@@ -33,7 +33,7 @@ class StorageService {
   static MMKV? _mmkv;
 
   static const _keySettings = 'settings';
-  static const _keyPacks = 'skins';
+  static const _keyPacks = 'petPacks';
   static const _keyShortcuts = 'shortcuts';
   static const _mmkvId = 'desktop_pet_data';
 
@@ -56,7 +56,7 @@ class StorageService {
     // 旧数据(单键整表) → 每只桌宠一个键。
     _migrateLegacyPets();
 
-    // 首次启动：设置全局皮肤目录并创建一个默认桌宠
+    // 首次启动：设置全局宠物包目录并创建一个默认桌宠
     if (StorageService.readPets().isEmpty) {
       StorageService.writeSettings(
         SettingsModel(
@@ -111,8 +111,8 @@ class StorageService {
   /// 因此调用方**不需要**再自己 invalidate 任何 Provider，也不需要记得"改完要通知
   /// 谁"——这是刻意做成"写即广播"的。
   ///
-  /// 例外：皮肤列表（[addPack] / [removePackByPath]）不广播——它不在 [AppData] 里，
-  /// 由导入与皮肤选择器按需直接读。
+  /// 例外：宠物包列表（[addPack]）不广播——它不在 [AppData] 里，
+  /// 由导入与宠物包选择器按需直接读。
   static Stream<void> get changes => _changes.stream;
 
   /// 订阅一次数据变更；拿着返回的订阅在销毁时 `cancel()`。
@@ -230,7 +230,7 @@ class StorageService {
     notifySettingsChanged();
   }
 
-  // ── 皮肤条目 ───────────────────────────────────────────────────────────
+  // ── 宠物包条目 ───────────────────────────────────────────────────────────
 
   static List<PetPackEntry> readPacks() {
     final raw = _mmkv?.decodeString(_keyPacks);
@@ -252,13 +252,6 @@ class StorageService {
     final existing = readPacks();
     final map = {for (final s in existing) s.folderPath: s.toJson()};
     map[entry.folderPath] = entry.toJson();
-    _mmkv?.encodeString(_keyPacks, jsonEncode(map));
-  }
-
-  static void removePackByPath(String folderPath) {
-    final existing = readPacks();
-    existing.removeWhere((s) => s.folderPath == folderPath);
-    final map = {for (final s in existing) s.folderPath: s.toJson()};
     _mmkv?.encodeString(_keyPacks, jsonEncode(map));
   }
 
@@ -306,7 +299,7 @@ class StorageService {
 /// **不需要**再手动 `ref.invalidate(appDataProvider)`——这也是它保持普通 `Provider`
 /// 的原因（所有 `ref.watch(appDataProvider)` 的调用点零改动）。
 ///
-/// 注：皮肤列表不在 [AppData] 里，由导入/选择器按需直接读，因此它的写入不广播。
+/// 注：宠物包列表不在 [AppData] 里，由导入/选择器按需直接读，因此它的写入不广播。
 final appDataProvider = Provider<AppData>((ref) {
   // 走 addSettingsListener 而不是直接 listen：它会把订阅方的异常隔离掉。
   final sub = StorageService.addSettingsListener(() => ref.invalidateSelf());

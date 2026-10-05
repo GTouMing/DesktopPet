@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:desktop_pet/core/hit_shape.dart';
 import 'package:desktop_pet/platform/windows/windows_channels.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -33,6 +34,9 @@ class WindowsInputSource extends InputSource {
 
   /// arm 时建立 `composite → KeyIdentifier` 映射, 按键事件按 id 回查。
   final Map<String, KeyIdentifier> _byId = {};
+
+  /// 鼠标反馈上报是否已开启(避免重复下发)。
+  bool _mouseTracking = false;
 
   // ── 修饰键名 → 需要按下的虚拟键 ────────────────────────────────────
   //
@@ -86,6 +90,11 @@ class WindowsInputSource extends InputSource {
     }
     const named = <String, int>{
       'space': 0x20,
+      // 单一修饰键也可作为**主键**绑定（模型里 Alt/Ctrl/Shift 各是一个参数）。
+      'alt': 0x12, // VK_MENU
+      'ctrl': 0x11, // VK_CONTROL
+      'control': 0x11,
+      'shift': 0x10, // VK_SHIFT
       'tab': 0x09,
       'enter': 0x0D,
       'escape': 0x1B,
@@ -150,17 +159,37 @@ class WindowsInputSource extends InputSource {
   }
 
   @override
-  Future<void> setWatchRects(List<Rect> physicalRects) async {
+  Future<void> setWatchRegions(List<WatchRegion> regions) async {
     if (!supported) return;
-    await _channel.invokeMethod(GlobalInputChannel.setWatchRects, [
-      for (final rect in physicalRects)
+    await _channel.invokeMethod(GlobalInputChannel.setWatchRegions, [
+      for (final region in regions)
         {
-          GlobalInputChannel.left: rect.left.round(),
-          GlobalInputChannel.top: rect.top.round(),
-          GlobalInputChannel.right: rect.right.round(),
-          GlobalInputChannel.bottom: rect.bottom.round(),
+          GlobalInputChannel.left: region.rect.left.round(),
+          GlobalInputChannel.top: region.rect.top.round(),
+          GlobalInputChannel.right: region.rect.right.round(),
+          GlobalInputChannel.bottom: region.rect.bottom.round(),
+          GlobalInputChannel.shape: _encodeShape(region.shape),
         },
     ]);
+  }
+
+  /// 命中形状 → 通道 payload。原生据此**同步**判定，不做 原生→Dart 往返。
+  static Map<String, Object?> _encodeShape(HitShape shape) => {
+        GlobalInputChannel.kind: switch (shape.kind) {
+          HitShapeKind.rect => GlobalInputChannel.shapeRect,
+          HitShapeKind.grid => GlobalInputChannel.shapeGrid,
+        },
+        // grid 参数随 payload 预留（v1 恒为 rect，这些是 0/空）。
+        GlobalInputChannel.cols: shape.cols,
+        GlobalInputChannel.rows: shape.rows,
+        GlobalInputChannel.bits: shape.bits,
+      };
+
+  @override
+  Future<void> setMouseTracking(bool on) async {
+    if (!supported || _mouseTracking == on) return;
+    _mouseTracking = on;
+    await _channel.invokeMethod(GlobalInputChannel.setMouseTracking, on);
   }
 
   @override
@@ -189,13 +218,34 @@ class WindowsInputSource extends InputSource {
     final x = (args[GlobalInputChannel.x] as num?)?.toDouble();
     final y = (args[GlobalInputChannel.y] as num?)?.toDouble();
     if (x == null || y == null) return null;
+    final point = Offset(x, y);
+
+    // 鼠标反馈（光标跟随 / 鼠标按键）：只在 setMouseTracking(true) 期间上报，
+    // 与桌宠拖拽的 down/move/up 分开，互不干扰。
+    switch (args[GlobalInputChannel.event] as String?) {
+      case GlobalInputChannel.phaseHover:
+        onCursor?.call(point);
+        return null;
+      case GlobalInputChannel.phaseLDown:
+        onMouseButton?.call(MouseButton.left, true);
+        return null;
+      case GlobalInputChannel.phaseLUp:
+        onMouseButton?.call(MouseButton.left, false);
+        return null;
+      case GlobalInputChannel.phaseRDown:
+        onMouseButton?.call(MouseButton.right, true);
+        return null;
+      case GlobalInputChannel.phaseRUp:
+        onMouseButton?.call(MouseButton.right, false);
+        return null;
+    }
 
     final phase = switch (args[GlobalInputChannel.event] as String?) {
       GlobalInputChannel.phaseDown => PointerPhase.down,
       GlobalInputChannel.phaseUp => PointerPhase.up,
       _ => PointerPhase.move,
     };
-    onPointer?.call(InputPointerEvent(phase, Offset(x, y)));
+    onPointer?.call(InputPointerEvent(phase, point));
     return null;
   }
 

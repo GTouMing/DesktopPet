@@ -14,7 +14,8 @@ class GlobalInputChannel {
 
   // Dart → 原生
   static const String configure = 'configure';
-  static const String setWatchRects = 'setWatchRects';
+  static const String setWatchRegions = 'setWatchRegions';
+  static const String setMouseTracking = 'setMouseTracking';
   static const String start = 'start';
   static const String stop = 'stop';
 
@@ -38,12 +39,28 @@ class GlobalInputChannel {
   static const String right = 'right';
   static const String bottom = 'bottom';
 
+  // 命中形状 payload(预留可扩展,见 `single-engine-overlay.md` §13.2):
+  // `shape: {kind:'rect'|'grid', cols?, rows?, bits?}`。
+  static const String shape = 'shape';
+  static const String kind = 'kind';
+  static const String cols = 'cols';
+  static const String rows = 'rows';
+  static const String bits = 'bits';
+
   // 值
   static const String typeKey = 'key';
   static const String typeMouse = 'mouse';
   static const String phaseDown = 'down';
   static const String phaseUp = 'up';
   static const String phaseMove = 'move';
+  // 鼠标反馈（仅当 setMouseTracking 开启时上报；与桌宠拖拽的 down/move/up 分开）。
+  static const String phaseHover = 'hover';
+  static const String phaseLDown = 'leftDown';
+  static const String phaseLUp = 'leftUp';
+  static const String phaseRDown = 'rightDown';
+  static const String phaseRUp = 'rightUp';
+  static const String shapeRect = 'rect';
+  static const String shapeGrid = 'grid';
 }
 
 /// `desktop_pet/overlay` —— 宿主悬浮窗的原生控制。
@@ -67,15 +84,3 @@ class OverlayWindowChannel {
   static const String height = 'height';
 }
 
-/// `desktop_pet/settings_window` —— 设置子窗口的原生控制。
-///
-/// 见 `windows/runner/settings_window.cpp` 与
-/// `lib/platform/windows/settings_window.dart`。
-class SettingsWindowChannel {
-  SettingsWindowChannel._();
-
-  static const String name = 'desktop_pet/settings_window';
-
-  /// 清掉置顶并插回当前前台窗口之后。
-  static const String toBack = 'toBack';
-}

@@ -152,7 +152,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
             if (_packPath.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Text(l10n.skinLabel(_packPath.split('/').last))
+                child: Text(l10n.petPackLabel(_packPath.split('/').last))
                     .fontSize(11)
                     .textColor(Colors.blue),
               ),
@@ -311,7 +311,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: Text(l10n.skin, style: theme.textTheme.labelLarge),
+          child: Text(l10n.petPack, style: theme.textTheme.labelLarge),
         ),
         Card(
           child: ListTile(
@@ -320,11 +320,11 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
               color: isDefault ? theme.colorScheme.primary : null,
             ),
             title: Text(
-              isDefault ? l10n.defaultSkinName : _packPath.split('/').last,
+              isDefault ? l10n.defaultPetPackName : _packPath.split('/').last,
               overflow: TextOverflow.ellipsis,
             ),
             subtitle: Text(
-              isDefault ? l10n.useGlobalSkin : _packPath,
+              isDefault ? l10n.useGlobalPetPack : _packPath,
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ).fontSize(12),
@@ -339,12 +339,12 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
                   ),
                 IconButton(
                   icon: const Icon(Icons.archive_outlined, size: 18),
-                  tooltip: l10n.importZipSkin,
+                  tooltip: l10n.importZipPetPack,
                   onPressed: _importZipPack,
                 ),
                 IconButton(
                   icon: const Icon(Icons.chevron_right, size: 18),
-                  tooltip: l10n.chooseSkin,
+                  tooltip: l10n.choosePetPack,
                   onPressed: _openPackPicker,
                 ),
               ],
@@ -397,7 +397,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(l10n.importingSkin),
+          content: Text(l10n.importingPetPack),
           duration: const Duration(seconds: 1),
         ),
       );
@@ -412,14 +412,14 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
 
       InfoOverlay.show(
         context,
-        title: l10n.skinImportSuccess,
+        title: l10n.petPackImportSuccess,
         message: importedPath.split('/').last,
       );
     } catch (e) {
       if (!mounted) return;
       InfoOverlay.show(
         context,
-        title: l10n.skinImportFailed,
+        title: l10n.petPackImportFailed,
         message: '$e',
         type: InfoType.error,
       );
