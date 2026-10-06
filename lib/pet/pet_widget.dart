@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:desktop_pet/l10n/app_localizations.dart';
 import 'package:desktop_pet/pet/pet_notifier.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -39,11 +40,11 @@ class _PetWidgetState extends ConsumerState<PetWidget>
   PetNotifier get _notifier =>
       ref.read(petStateProvider(widget.petId).notifier);
 
-  /// 渲染器。宠物包就绪后按类型创建（[PetNotifier.pack] 是 late final）。
+  /// 渲染器。宠物包就绪后按类型创建；换包（状态里的 `packGeneration` 变化）时重建。
   PetVisual? _visual;
 
-  /// 上一次下发的播放速度，用于只在变化时通知渲染器。
-  double? _lastSpeed;
+  /// 上一次下发的可调参数选择（null = 还没下发过，首次必须下发一次）。
+  Map<String, int>? _lastParams;
 
   @override
   void initState() {
@@ -80,12 +81,15 @@ class _PetWidgetState extends ConsumerState<PetWidget>
           onAnimationComplete: () => _notifier.onEvent(Trigger.complete),
         );
       } else if (pack is Live2DPetPack) {
-        visual = Live2DPetVisual(petId: widget.petId, pack: pack);
+        final live2d = Live2DPetVisual(petId: widget.petId, pack: pack);
+        // 动作 `sets` 改动参数时写回本宠的配置。
+        live2d.onChoicesChanged = _notifier.setParamChoices;
+        visual = live2d;
       } else {
         return;
       }
       _visual = visual;
-      _lastSpeed = null; // 新渲染器要补发一次当前速度
+      _lastParams = null; // 新渲染器要补发一次参数选择
       // 包级快捷键 → 渲染器瞬时动作（渲染器销毁后 _visual 为 null，自动丢弃）。
       _notifier.onHotkeyAction = (action) => _visual?.playAction(action);
       // "打字反应" + 鼠标反馈 → 模型参数。
@@ -94,12 +98,24 @@ class _PetWidgetState extends ConsumerState<PetWidget>
     unawaited(visual.prepare(_notifier.currentState));
   }
 
+  /// 换包后重建渲染器：旧实现只创建一次，所以改宠物包路径（尤其精灵图 ↔ Live2D）
+  /// 不会生效。这里丢弃旧渲染器（释放其动画 / 原生 Live2D 会话），再按新包创建。
+  void _recreateVisual() {
+    _visual?.dispose();
+    _visual = null;
+    _prepareVisual();
+  }
+
   @override
   Widget build(BuildContext context) {
     final petState = ref.watch(petStateProvider(widget.petId));
 
     // ── 状态变化 → 驱动渲染器 ──────────────────────────────────────────
     ref.listen(petStateProvider(widget.petId), (prev, next) {
+      // 换了宠物包 → 丢弃旧渲染器并按新包重建（精灵图 ↔ Live2D 也是这条路径）。
+      if (prev != null && prev.packGeneration != next.packGeneration) {
+        _recreateVisual();
+      }
       if (next.packError != '') return;
 
       // 宠物包首次就绪 → 创建渲染器。
@@ -135,10 +151,11 @@ class _PetWidgetState extends ConsumerState<PetWidget>
       return const SizedBox.shrink();
     }
 
-    // ── 播放速度（全局 × 本宠）→ 渲染器 ───────────────────────────────
-    if (_lastSpeed != petState.finalSpeed) {
-      _lastSpeed = petState.finalSpeed;
-      visual.setSpeed(petState.finalSpeed);
+    // ── Live2D 可调参数选择 → 渲染器（跨引擎：设置窗口写入后经存储广播到达）──
+    final choices = _notifier.paramChoices;
+    if (!mapEquals(_lastParams, choices)) {
+      _lastParams = choices;
+      visual.applyParams(choices);
     }
 
     // ── 渲染 ──────────────────────────────────────────────────────────

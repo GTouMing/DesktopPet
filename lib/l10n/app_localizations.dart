@@ -212,12 +212,6 @@ abstract class AppLocalizations {
   /// **'Global scale — {scale}x'**
   String globalScale(String scale);
 
-  /// No description provided for @globalSpeed.
-  ///
-  /// In en, this message translates to:
-  /// **'Global speed — {speed}x'**
-  String globalSpeed(String speed);
-
   /// No description provided for @scaleLimitExceeded.
   ///
   /// In en, this message translates to:
@@ -416,11 +410,11 @@ abstract class AppLocalizations {
   /// **'Opacity multiplier'**
   String get opacityMultiplier;
 
-  /// No description provided for @speedMultiplier.
+  /// No description provided for @l2dParamsSection.
   ///
   /// In en, this message translates to:
-  /// **'Speed multiplier'**
-  String get speedMultiplier;
+  /// **'Parameters'**
+  String get l2dParamsSection;
 
   /// No description provided for @petPack.
   ///
@@ -445,12 +439,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Choose pet pack'**
   String get choosePetPack;
-
-  /// No description provided for @finalSpeedFormula.
-  ///
-  /// In en, this message translates to:
-  /// **'× global speed = final speed'**
-  String get finalSpeedFormula;
 
   /// No description provided for @finalScaleFormula.
   ///

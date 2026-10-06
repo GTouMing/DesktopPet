@@ -23,7 +23,7 @@ class BehaviorEngine {
     final ss = ctx.screenSize;
     final maxX = ss.width - ctx.finalPetSize.width;
     final maxY = ss.height - ctx.finalPetSize.height;
-    final speed = petWalkSpeed * state.finalSpeed * (behaviorTickMs / 1000.0);
+    final speed = petWalkSpeed * (behaviorTickMs / 1000.0);
     final pos = state.position;
 
     return _moveDirect(pos, target, speed, maxX, maxY, ctx);

@@ -29,12 +29,6 @@
       "scale": { "type": "String" }
     }
   },
-  "globalSpeed": "Global speed — {speed}x",
-  "@globalSpeed": {
-    "placeholders": {
-      "speed": { "type": "String" }
-    }
-  },
   "scaleLimitExceeded": "Global scale cannot exceed {limit}x",
   "@scaleLimitExceeded": {
     "placeholders": {
@@ -95,12 +89,11 @@
   "nameHint": "Enter pet name",
   "scaleMultiplier": "Scale multiplier",
   "opacityMultiplier": "Opacity multiplier",
-  "speedMultiplier": "Speed multiplier",
+  "l2dParamsSection": "Parameters",
   "petPack": "Pet pack",
   "useGlobalPetPack": "Use pet pack from global settings",
   "importZipPetPack": "Import ZIP pet pack",
   "choosePetPack": "Choose pet pack",
-  "finalSpeedFormula": "× global speed = final speed",
   "finalScaleFormula": "× global scale = final scale",
   "finalOpacityFormula": "× global opacity = final opacity",
   "importingPetPack": "Importing pet pack...",

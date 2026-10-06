@@ -70,11 +70,6 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String globalSpeed(String speed) {
-    return '全局速度 — ${speed}x';
-  }
-
-  @override
   String scaleLimitExceeded(String limit) {
     return '全局缩放不能超过 ${limit}x';
   }
@@ -184,7 +179,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get opacityMultiplier => '透明度乘数';
 
   @override
-  String get speedMultiplier => '速度乘数';
+  String get l2dParamsSection => '参数';
 
   @override
   String get petPack => '宠物包';
@@ -197,9 +192,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get choosePetPack => '选择宠物包';
-
-  @override
-  String get finalSpeedFormula => '× 全局速度 = 最终速度';
 
   @override
   String get finalScaleFormula => '× 全局缩放 = 最终缩放';

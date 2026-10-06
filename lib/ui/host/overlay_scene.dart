@@ -120,7 +120,7 @@ class _OverlaySceneState extends ConsumerState<OverlayScene>
         if (!mounted) return;
         // 广播一次变更：appDataProvider 自失效（场景重建：新增/删除/显隐/锁定/顺序），
         // 宿主重挂全局快捷键绑定（快捷键与快捷启动项都配在设置窗口里），
-        // 各桌宠按新设置刷新缩放/不透明度/速度。
+        // 各桌宠按新设置刷新缩放/不透明度。
         StorageService.notifySettingsChanged();
       });
 

@@ -30,9 +30,6 @@ class PetConfig {
   /// 桌宠级透明度乘数（0.1 - 1.0）。
   double opacityMultiplier;
 
-  /// 桌宠级速度乘数（0.1 - 3.0）。与 [SettingsModel.baseSpeed] 乘算得到最终速度。
-  double speedMultiplier;
-
   /// 宠物包路径。
   /// - 如果 [SettingsModel.packDir] 非 null，此为相对路径；
   /// - 否则为绝对路径或 ZIP 文件路径。
@@ -50,12 +47,16 @@ class PetConfig {
   /// 未经缩放的基帧高度（来自宠物包），窗口控制器用于合成窗口尺寸。
   double height;
 
+  /// Live2D 可调参数的选择：组 id → 选项下标（见 `L2dParamGroup`）。
+  ///
+  /// 与缩放/位置同处 MMKV；未出现过的组按清单的 `default` 处理。
+  Map<String, int> paramChoices;
+
   PetConfig({
     required this.id,
     required this.name,
     this.scaleMultiplier = 1.0,
     this.opacityMultiplier = 1.0,
-    this.speedMultiplier = 1.0,
     this.packPath = defaultPackPath,
     this.isLocked = false,
     this.isVisible = true,
@@ -64,14 +65,13 @@ class PetConfig {
     this.order = 0,
     this.width = defaultPetSize,
     this.height = defaultPetSize,
+    this.paramChoices = const {},
   });
 
   double get snappedScaleMultiplier =>
       (scaleMultiplier * 10).round() / 10.0;
   double get snappedOpacityMultiplier =>
       (opacityMultiplier * 10).round() / 10.0;
-  double get snappedSpeedMultiplier =>
-      (speedMultiplier * 10).round() / 10.0;
 
   Offset get position => Offset(positionX, positionY);
 
@@ -80,7 +80,6 @@ class PetConfig {
     String? name,
     double? scaleMultiplier,
     double? opacityMultiplier,
-    double? speedMultiplier,
     String? packPath,
     bool? isLocked,
     bool? isVisible,
@@ -89,13 +88,13 @@ class PetConfig {
     int? order,
     double? width,
     double? height,
+    Map<String, int>? paramChoices,
   }) {
     return PetConfig(
       id: id ?? this.id,
       name: name ?? this.name,
       scaleMultiplier: scaleMultiplier ?? this.scaleMultiplier,
       opacityMultiplier: opacityMultiplier ?? this.opacityMultiplier,
-      speedMultiplier: speedMultiplier ?? this.speedMultiplier,
       packPath: packPath ?? this.packPath,
       isLocked: isLocked ?? this.isLocked,
       isVisible: isVisible ?? this.isVisible,
@@ -104,6 +103,7 @@ class PetConfig {
       order: order ?? this.order,
       width: width ?? this.width,
       height: height ?? this.height,
+      paramChoices: paramChoices ?? this.paramChoices,
     );
   }
 
@@ -112,7 +112,6 @@ class PetConfig {
     'name': name,
     'scaleMultiplier': scaleMultiplier,
     'opacityMultiplier': opacityMultiplier,
-    'speedMultiplier': speedMultiplier,
     'packPath': packPath,
     'isLocked': isLocked,
     'isVisible': isVisible,
@@ -121,6 +120,7 @@ class PetConfig {
     'order': order,
     'width': width,
     'height': height,
+    'paramChoices': paramChoices,
   };
 
   factory PetConfig.fromJson(Map<String, dynamic> json) => PetConfig(
@@ -128,7 +128,6 @@ class PetConfig {
     name: json['name'] as String,
     scaleMultiplier: (json['scaleMultiplier'] as num?)?.toDouble() ?? 1.0,
     opacityMultiplier: (json['opacityMultiplier'] as num?)?.toDouble() ?? 1.0,
-    speedMultiplier: (json['speedMultiplier'] as num?)?.toDouble() ?? 1.0,
     packPath: json['packPath'] as String? ?? defaultPackPath,
     isLocked: json['isLocked'] as bool? ?? false,
     isVisible: json['isVisible'] as bool? ?? true,
@@ -137,5 +136,16 @@ class PetConfig {
     order: json['order'] as int? ?? 0,
     width: (json['width'] as num?)?.toDouble() ?? defaultPetSize,
     height: (json['height'] as num?)?.toDouble() ?? defaultPetSize,
+    paramChoices: _parseChoices(json['paramChoices']),
   );
+
+  static Map<String, int> _parseChoices(Object? raw) {
+    if (raw is! Map) return const {};
+    final out = <String, int>{};
+    for (final entry in raw.entries) {
+      final value = entry.value;
+      if (value is num) out[entry.key.toString()] = value.toInt();
+    }
+    return out;
+  }
 }

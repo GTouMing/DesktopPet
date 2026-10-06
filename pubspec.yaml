@@ -15,7 +15,6 @@ dependencies:
   intl: ^0.20.2
   flutter_riverpod: ^3.3.1
   mmkv: ^2.4.0
-  plugin_platform_interface: ^2.0.0
   window_manager: ^0.5.2
   screen_retriever: ^0.2.2
   system_tray: ^2.0.0
@@ -34,6 +33,11 @@ dependencies:
   # doc/live2d-renderer-notes.md 与 plugins/pet_live2d/ 里。
   pet_live2d:
     path: plugins/pet_live2d
+  # Android 多悬浮窗插件（每只桌宠一个系统悬浮窗、各自一个引擎）。
+  # 从 lib/platform/android/multi_floating_window/ 抽出为独立插件，并改名以避开
+  # pub.dev 上同名的通用多悬浮窗包。
+  pet_floating_window:
+    path: plugins/pet_floating_window
 
 dev_dependencies:
   flutter_test:

@@ -9,9 +9,11 @@ import 'state/state_define.dart';
 /// 清单格式（`pet.json` 顶层 `hotkeys`，map 的 key 仅作标识）：
 /// ```json
 /// "hotkeys": {
-///   "ear":  { "key": "1", "modifiers": ["ctrl", "alt"],
-///             "animation": "CAT_motion_lock", "motionIndex": 1, "motionPriority": 3 },
-///   "cry":  { "key": "2", "modifiers": ["ctrl", "alt"], "expression": 3 }
+///   "selfie": { "key": "5", "modifiers": ["alt"],
+///               "animation": "Selfie", "durationMs": 3300,
+///               "requires": { "rhand": ["掏出手机"] },   // 前提：右手得先掏出手机
+///               "sets":     { "selfie": "自拍" } },       // 播放时改动的参数
+///   "cry":    { "key": "2", "modifiers": ["ctrl", "alt"], "expression": 3 }
 /// }
 /// ```
 ///
@@ -26,6 +28,8 @@ class HotkeyAction {
     this.motionPriority = 3,
     this.expression,
     this.durationMs = 0,
+    this.requires = const {},
+    this.sets = const {},
   });
 
   /// 物理键名（如 `q` / `1` / `f5`）。
@@ -48,9 +52,18 @@ class HotkeyAction {
 
   /// 该动作（动作组）的时长（毫秒），取模型里 motion 的 `Meta.Duration`。
   ///
-  /// 用于**串行化**：一次动作播放期间，后续动作排队；到点后才播下一个（Bongo 就是这样——
-  /// 当前动作播完才允许下一个）。`0` = 不串行（立即抢占）。
+  /// 用于**串行化/互斥**：一次动作播放期间，后续动作排队；到点后才播下一个。
+  /// `0` = 不串行（立即抢占）。
   final int durationMs;
+
+  /// **参数前提**：组 id → 允许的选项 label 列表。
+  ///
+  /// 当前该组选项（按 label）不在列表里时，动作**不执行**（门禁）。bool 组用
+  /// `on` / `off` 两个 label。空 = 无前提。
+  final Map<String, List<String>> requires;
+
+  /// 动作**播放时改动的参数**：组 id → 选项 label（会写回该桌宠的 `paramChoices`）。
+  final Map<String, String> sets;
 
   /// 与热键匹配共用的复合键标识。
   ///
@@ -72,5 +85,44 @@ class HotkeyAction {
         motionPriority: (json['motionPriority'] as num?)?.toInt() ?? 3,
         expression: (json['expression'] as num?)?.toInt(),
         durationMs: (json['durationMs'] as num?)?.toInt() ?? 0,
+        requires: _parseRequires(json['requires']),
+        sets: _parseSets(json['sets']),
       );
+
+  /// `requires`：`{ "<组>": "<label>" | ["<label>", ...] | true/false }`。
+  static Map<String, List<String>> _parseRequires(Object? raw) {
+    if (raw is! Map) return const {};
+    final out = <String, List<String>>{};
+    for (final entry in raw.entries) {
+      final id = entry.key.toString();
+      if (id.isEmpty) continue;
+      final value = entry.value;
+      final labels = <String>[
+        if (value is String && value.isNotEmpty) value,
+        if (value is bool) value ? 'on' : 'off',
+        if (value is List)
+          for (final item in value)
+            if (item is String && item.isNotEmpty) item,
+      ];
+      if (labels.isNotEmpty) out[id] = labels;
+    }
+    return out;
+  }
+
+  /// `sets`：`{ "<组>": "<label>" }`。
+  static Map<String, String> _parseSets(Object? raw) {
+    if (raw is! Map) return const {};
+    final out = <String, String>{};
+    for (final entry in raw.entries) {
+      final id = entry.key.toString();
+      if (id.isEmpty) continue;
+      final value = entry.value;
+      if (value is String && value.isNotEmpty) {
+        out[id] = value;
+      } else if (value is bool) {
+        out[id] = value ? 'on' : 'off';
+      }
+    }
+    return out;
+  }
 }

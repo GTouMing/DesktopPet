@@ -47,9 +47,16 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
   /// 平台窗口同步。仅 Android 有真实窗口；Windows 下所有方法都是空操作。
   late final PetWindowBinding _window = PetWindowBinding(petId);
 
-  late final PetPack pack;
+  /// 当前宠物包；尚未加载（加载中/失败）时为 null。
+  PetPack? _pack;
 
-  /// 宠物包是否已就绪（[pack] 是 late final，未就绪前不可读）。
+  /// 当前宠物包（就绪后非 null，内部与 [PetWidget] 都从这里取）。
+  PetPack get pack => _pack!;
+
+  /// [pack] 是从哪个路径加载的；换包时据此判定（见 [_reloadPackIfChanged]）。
+  String? _loadedPackPath;
+
+  /// 宠物包是否已就绪（[pack] 未就绪前不可读）。
   bool _packReady = false;
 
   /// 音效（每只桌宠一个播放器，见 [AudioService]）。
@@ -134,7 +141,8 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
       if (!mounted) return;
       if (pack == null) throw Exception();
 
-      this.pack = pack;
+      _pack = pack;
+      _loadedPackPath = pet.packPath;
       _packReady = true;
       _setupMouseParams();
       state = state.copyWith(
@@ -162,7 +170,6 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
       await _applyScale();
       if (!mounted) return;
       _applyOpacity();
-      _applySpeed();
 
       // 尺寸就绪后才能把落点收敛进场景(换屏/改缩放后旧坐标可能落在屏幕外)。
       state = state.copyWith(position: _clampToScene(pet.position));
@@ -182,6 +189,55 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
         state = state.copyWith(packError: 'init_error: $e');
       }
     }
+  }
+
+  /// 宠物包路径被改（编辑宠物时换了包）→ 重新加载，并让渲染器重建视图。
+  ///
+  /// 不只是重算尺寸：精灵图 ↔ Live2D 之间换包时渲染器**类型**都变了，所以这里把
+  /// `state.packGeneration` +1，[PetWidget] 据此丢弃旧渲染器、按新包重建。
+  Future<void> _reloadPackIfChanged() async {
+    final pet = StorageService.readPet(petId);
+    if (pet == null) return; // 已被删除：交给 provider 释放
+    if (pet.packPath == _loadedPackPath) return;
+
+    final pack = await PetPack.load(pet.packPath);
+    if (!mounted) return;
+    if (pack == null) {
+      state = state.copyWith(packError: 'pack_load_failed: ${pet.packPath}');
+      return;
+    }
+
+    // 旧包的产物先卸掉（鼠标反馈订阅、全局快捷键）。
+    _teardownMouseParams();
+    hotkey.dispose();
+
+    _pack = pack;
+    _loadedPackPath = pet.packPath;
+    _packReady = true;
+    _setupMouseParams();
+    state = state.copyWith(
+      basePetSize: pack.baseSize,
+      currentState: pack.initialState,
+      cleanTarget: true,
+      currentAnim: '',
+      packError: '',
+      packGeneration: state.packGeneration + 1,
+    );
+    await hotkey.bind(
+      pack: pack,
+      currentState: () => state.currentState,
+      onStateChange: (next) {
+        state = state.copyWith(
+            currentState: next, lastInteractionTime: DateTime.now());
+      },
+      onHotkeyAction: (action) => onHotkeyAction?.call(action),
+      onKeyParam: (id, down) => onParameter?.call(id, down ? 1.0 : 0.0),
+    );
+    if (!mounted) return;
+    await _applyScale();
+    _applyOpacity();
+    // 新包尺寸不同，落点重新收敛进场景。
+    state = state.copyWith(position: _clampToScene(state.position));
   }
 
   /// 装配鼠标反馈（见 [MouseParams]）：
@@ -329,6 +385,15 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
   /// 直接按 id 读单键，不再把全部桌宠读出来再筛。
   PetConfig? get _petConfig => StorageService.readPet(petId);
 
+  /// 该桌宠的 Live2D 可调参数选择（组 id → 选项下标）；未配置时为空表（用清单默认）。
+  Map<String, int> get paramChoices => _petConfig?.paramChoices ?? const {};
+
+  /// 动作改动了参数（`HotkeyAction.sets`）→ 写回该桌宠的 `paramChoices`；
+  /// 存储广播会把新选择再送回渲染器，设置界面也会同步。
+  void setParamChoices(Map<String, int> choices) {
+    StorageService.updatePet(petId, (pet) => pet.copyWith(paramChoices: choices));
+  }
+
   /// 由宠物包帧尺寸 × 全局缩放 × 该宠缩放得出最终渲染尺寸，并收敛到场景内。
   ///
   /// 这就是全部：不再需要把它写进任何窗口。
@@ -350,11 +415,6 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
         finalOpacity: petOpacity(StorageService.readSettings(), _petConfig));
   }
 
-  void _applySpeed() {
-    state = state.copyWith(
-        finalSpeed: petSpeed(StorageService.readSettings(), _petConfig));
-  }
-
   /// 进入新状态时播放该状态声明的音效（见 [AudioService]）。
   ///
   /// 状态机的每一处跳转（点击 / 定时 / 热键 / 到达…）都经过 [state] setter，
@@ -364,11 +424,14 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
     _audio.playForState(pack.states[stateName], cue: stateName);
   }
 
-  /// 应用设置（本引擎内）：缩放 / 透明度 / 速度 + 窗口侧的显隐与穿透。
+  /// 应用设置（本引擎内）：**换包重建** / 缩放 / 透明度 + 窗口侧的显隐与穿透。
+  ///
+  /// 由 `appDataProvider` 的变更驱动（见 `PetView`），所以设置窗口里改这只宠物
+  /// ——包括换宠物包——都会立刻作用到正在运行的桌宠。
   Future<void> refreshSettings() async {
+    await _reloadPackIfChanged();
     await _applyScale();
     _applyOpacity();
-    _applySpeed();
     await _window.applyLocked(_petConfig);
     await _window.applyVisible(_petConfig);
   }

@@ -8,27 +8,23 @@ import 'package:flutter_test/flutter_test.dart';
 PetConfig _pet({
   double scale = 1.0,
   double opacity = 1.0,
-  double speed = 1.0,
 }) =>
     PetConfig(id: 'p', name: 'p')
       ..scaleMultiplier = scale
-      ..opacityMultiplier = opacity
-      ..speedMultiplier = speed;
+      ..opacityMultiplier = opacity;
 
 void main() {
-  test('不透明度 / 速度 = 全局基础值 × 该宠乘数', () {
-    final global = SettingsModel(baseOpacity: 0.8, baseSpeed: 2.0);
-    final pet = _pet(opacity: 0.5, speed: 0.5);
+  test('不透明度 = 全局基础值 × 该宠乘数', () {
+    final global = SettingsModel(baseOpacity: 0.8);
+    final pet = _pet(opacity: 0.5);
 
     expect(petOpacity(global, pet), closeTo(0.4, 1e-9));
-    expect(petSpeed(global, pet), closeTo(1.0, 1e-9));
   });
 
   test('缺少桌宠配置时乘数按 1.0', () {
-    final global = SettingsModel(baseOpacity: 0.8, baseSpeed: 1.5);
+    final global = SettingsModel(baseOpacity: 0.8);
 
     expect(petOpacity(global, null), closeTo(0.8, 1e-9));
-    expect(petSpeed(global, null), closeTo(1.5, 1e-9));
   });
 
   test('渲染尺寸 = 基帧 × 最终缩放', () {

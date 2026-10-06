@@ -1,4 +1,4 @@
-package com.desktop_pet.multi_floating_window.manager
+package com.desktop_pet.pet_floating_window.manager
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -13,7 +13,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.core.net.toUri
-import com.desktop_pet.multi_floating_window.constants.Constants
+import com.desktop_pet.pet_floating_window.constants.Constants
 import io.flutter.embedding.android.FlutterSurfaceView
 import io.flutter.embedding.android.FlutterView
 import io.flutter.embedding.engine.FlutterEngine
@@ -304,7 +304,7 @@ class OverlayManager(
             this.height = resolveSize(height)
 
             gravity = Gravity.TOP or Gravity.START
-            
+
             x = 0
             y = 0
         }

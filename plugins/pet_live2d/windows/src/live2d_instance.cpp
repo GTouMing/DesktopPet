@@ -326,11 +326,15 @@ void Live2DInstance::RetireOldTargets() {
 }
 
 void Live2DInstance::LoadModel(const std::string& model_dir,
-                               const std::string& model_file) {
+                               const std::string& model_file, float fit_scale,
+                               float fit_offset_x, float fit_offset_y,
+                               float breath_scale) {
   if (!device_) return;
   model_loaded_ = false;
   texture_manager_ = std::make_unique<Live2DTextureManager>(device_.Get());
   model_ = std::make_unique<Live2DModel>(texture_manager_.get());
+  // Must be set before LoadAssets(): its SetupModel() is what creates the breath.
+  model_->SetBreathScale(breath_scale);
   model_->LoadAssets(model_dir.c_str(), model_file.c_str());
   if (!model_->IsLoaded()) {
     LogLine("[l2d] load FAILED pet=" + pet_id_ +
@@ -352,6 +356,10 @@ void Live2DInstance::LoadModel(const std::string& model_dir,
                          static_cast<Csm::csmUint32>(target_h));
   model_->ResizeMaskBuffer(target_w, target_h);
   model_->SetupTextures();
+  // Manifest framing (pack `scale` / `translate`) rides on the automatic fit; set
+  // before the fit so the first frame is already framed the way the author wants.
+  // The manifest's y is screen-space (down); model space is up, hence the flip.
+  model_->SetFitAdjust(fit_scale, fit_offset_x, -fit_offset_y);
   model_->FitToView(target_w, target_h);
   model_loaded_ = true;
 }
@@ -394,6 +402,11 @@ void Live2DInstance::SetParameter(const std::string& parameter_id,
   NoteActivity();
   if (model_) model_->SetParameter(parameter_id.c_str(),
                                    static_cast<Csm::csmFloat32>(value));
+}
+
+void Live2DInstance::ResetParameter(const std::string& parameter_id) {
+  NoteActivity();
+  if (model_) model_->ResetParameter(parameter_id.c_str());
 }
 
 void Live2DInstance::ClearParameters() {
@@ -445,22 +458,27 @@ bool Live2DInstance::RenderFrame(float delta_time) {
     if (renderer) {
       renderer->StartFrame(context_.Get());
       model_->Update(delta_time);
-      // Re-fit whenever the rendered target's size differs from the fitted one -
-      // comparing sizes rather than consuming a one-shot flag. A one-shot was
+      // Re-fit whenever the rendered target's size differs from the fitted one,
+      // and while the model is still growing its fit box to cover artwork that
+      // has just been revealed (cheap: pure matrix math, nothing is allocated).
+      // Comparing sizes rather than consuming a one-shot flag: a one-shot was
       // race-prone: the platform thread can swap the target mid-frame, the flag
       // got consumed while still rendering the previous target, and the new one
       // was then never fitted (the model rendered oversized for the smaller
       // target and came out cropped).
       if (fitted_width_ != width || fitted_height_ != height ||
-          bounds_refit_pending_) {
+          bounds_refit_pending_ || model_->IsAdaptingBounds()) {
         bounds_refit_pending_ = false;
+        const bool target_resized =
+            fitted_width_ != width || fitted_height_ != height;
         fitted_width_ = width;
         fitted_height_ = height;
-        // Exactly what the vendored plugin's Resize() does: resize the clipping
-        // mask buffers and re-fit the model to the new view. The renderer is NOT
-        // recreated and the MODEL IS NOT RELOADED - that is what keeps a resize
-        // instant and blank-free.
-        model_->ResizeMaskBuffer(width, height);
+        // Exactly what the vendored plugin's Resize() does, but resizing the
+        // clipping mask buffers only on a real size change: the renderer rebuilds
+        // them when this is called, and this block runs every adapting frame.
+        // The renderer is NOT recreated and the MODEL IS NOT RELOADED - that is
+        // what keeps a resize instant and blank-free.
+        if (target_resized) model_->ResizeMaskBuffer(width, height);
         model_->FitToView(width, height);
       }
 

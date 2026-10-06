@@ -215,6 +215,37 @@ void main() {
     expect(actions.last.durationMs, 0, reason: '缺省不串行');
   });
 
+  test('解析动作的 requires / sets（前提与参数改动）', () {
+    final actions = parsePetPackHotkeys({
+      'hotkeys': {
+        'selfie': {
+          'key': '5',
+          'animation': 'Selfie',
+          'durationMs': 3300,
+          'requires': {
+            'rhand': ['掏出手机'],
+            'blush': true,
+          },
+          'sets': {'selfie': '自拍', 'heart': false},
+        },
+        'single': {
+          'key': '1',
+          'requires': {'whale': '头顶鲸'},
+        },
+      },
+    });
+
+    expect(actions.first.requires, {
+      'rhand': ['掏出手机'],
+      'blush': ['on'],
+    });
+    expect(actions.first.sets, {'selfie': '自拍', 'heart': 'off'});
+    expect(actions.first.durationMs, 3300);
+    // 单字符串前提归一成列表；未声明 sets 时为空。
+    expect(actions.last.requires, {'whale': ['头顶鲸']});
+    expect(actions.last.sets, isEmpty);
+  });
+
   test('解析清单 keyParams 表（键名小写，跳过非字符串）', () {
     final params = parsePetPackKeyParams({
       'keyParams': {'Q': 'Q1', 'space': 'Space', 'bad': 5},

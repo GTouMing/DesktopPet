@@ -4,7 +4,7 @@
 /// 事件总线等)已随死代码一并移除。
 class Constants {
   /// 主通道名(与原生 `Constants.kt` / `OverlayManager.kt` 一致)。
-  static const String channelName = "multi_floating_window_android";
+  static const String channelName = "pet_floating_window";
 
   /// 原生 → 悬浮窗:设置已更新,请重读存储。
   static const String settingsUpdatedEvent = "settings_updated";

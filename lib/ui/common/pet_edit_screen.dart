@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart' show FilePicker, FileType;
@@ -6,6 +8,9 @@ import 'package:styled_widget/styled_widget.dart';
 import '../../core/constants.dart';
 import '../../l10n/app_localizations.dart';
 import '../../petpack/import/pet_pack_importer.dart';
+import '../../petpack/live2d/l2d_param_group.dart';
+import '../../petpack/live2d_pet_pack.dart';
+import '../../petpack/pet_pack.dart';
 import '../../storage/storage_service.dart';
 import '../../storage/models/pet_config.dart';
 import 'pet_pack_picker_screen.dart';
@@ -25,8 +30,11 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
   late TextEditingController _nameController;
   late double _scaleMultiplier;
   late double _opacityMultiplier;
-  late double _speedMultiplier;
   late String _packPath;
+
+  /// Live2D 可调参数：当前包的参数组（空 = 不显示该区）与本地选择（组 id → 选项下标）。
+  List<L2dParamGroup> _paramGroups = const [];
+  late Map<String, int> _paramChoices;
 
   static const double _stepSize = 0.1;
 
@@ -36,8 +44,9 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
     _nameController = TextEditingController(text: widget.pet.name);
     _scaleMultiplier = widget.pet.snappedScaleMultiplier;
     _opacityMultiplier = widget.pet.snappedOpacityMultiplier;
-    _speedMultiplier = widget.pet.snappedSpeedMultiplier;
     _packPath = widget.pet.packPath;
+    _paramChoices = Map.of(widget.pet.paramChoices);
+    unawaited(_loadParamGroups(_packPath));
   }
 
   @override
@@ -85,28 +94,29 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
             padding: const EdgeInsets.only(bottom: 24),
             child: _buildMultiplierHint(l10n, isScale: false),
           ),
-          _buildSpeedSlider(context, theme),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 24),
-            child: _buildMultiplierHint(l10n, isScale: false, isSpeed: true),
-          ),
           Padding(
             padding: const EdgeInsets.only(bottom: 32),
             child: _buildPackPathField(context, theme),
           ),
+          if (_paramGroups.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(l10n.l2dParamsSection,
+                  style: theme.textTheme.labelLarge),
+            ),
+            for (final group in _paramGroups) _buildParamGroup(group),
+            const SizedBox(height: 16),
+          ],
           _buildDeleteButton(context),
         ],
       ),
     );
   }
 
-  Widget _buildMultiplierHint(AppLocalizations l10n,
-      {required bool isScale, bool isSpeed = false}) {
-    final text = isSpeed
-        ? l10n.finalSpeedFormula
-        : isScale
-            ? l10n.finalScaleFormula
-            : l10n.finalOpacityFormula;
+  Widget _buildMultiplierHint(AppLocalizations l10n, {required bool isScale}) {
+    final text = isScale
+        ? l10n.finalScaleFormula
+        : l10n.finalOpacityFormula;
     return Padding(
       padding: const EdgeInsets.only(left: 16),
       child: Text(text).fontSize(11).textColor(Colors.grey),
@@ -263,46 +273,6 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
     );
   }
 
-  Widget _buildSpeedSlider(BuildContext context, ThemeData theme) {
-    final l10n = AppLocalizations.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(l10n.speedMultiplier, style: theme.textTheme.labelLarge),
-              Text('${_speedMultiplier.toStringAsFixed(1)}x')
-                  .bold().fontSize(14).textColor(theme.colorScheme.primary),
-            ],
-          ),
-        ),
-        Row(
-          children: [
-            const Icon(Icons.speed, size: 20, color: Colors.grey),
-            Expanded(
-              child: Slider(
-                value: _speedMultiplier,
-                min: 0.1,
-                max: 3.0,
-                divisions: 29,
-                label: '${_speedMultiplier.toStringAsFixed(1)}x',
-                onChanged: (value) {
-                  setState(() {
-                    _speedMultiplier = _snapValue(value);
-                  });
-                },
-              ),
-            ),
-            const Icon(Icons.speed, size: 20),
-          ],
-        ),
-      ],
-    );
-  }
-
   Widget _buildPackPathField(BuildContext context, ThemeData theme) {
     final l10n = AppLocalizations.of(context);
     final isDefault = _packPath.isEmpty || _packPath == defaultPackPath;
@@ -335,7 +305,10 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
                   IconButton(
                     icon: const Icon(Icons.close, size: 18),
                     tooltip: l10n.restoreDefault,
-                    onPressed: () => setState(() => _packPath = ''),
+                    onPressed: () {
+                      setState(() => _packPath = '');
+                      unawaited(_loadParamGroups(''));
+                    },
                   ),
                 IconButton(
                   icon: const Icon(Icons.archive_outlined, size: 18),
@@ -353,6 +326,65 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  /// 读取当前宠物包的参数组（Live2D 才有），并剪掉不属于该包的旧选择。
+  Future<void> _loadParamGroups(String path) async {
+    var groups = const <L2dParamGroup>[];
+    if (path.isNotEmpty) {
+      try {
+        final pack = await PetPack.load(path);
+        if (pack is Live2DPetPack) groups = pack.paramGroups;
+      } catch (_) {
+        // 包缺失/不可读：当作没有可调参数。
+      }
+    }
+    if (!mounted) return;
+    final ids = {for (final g in groups) g.id};
+    setState(() {
+      _paramGroups = groups;
+      _paramChoices = {
+        for (final e in _paramChoices.entries)
+          if (ids.contains(e.key)) e.key: e.value,
+      };
+    });
+  }
+
+  Widget _buildParamGroup(L2dParamGroup group) {
+    var idx = _paramChoices[group.id] ?? group.defaultIndex;
+    if (idx < 0) idx = 0;
+    if (idx >= group.options.length) idx = group.options.length - 1;
+
+    if (group.isBool) {
+      return Card(
+        child: SwitchListTile(
+          title: Text(group.label),
+          value: idx == 1,
+          onChanged: (v) => setState(() => _paramChoices[group.id] = v ? 1 : 0),
+        ),
+      );
+    }
+    return Card(
+      child: ListTile(
+        title: Text(group.label),
+        trailing: DropdownButton<int>(
+          value: idx,
+          underline: const SizedBox.shrink(),
+          items: [
+            for (var i = 0; i < group.options.length; i++)
+              DropdownMenuItem<int>(
+                value: i,
+                child: Text(
+                  group.options[i].label.isEmpty ? '-' : group.options[i].label,
+                ),
+              ),
+          ],
+          onChanged: (v) {
+            if (v != null) setState(() => _paramChoices[group.id] = v);
+          },
+        ),
+      ),
     );
   }
 
@@ -379,7 +411,10 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
       context,
       MaterialPageRoute(builder: (_) => const PetPackPickerScreen()),
     ).then((path) {
-      if (path != null && mounted) setState(() => _packPath = path);
+      if (path != null && mounted) {
+        setState(() => _packPath = path);
+        unawaited(_loadParamGroups(path));
+      }
     });
   }
 
@@ -409,6 +444,7 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
 
       if (!mounted) return;
       setState(() => _packPath = importedPath);
+      unawaited(_loadParamGroups(importedPath));
 
       InfoOverlay.show(
         context,
@@ -439,8 +475,8 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
       name: _nameController.text.isNotEmpty ? _nameController.text : widget.pet.name,
       scaleMultiplier: _scaleMultiplier,
       opacityMultiplier: _opacityMultiplier,
-      speedMultiplier: _speedMultiplier,
       packPath: _packPath,
+      paramChoices: _paramChoices,
     );
     final resultPet = widget.isNewPet && widget.pet.id.isEmpty
         ? updatedPet.copyWith(id: newPetId())

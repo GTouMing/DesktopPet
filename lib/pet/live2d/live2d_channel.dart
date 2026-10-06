@@ -54,6 +54,20 @@ class Live2DChannel {
   /// Creates (or replaces) the renderer for [petId], sized for the pet's current
   /// display box (physical pixels).
   ///
+  /// [fitScale] multiplies the automatic fit, and [fitOffsetX] / [fitOffsetY]
+  /// shift the model from the box centre. Both come from the pack manifest
+  /// (`scale` / `translate`) and mirror the reference implementation
+  /// (dsh-pet-live2d: `scale.set(fit * manifest.scale)`,
+  /// `position.set(w/2 + manifest.x, h/2 + manifest.y)`).
+  ///
+  /// The offsets are in **view units**: `1` = half the box's short side, `+x`
+  /// right and `+y` **down** (screen orientation, like CSS). The caller
+  /// normalises from the manifest's logical pixels.
+  ///
+  /// [breathScale] is the pack manifest's idle-breath amplitude: `1` (default)
+  /// uses the engine's standard Cubism breath, `0` disables it. See
+  /// `Live2DPetPack.breathScale`.
+  ///
   /// Returns `null` when the runtime is unavailable (non-Windows, plugin missing
   /// or initialisation failure).
   static Future<Live2DSession?> create({
@@ -62,6 +76,10 @@ class Live2DChannel {
     required String modelFileName,
     required int widthPx,
     required int heightPx,
+    double fitScale = 1,
+    double fitOffsetX = 0,
+    double fitOffsetY = 0,
+    double breathScale = 1,
   }) async {
     _ensureHandler();
     try {
@@ -72,6 +90,10 @@ class Live2DChannel {
         'modelFileName': modelFileName,
         'widthPx': widthPx,
         'heightPx': heightPx,
+        'fitScale': fitScale,
+        'fitOffsetX': fitOffsetX,
+        'fitOffsetY': fitOffsetY,
+        'breathScale': breathScale,
       });
       final textureId = reply?['textureId'];
       if (textureId is! int) return null;
@@ -129,10 +151,14 @@ class Live2DSession {
   void setParameter(String parameterId, double value) =>
       _invoke('setParameter', {'parameterId': parameterId, 'value': value});
 
-  void clearParameters() => _invoke('clearParameters', const {});
+  /// Restores a parameter to the **model's own default**, not `0`. A slot group
+  /// uses this to undo the options it is not using - `0` is not the neutral value
+  /// in general (e.g. this pack's base hands sit at `ParamCheek5x = 1`, so writing
+  /// 0 there removes the hands entirely).
+  void resetParameter(String parameterId) =>
+      _invoke('resetParameter', {'parameterId': parameterId});
 
-  void setMotionSpeed(double speed) =>
-      _invoke('setMotionSpeed', {'speed': speed});
+  void clearParameters() => _invoke('clearParameters', const {});
 
   void setDragging(double x, double y) =>
       _invoke('setDragging', {'x': x, 'y': y});

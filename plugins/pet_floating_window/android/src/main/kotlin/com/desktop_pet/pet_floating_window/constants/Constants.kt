@@ -1,7 +1,7 @@
-package com.desktop_pet.multi_floating_window.constants
+package com.desktop_pet.pet_floating_window.constants
 
 /**
- * Multi Floating Window Constants
+ * Pet Floating Window Constants
  *
  * 只保留 Dart 侧仍会调用的方法名/参数名。通用多悬浮窗库遗留的能力
  * (shareData / openMainApp / 事件总线 / isShowing / getOverlayIds /
@@ -9,7 +9,7 @@ package com.desktop_pet.multi_floating_window.constants
  */
 object Constants {
     /** 主通道名(与 Dart `Constants.channelName` 一致) */
-    const val MAIN_CHANNEL = "multi_floating_window_android"
+    const val MAIN_CHANNEL = "pet_floating_window"
 
     // Method name constants
     const val REQUEST_PERMISSION = "requestPermission"
@@ -48,6 +48,6 @@ object Constants {
     const val WRAP_CONTENT = -2
 
     // Notification channel
-    const val NOTIFICATION_CHANNEL_ID = "multi_floating_window_channel"
-    const val NOTIFICATION_CHANNEL_NAME = "Multi Floating Window Notification"
+    const val NOTIFICATION_CHANNEL_ID = "pet_floating_window_channel"
+    const val NOTIFICATION_CHANNEL_NAME = "Pet Floating Window Notification"
 }

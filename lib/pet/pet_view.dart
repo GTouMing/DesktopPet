@@ -26,7 +26,7 @@ class PetView extends ConsumerWidget {
     final notifier = ref.read(petStateProvider(petId).notifier);
     final size = petState.finalPetSize;
 
-    // 设置变更（缩放/不透明度/速度）后让本宠重算派生值。
+    // 设置变更（缩放/不透明度）后让本宠重算派生值。
     //
     // 与 Android 同一套：设置写入 → `StorageService.changes` → `appDataProvider`
     // 自失效 → 这里刷新（Android 侧对应位置见 `ui/android/pet_overlay.dart`）。

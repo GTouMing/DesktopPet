@@ -40,10 +40,9 @@ class SpritePetVisual implements PetVisual {
   @override
   String? get animationName => _current;
 
-  /// 精灵图的播放速度由每帧时长（`AnimationDef.fps`）决定，与 `finalSpeed` 无关，
-  /// 因此这里明确忽略（速度目前只影响行走，见 `BehaviorEngine`）。
+  /// 可调参数组只对 Live2D 有意义，精灵图忽略。
   @override
-  void setSpeed(double speed) {}
+  void applyParams(Map<String, int> choices) {}
 
   @override
   Future<void> prepare(String currentState) async {

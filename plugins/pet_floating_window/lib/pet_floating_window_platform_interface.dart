@@ -1,25 +1,24 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
-import 'multi_floating_window_android_method_channel.dart';
+import 'pet_floating_window_method_channel.dart';
 
-abstract class MultiFloatingWindowAndroidPlatform extends PlatformInterface {
-  /// Constructs a MultiFloatingWindowAndroidPlatform.
-  MultiFloatingWindowAndroidPlatform() : super(token: _token);
+abstract class PetFloatingWindowPlatform extends PlatformInterface {
+  /// Constructs a PetFloatingWindowPlatform.
+  PetFloatingWindowPlatform() : super(token: _token);
 
   static final Object _token = Object();
 
-  static MultiFloatingWindowAndroidPlatform _instance =
-      MethodChannelMultiFloatingWindowAndroid();
+  static PetFloatingWindowPlatform _instance = MethodChannelPetFloatingWindow();
 
-  /// The default instance of [MultiFloatingWindowAndroidPlatform] to use.
+  /// The default instance of [PetFloatingWindowPlatform] to use.
   ///
-  /// Defaults to [MethodChannelMultiFloatingWindowAndroid].
-  static MultiFloatingWindowAndroidPlatform get instance => _instance;
+  /// Defaults to [MethodChannelPetFloatingWindow].
+  static PetFloatingWindowPlatform get instance => _instance;
 
   /// Platform-specific implementations should set this with their own
-  /// platform-specific class that extends [MultiFloatingWindowAndroidPlatform] when
+  /// platform-specific class that extends [PetFloatingWindowPlatform] when
   /// they register themselves.
-  static set instance(MultiFloatingWindowAndroidPlatform instance) {
+  static set instance(PetFloatingWindowPlatform instance) {
     PlatformInterface.verifyToken(instance, _token);
     _instance = instance;
   }

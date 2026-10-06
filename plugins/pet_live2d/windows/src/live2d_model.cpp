@@ -2,6 +2,7 @@
 
 #include <CubismDefaultParameterId.hpp>
 #include <CubismModelSettingJson.hpp>
+#include <Effect/CubismBreath.hpp>
 #include <Effect/CubismEyeBlink.hpp>
 #include <Id/CubismIdManager.hpp>
 #include <Motion/CubismMotion.hpp>
@@ -25,6 +26,31 @@ namespace {
 /// it the artwork sits flush against the pet's box edge, which reads as clipped.
 constexpr float kFitMargin = 0.04f;
 
+/// Growth below this (on any edge, in model units) counts as "settled": it is
+/// about a pixel on a 400px pet. Without it, sub-pixel physics wobble would keep
+/// the box nominally growing forever and it would never lock.
+constexpr float kBoundsGrowEpsilon = 0.002f;
+
+/// Consecutive settled frames before the fit box is locked. One frame is not
+/// enough - a motion can hold a pose for a frame in the middle of its arc.
+constexpr int kBoundsStableFrames = 3;
+
+/// The Cubism samples' breathing values - the de-facto standard that model
+/// authors design their physics against (they tune the visible sway via the
+/// physics `PhysicsSetting` output `Scale`s, not via the engine). The engine must
+/// therefore NOT invent its own amplitude; the pack manifest may only scale the
+/// standard down through `Live2DModel::SetBreathScale` (0 turns breathing off).
+///
+/// `CubismBreath` adds `peak * sin(...) * weight`, so weight and peak MULTIPLY.
+/// Note a weight of 0 would silently silence the breath entirely (some Cubism
+/// samples ship exactly that).
+constexpr float kBreathAnglePeak = 15.0f;
+constexpr float kBreathBodyPeak = 10.0f;
+constexpr float kBreathCycle = 6.28f;
+constexpr float kBreathParamOffset = 0.5f;
+constexpr float kBreathParamPeak = 0.5f;
+constexpr float kBreathParamCycle = 3.2345f;
+
 /// Callers hand us a directory; every path we build from it is
 /// `dir + fileName`, so a missing separator silently produces ".../packName.json".
 std::string WithTrailingSeparator(const char* directory) {
@@ -45,11 +71,14 @@ Live2DModel::Live2DModel(Live2DTextureManager* texture_manager)
   id_param_body_angle_x_ = CubismFramework::GetIdManager()->GetId(ParamBodyAngleX);
   id_param_eye_ball_x_ = CubismFramework::GetIdManager()->GetId(ParamEyeBallX);
   id_param_eye_ball_y_ = CubismFramework::GetIdManager()->GetId(ParamEyeBallY);
+  id_param_breath_ = CubismFramework::GetIdManager()->GetId(ParamBreath);
 }
 
 Live2DModel::~Live2DModel() {
   ReleaseMotions();
   ReleaseExpressions();
+  Csm::CubismBreath::Delete(_breath);
+  _breath = nullptr;
   delete model_setting_;
   model_setting_ = nullptr;
 }
@@ -130,6 +159,29 @@ void Live2DModel::SetupModel() {
     _eyeBlink = CubismEyeBlink::Create(model_setting_);
   }
 
+  // Breathing: the model's own swing input. Physics needs a parameter that keeps
+  // changing, otherwise every pendulum settles and the pet is motionless between
+  // motions. The values are always the Cubism standard; `breath_scale_` (from the
+  // pack manifest) only scales them, and 0 skips breathing altogether. The model
+  // ignores any id it does not have.
+  if (breath_scale_ > 0.0f) {
+    _breath = Csm::CubismBreath::Create();
+    Csm::csmVector<Csm::CubismBreath::BreathParameterData> breath_parameters;
+    breath_parameters.PushBack(Csm::CubismBreath::BreathParameterData(
+        id_param_angle_x_, 0.0f, kBreathAnglePeak, kBreathCycle, breath_scale_));
+    breath_parameters.PushBack(Csm::CubismBreath::BreathParameterData(
+        id_param_angle_y_, 0.0f, kBreathAnglePeak, kBreathCycle, breath_scale_));
+    breath_parameters.PushBack(Csm::CubismBreath::BreathParameterData(
+        id_param_angle_z_, 0.0f, kBreathAnglePeak, kBreathCycle, breath_scale_));
+    breath_parameters.PushBack(Csm::CubismBreath::BreathParameterData(
+        id_param_body_angle_x_, 0.0f, kBreathBodyPeak, kBreathCycle,
+        breath_scale_));
+    breath_parameters.PushBack(Csm::CubismBreath::BreathParameterData(
+        id_param_breath_, kBreathParamOffset, kBreathParamPeak, kBreathParamCycle,
+        breath_scale_));
+    _breath->SetParameters(breath_parameters);
+  }
+
   for (Csm::csmInt32 i = 0; i < model_setting_->GetLipSyncParameterCount(); ++i) {
     lip_sync_ids_.PushBack(model_setting_->GetLipSyncParameterId(i));
   }
@@ -150,7 +202,9 @@ void Live2DModel::SetupModel() {
   }
 
   _model->SaveParameters();
-  bounds_valid_ = false;  // recomputed from the new model's vertices
+  bounds_valid_ = false;  // start the box over for the new model's vertices
+  bounds_adapting_ = true;
+  bounds_stable_frames_ = 0;
   _updating = false;
   _initialized = true;
 }
@@ -217,13 +271,7 @@ void Live2DModel::Update(Csm::csmFloat32 delta_time) {
   // Re-apply app-driven parameters: Cubism's LoadParameters() restores the
   // motion-saved values, which would otherwise discard a one-shot write from
   // Dart before it is ever rendered.
-  for (auto it = parameter_overrides_.Begin(); it != parameter_overrides_.End();
-       ++it) {
-    const Csm::CubismId* id =
-        CubismFramework::GetIdManager()->GetId(it->First.GetRawString());
-    if (_model->GetParameterIndex(id) < 0) continue;
-    _model->SetParameterValue(id, it->Second);
-  }
+  ApplyParameterOverrides();
 
   if (_motionManager->IsFinished()) {
     // Explicit loop: replay only when the caller asked for it. The old plugin
@@ -245,10 +293,18 @@ void Live2DModel::Update(Csm::csmFloat32 delta_time) {
   _model->AddParameterValue(id_param_eye_ball_y_, drag_y);
 
   if (_eyeBlink) _eyeBlink->UpdateParameters(_model, delta_time);
+  // Breath before physics: it drives the angles that physics propagates to hair
+  // and tail. It must run after the motion and add on top of it.
+  if (_breath) _breath->UpdateParameters(_model, delta_time);
   if (_expressionManager) _expressionManager->UpdateMotion(_model, delta_time);
   if (_physics) _physics->Evaluate(_model, delta_time);
   if (_pose) _pose->UpdateParameters(_model, delta_time);
   _model->Update();
+
+  // Measure here rather than in FitToView: the vertices are only meaningful once
+  // the model has been updated, and the caller re-fits immediately after this,
+  // so artwork that appeared this frame is fitted in the frame it appears.
+  AccumulateContentBounds();
 }
 
 void Live2DModel::Draw(const Csm::CubismMatrix44& matrix) {
@@ -275,8 +331,40 @@ bool Live2DModel::StartPreloadedMotion(const Csm::csmChar* group,
   } else if (!_motionManager->ReserveMotion(priority)) {
     return false;
   }
+  // Actions are mutually exclusive: start every motion from the model's default
+  // pose so the previous motion's leftovers are gone. Without this the per-frame
+  // SaveParameters() in Update() carries a finished motion's pose into the saved
+  // base, and a further motion that does not drive the same parameters (e.g. the
+  // idle loop, which does not touch this pack's `chuipaopao*` props) never clears
+  // it - measured: the "bubble gum" action's bubble stayed for every later action.
+  ResetParametersToDefault();
+  // The new action can drive parameters that reveal artwork, so re-open the fit
+  // box's growth window: whatever it shows is fitted in the frame it appears.
+  RestartBoundsAdaptation();
   _motionManager->StartMotionPriority(motions_[name], false, priority);
   return true;
+}
+
+void Live2DModel::ResetParametersToDefault() {
+  if (!_model) return;
+  const Csm::csmInt32 count = _model->GetParameterCount();
+  for (Csm::csmInt32 i = 0; i < count; ++i) {
+    _model->SetParameterValue(i, _model->GetParameterDefaultValue(i));
+  }
+  // App-driven parameters are not "leftovers": keep them across the reset.
+  ApplyParameterOverrides();
+  _model->SaveParameters();
+}
+
+void Live2DModel::ApplyParameterOverrides() {
+  if (!_model) return;
+  for (auto it = parameter_overrides_.Begin(); it != parameter_overrides_.End();
+       ++it) {
+    const Csm::CubismId* id =
+        CubismFramework::GetIdManager()->GetId(it->First.GetRawString());
+    if (_model->GetParameterIndex(id) < 0) continue;
+    _model->SetParameterValue(id, it->Second);
+  }
 }
 
 void Live2DModel::StartMotion(const Csm::csmChar* group, Csm::csmInt32 index,
@@ -305,6 +393,7 @@ void Live2DModel::SetExpression(Csm::csmInt32 index) {
   const Csm::csmChar* name = model_setting_->GetExpressionName(index);
   if (expressions_.IsExist(name)) {
     _expressionManager->StartMotion(expressions_[name], false);
+    RestartBoundsAdaptation();
   }
 }
 
@@ -324,21 +413,40 @@ void Live2DModel::SetParameter(const Csm::csmChar* parameter_id,
   if (_model->GetParameterIndex(id) < 0) return;
   parameter_overrides_[Csm::csmString(parameter_id)] = value;
   _model->SetParameterValue(id, value);
+  // A parameter write is how the app shows props (the tunable groups), so it can
+  // reveal artwork anywhere - let the box grow to cover it.
+  RestartBoundsAdaptation();
 }
 
-void Live2DModel::ClearParameterOverrides() { parameter_overrides_.Clear(); }
+void Live2DModel::ResetParameter(const Csm::csmChar* parameter_id) {
+  if (!_model || !parameter_id) return;
+  const Csm::CubismId* id = CubismFramework::GetIdManager()->GetId(parameter_id);
+  const Csm::csmInt32 index = _model->GetParameterIndex(id);
+  if (index < 0) return;
+  // The model's OWN default, not 0: a slot group "clears" the options it is not
+  // using, and 0 is not the neutral value in general - this model parks its base
+  // hands at `ParamCheek5x = 1`, so zeroing them hid the hands. Pinned like
+  // SetParameter so it survives the per-frame LoadParameters().
+  const Csm::csmFloat32 value = _model->GetParameterDefaultValue(index);
+  parameter_overrides_[Csm::csmString(parameter_id)] = value;
+  _model->SetParameterValue(index, value);
+  RestartBoundsAdaptation();
+}
+
+void Live2DModel::ClearParameterOverrides() {
+  parameter_overrides_.Clear();
+  RestartBoundsAdaptation();
+}
 
 void Live2DModel::FitToView(int width, int height) {
   if (!_model) return;
   view_width_ = width > 0 ? width : 1;
   view_height_ = height > 0 ? height : 1;
 
-  if (!bounds_valid_) ComputeContentBounds();
-
-  // Fit the CONTENT, not the declared canvas: this pack's artwork extends past
-  // its (normalized 1x1) canvas, so a canvas fit crops the desk. Fall back to the
-  // canvas when the bounds are not available yet - they only become meaningful
-  // once the vertices have been deformed by an Update().
+  // Fit the box `AccumulateContentBounds()` has grown, not the declared canvas:
+  // this pack's artwork extends past its (normalized 1x1) canvas, so a canvas
+  // fit crops the desk. Until the first Update has measured anything there is no
+  // box yet, so fall back to the canvas for that one call.
   float min_x = 0.0f;
   float min_y = 0.0f;
   float max_x = 0.0f;
@@ -369,14 +477,31 @@ void Live2DModel::FitToView(int width, int height) {
   // Contain the content with a small margin, so nothing sits flush against the
   // pet's box edge (flush artwork reads as "clipped").
   const float usable = 2.0f * (1.0f - kFitMargin);
-  const float scale = (std::min)(usable / content_width, usable / content_height);
+  const float fit = (std::min)(usable / content_width, usable / content_height);
+  // The manifest's scale multiplies the automatic fit, and its translate is a
+  // shift from the view centre - the same two knobs the reference implementation
+  // exposes (`fit * manifest.scale`, `centre + manifest.translate`). Combining
+  // them in ONE Translate() call is not cosmetic: Translate() SETS the
+  // translation rather than adding to it, so a second call would drop the
+  // centring term.
+  const float scale = fit * (fit_scale_ > 0.0f ? fit_scale_ : 1.0f);
   matrix->Scale(scale, scale);
-  matrix->Translate(-(min_x + max_x) * 0.5f * scale,
-                    -(min_y + max_y) * 0.5f * scale);
+  matrix->Translate(-(min_x + max_x) * 0.5f * scale + fit_offset_x_,
+                    -(min_y + max_y) * 0.5f * scale + fit_offset_y_);
 }
 
-void Live2DModel::ComputeContentBounds() {
+void Live2DModel::SetFitAdjust(float scale, float offset_x, float offset_y) {
+  fit_scale_ = scale > 0.0f ? scale : 1.0f;
+  fit_offset_x_ = offset_x;
+  fit_offset_y_ = offset_y;
+}
+
+void Live2DModel::AccumulateContentBounds() {
   if (!_model) return;
+  // Locked and nothing has re-opened the window: the box is final, and this scan
+  // is O(every vertex in the model), so it must not run on every frame for the
+  // whole life of the pet. Everything that can reveal artwork re-arms it.
+  if (!bounds_adapting_) return;
   bool seen = false;
   float min_x = 0.0f;
   float min_y = 0.0f;
@@ -385,13 +510,15 @@ void Live2DModel::ComputeContentBounds() {
 
   const Csm::csmInt32 drawable_count = _model->GetDrawableCount();
   for (Csm::csmInt32 i = 0; i < drawable_count; ++i) {
-    // Skip fully transparent drawables: a pack parks hidden props somewhere, and
-    // letting their geometry into the bounds makes the visible pet fill only ~60%
-    // of its box (measured) and sit off-centre.
+    // Only what is actually drawn this frame counts, i.e. the non-transparent
+    // parts. A pack parks props (ds-whale-girl's whale, desk ornaments, hearts,
+    // stickers, symbols) at opacity 0, and those parked poses sit nowhere near
+    // the resting one - folding them in unconditionally left the pet filling
+    // only ~60% of its box (measured). They enter the box the moment they are
+    // revealed instead, which is what RestartBoundsAdaptation() is for.
     //
-    // NOTE: only the OPACITY is used. `GetDrawableDynamicFlagIsVisible` was tried
-    // too and is wrong here - this pack has parts that the flag reports as
-    // hidden while they are in fact drawn, and excluding them clipped the desk.
+    // NOTE: `GetDrawableDynamicFlagIsVisible` is not consulted - this pack has
+    // parts the flag reports as hidden while they are in fact drawn.
     if (_model->GetDrawableOpacity(i) <= 0.01f) continue;
     const Csm::csmInt32 vertex_count = _model->GetDrawableVertexCount(i);
     const auto* vertices = _model->GetDrawableVertexPositions(i);
@@ -416,13 +543,52 @@ void Live2DModel::ComputeContentBounds() {
   // Skip degenerate/invalid results (e.g. queried before the first Update).
   if (max_x - min_x <= 0.0f || max_y - min_y <= 0.0f) return;
 
-  bounds_min_x_ = min_x;
-  bounds_min_y_ = min_y;
-  bounds_max_x_ = max_x;
-  bounds_max_y_ = max_y;
-  bounds_valid_ = true;
-  LogLine("[l2d] bounds " + std::to_string(min_x) + "," + std::to_string(min_y) +
-          " .. " + std::to_string(max_x) + "," + std::to_string(max_y));
+  if (!bounds_valid_) {
+    bounds_min_x_ = min_x;
+    bounds_min_y_ = min_y;
+    bounds_max_x_ = max_x;
+    bounds_max_y_ = max_y;
+    bounds_valid_ = true;
+    bounds_stable_frames_ = 0;
+    LogLine("[l2d] bounds " + std::to_string(min_x) + "," +
+            std::to_string(min_y) + " .. " + std::to_string(max_x) + "," +
+            std::to_string(max_y));
+    return;
+  }
+
+  // Grow-only union: artwork that has been on screen once stays inside the box
+  // for the rest of the session, so it can never be clipped again. Whether the
+  // box counts as having moved is decided with an epsilon; the union itself
+  // always takes the exact values, so coverage stays exact.
+  const bool grew = min_x < bounds_min_x_ - kBoundsGrowEpsilon ||
+                    min_y < bounds_min_y_ - kBoundsGrowEpsilon ||
+                    max_x > bounds_max_x_ + kBoundsGrowEpsilon ||
+                    max_y > bounds_max_y_ + kBoundsGrowEpsilon;
+  bounds_min_x_ = (std::min)(bounds_min_x_, min_x);
+  bounds_min_y_ = (std::min)(bounds_min_y_, min_y);
+  bounds_max_x_ = (std::max)(bounds_max_x_, max_x);
+  bounds_max_y_ = (std::max)(bounds_max_y_, max_y);
+
+  if (grew) {
+    // Still discovering content: keep re-fitting, and restart the count.
+    bounds_stable_frames_ = 0;
+    return;
+  }
+  if (!bounds_adapting_) return;
+  if (++bounds_stable_frames_ < kBoundsStableFrames) return;
+
+  // Max reached: this is the box the model uses from here on, until something
+  // new is revealed and re-opens the window.
+  bounds_adapting_ = false;
+  LogLine("[l2d] bounds locked " + std::to_string(bounds_min_x_) + "," +
+          std::to_string(bounds_min_y_) + " .. " +
+          std::to_string(bounds_max_x_) + "," +
+          std::to_string(bounds_max_y_));
+}
+
+void Live2DModel::RestartBoundsAdaptation() {
+  bounds_adapting_ = true;
+  bounds_stable_frames_ = 0;
 }
 
 void Live2DModel::ResizeMaskBuffer(int width, int height) {

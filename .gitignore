@@ -33,6 +33,9 @@ migrate_working_dir/
 # tool/fetch_live2d_sdk.ps1 - never committed.
 /third_party/live2d/
 
+# Packaged distribution artifacts (tool/package_windows.ps1).
+/dist/
+
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id

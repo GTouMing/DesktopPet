@@ -70,11 +70,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String globalSpeed(String speed) {
-    return 'Global speed — ${speed}x';
-  }
-
-  @override
   String scaleLimitExceeded(String limit) {
     return 'Global scale cannot exceed ${limit}x';
   }
@@ -184,7 +179,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get opacityMultiplier => 'Opacity multiplier';
 
   @override
-  String get speedMultiplier => 'Speed multiplier';
+  String get l2dParamsSection => 'Parameters';
 
   @override
   String get petPack => 'Pet pack';
@@ -197,9 +192,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get choosePetPack => 'Choose pet pack';
-
-  @override
-  String get finalSpeedFormula => '× global speed = final speed';
 
   @override
   String get finalScaleFormula => '× global scale = final scale';

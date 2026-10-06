@@ -29,9 +29,10 @@ abstract class PetVisual {
   /// `keyParams` 驱动。默认忽略——只有 Live2D 实现。
   void setParameter(String parameterId, double value) {}
 
-  /// 最终播放速度（`PetState.finalSpeed`，全局 × 本宠）。默认忽略——只有 Live2D
-  /// 实现会把它接到动作播放速度上；精灵图的播放速度由每帧时长决定，不在此列。
-  void setSpeed(double speed) {}
+  /// 应用 Live2D **可调参数组**的选择（组 id → 选项下标，见 `L2dParamGroup`）。
+  ///
+  /// 组内互斥、组间叠加；实现需自判幂等与就绪状态。默认忽略——只有 Live2D 实现。
+  void applyParams(Map<String, int> choices) {}
 
   /// 产出一帧画面。[size] 是 `PetState.finalPetSize`（**逻辑像素**）：实现内部
   /// 自行缩放到该尺寸，**不得**自建坐标系或反向回写坐标（见方案 §13.3）。

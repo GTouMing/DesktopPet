@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pet_floating_window/pet_floating_window.dart';
 import '../../core/constants.dart';
 import '../../pet/pet_notifier.dart';
 import '../../pet/pet_widget.dart';
 import '../../pet/pet_providers.dart';
-import '../../platform/android/multi_floating_window/constants.dart';
 import '../../storage/storage_service.dart';
 
 /// 单只桌宠的系统悬浮窗内容（Android）。
@@ -34,12 +34,12 @@ class _AndroidOverlayEntryState extends ConsumerState<AndroidPetOverlay>
 
   /// 注册 MethodChannel 处理器，接收来自原生层（主窗口）的 settings_updated 通知。
   ///
-  /// 只把"存储变了"转成 [StorageService.changes] 这一个信号——缩放/不透明度/速度
-  /// 的重算由 [PetWidget] 监听 `appDataProvider` 完成，与 Windows 完全同一条路径。
+  /// 只把"存储变了"转成 [StorageService.changes] 这一个信号——缩放/不透明度的
+  /// 重算由 [PetWidget] 监听 `appDataProvider` 完成，与 Windows 完全同一条路径。
   void _setupSettingsHandler() {
-    const channel = MethodChannel(Constants.channelName);
+    const channel = MethodChannel(PetFloatingWindow.channelName);
     channel.setMethodCallHandler((call) async {
-      if (call.method == Constants.settingsUpdatedEvent) {
+      if (call.method == PetFloatingWindow.settingsUpdatedEvent) {
         if (!mounted) return;
         StorageService.notifySettingsChanged();
       }

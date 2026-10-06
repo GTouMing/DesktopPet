@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'pet_pack_validator.dart';
 import 'pet_pack_repository.dart';
+import 'zip_layout.dart';
 import '../../storage/storage_service.dart';
 import '../../storage/models/pet_pack_entry.dart';
 import '../pet_pack_lister.dart';
@@ -47,19 +48,24 @@ class PetPackImporter {
 
     // 4. 解压
     //
-    // ZIP 条目按规范用 `/` 分隔，但存在不守规范的打包器（例如 .NET 的
-    // Compress-Archive）会写 `\`。Windows 恰好把 `\` 也当分隔符，于是在 Windows 上
-    // 「看起来能用」；到 Android/Linux 就会解出一个名字里带反斜杠的单文件，后续
-    // 校验与模型加载全都找不到。这里统一规范化，并顺带挡掉越界路径。
+    // 条目名统一规范化（`\`→`/`，挡掉越界路径，见 [normalizeZipEntryName]），并在
+    // 解压前剥掉"整包再套一层同名目录"的包装层（见 [singleRootPrefix]）——否则
+    // pet.json 会落在多出来的那一层之下，校验随即以 "pet.json not found" 失败。
+    final names = <String>[];
     for (final entry in archive) {
       if (!entry.isFile) continue;
+      final name = normalizeZipEntryName(entry.name);
+      if (name != null) names.add(name);
+    }
+    final stripPrefix = singleRootPrefix(names);
 
-      final name = entry.name.replaceAll('\\', '/');
-      if (name.isEmpty ||
-          name.startsWith('/') ||
-          name.split('/').contains('..')) {
-        continue;
-      }
+    for (final entry in archive) {
+      if (!entry.isFile) continue;
+      final normalized = normalizeZipEntryName(entry.name);
+      if (normalized == null) continue;
+
+      final name = normalized.substring(stripPrefix.length);
+      if (name.isEmpty) continue;
 
       final outFile = File('$destDir/$name');
       await outFile.parent.create(recursive: true);

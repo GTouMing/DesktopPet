@@ -2,11 +2,11 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
+import 'package:pet_floating_window/pet_floating_window.dart';
 
 import '../core/constants.dart';
 import '../storage/models/pet_config.dart';
 import '../storage/storage_service.dart';
-import 'android/multi_floating_window/multi_floating_window_android.dart';
 import 'android/window_android.dart';
 import 'window_interface.dart';
 
@@ -36,7 +36,7 @@ Future<void> spawnPetWindow(PetConfig pet) async {
     final physicalSize =
         logicalToPhysicalSize(Size(pet.width * scale, pet.height * scale));
     final physicalPos = logicalToPhysicalOffset(pet.position);
-    await MultiFloatingWindowAndroid.showOverlay(
+    await PetFloatingWindow.showOverlay(
       overlayId: pet.id,
       width: physicalSize.width.round(),
       height: physicalSize.height.round(),
@@ -60,7 +60,7 @@ Future<void> loadAllPetWindows() async {
   for (final pet in StorageService.readPets()) {
     bool showing;
     try {
-      showing = await MultiFloatingWindowAndroid.isOverlayShowing(pet.id);
+      showing = await PetFloatingWindow.isOverlayShowing(pet.id);
     } catch (_) {
       continue;
     }
@@ -73,6 +73,6 @@ Future<void> loadAllPetWindows() async {
 Future<void> closePetWindow(String petId) async {
   if (!Platform.isAndroid) return;
   try {
-    await MultiFloatingWindowAndroid.closeOverlay(petId);
+    await PetFloatingWindow.closeOverlay(petId);
   } catch (_) {}
 }

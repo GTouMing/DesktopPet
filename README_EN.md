@@ -21,7 +21,7 @@ On Windows a single full-desktop transparent overlay window hosts every pet, the
   - Built-in default pet pack (sprite: idle / walk / sleep / happy / eat / drag animations).
   - One-click import from **ZIP pet packs** — automatically extracted, validated per type and registered; **sprite / Live2D** is detected on import.
   - Configurable **custom pet pack directory**, auto-scanned for packs, with one-click migration of already-imported packs.
-- **Settings hub**: Global scale / opacity / playback speed (multiplied with each pet's own multipliers), applied live across all pets.
+- **Settings hub**: Global scale / opacity (multiplied with each pet's own multipliers), applied live across all pets.
 - **Persistence**: MMKV multi-process storage — config changes are written back and broadcast to every pet in real time.
 
 ## Platform Support
@@ -66,6 +66,23 @@ On first launch the app seeds default data in the app documents directory and cr
 - **Live2D SDK (required)**: the Cubism runtime is used by the in-repo renderer in `plugins/pet_live2d/`; the **SDK itself is not committed**. After cloning, run once:
   `powershell -ExecutionPolicy Bypass -File tool/fetch_live2d_sdk.ps1`
   It fetches a pinned version (plus sha256 verification) declared in `third_party/live2d.sdk.json` and extracts the needed subset into `third_party/live2d/` (gitignored). Live2D's official SDK zip sits behind a license-acceptance page and cannot be fetched by a stable direct link, so the script also accepts `-SdkZip <path>` for a manually downloaded copy. CMake fails with a readable message pointing at the script when the subset is missing.
+- **Packaging**: `powershell -ExecutionPolicy Bypass -File tool/package_windows.ps1`
+  builds the release, runs a pre-flight check (a missing `app.so` / `pet_live2d_plugin.dll` / `FrameworkShaders`, a
+  plugin DLL listed in `generated_plugins.cmake` that was not produced, or a DEBUG engine DLL inside the Release
+  directory, all abort with a clear message - they show up as "exits immediately" / "no Live2D" /
+  "Not running in AOT mode"), drops stale plugin DLLs, runtime artefacts (`*.log`, `l2d_dump_*.bmp`) and empty
+  directories, adds the app-local VC runtime and the license/notice files, and writes
+  `dist/DesktopPet-<version>-windows-x64.zip` (sha256 printed). With Inno Setup installed it also
+  produces a `setup.exe`. Pass `-SkipBuild` to reuse the existing build, or `-Clean` to `flutter clean` first
+  (**use `-Clean` for a real distributable**: Flutter never prunes DLLs or asset directories left behind by
+  removed plugins, so a long-lived build directory leaks stale files into the package; the script drops what
+  it can, but a clean build is the only complete fix).
+- **Packaged runtime & licenses**: the exe and every plugin DLL are linked `/MD`, so a target machine without the
+  **VC++ 2015-2022 x64 Redistributable** fails to start (`VCRUNTIME140.dll` / `MSVCP140.dll` missing); the Cubism
+  Core only ships as MD/MDd, so a `/MT` rebuild is not an option. The packaging script bundles the VC runtime DLLs
+  **app-local** (it warns if it cannot find them) and ships `LICENSE`, `NOTICES` and Live2D's
+  `Live2D-Cubism-Core-LICENSE.md` - the Cubism Core is **statically linked** into `pet_live2d_plugin.dll`, so a
+  distributed build must carry its license text.
 - **No more `live2d_flutter`**: the old third-party plugin (and its out-of-repo vendored copy behind `dependency_overrides`) is gone. The patches we wrote for it and the architectural traps it had are recorded in `doc/live2d-renderer-notes.md` and `plugins/pet_live2d/`.
 - **Android `minSdk`**: explicitly pinned to `24`, reserved for the future Android Live2D path (a Cubism runtime requirement) rather than `flutter.minSdkVersion`.
 - **Windows toolchain**: the native code compiles and links under `cxx_std_17 + /W4 /WX + _HAS_EXCEPTIONS=0`; the shared `apply_standard_settings` needs no relaxation.
@@ -150,10 +167,14 @@ A pet pack is a directory containing a manifest — **`pet.json`** — plus asse
 | `initialState`               | Initial state name (defaults to `idle`)                                                                                     |
 | `animations`                 | (sprite) Animation definitions: `{ folder, fps, frameCount, framePrefix?, frameStart? }`; frames are `folder/0.png`, `folder/1.png`… |
 | `model`                      | (live2d) `.model3.json` file name; when omitted, the first `*.model3.json` at the pack root is used                          |
+| `scale`                      | (live2d) Scale multiplied **on top of** the automatic fit (default `1`; must be `> 0` and `<= 10`) — lets an author fix the framing instead of leaving it to the fitter |
+| `translate`                  | (live2d) Offset of the model centre from the box centre: `{ "x": 0, "y": 0 }` in **logical pixels**, `+x` right, `+y` down   |
+| `breath`                     | (live2d) Idle-breath amplitude (default `1`): the engine always feeds the standard Cubism breath, and this can only **lower** it (`0` = no breathing). A model's sway is meant to come from its own physics; authors use this to adapt theirs |
 | `states`                     | State definitions: reference an animation/motion group + optional behavior + transform expressions + transitions             |
 | `hotkeys`                    | Pack-level hotkey → action (**bypasses the state machine**, see below): `{ "<id>": { key, modifiers?, animation?, motionIndex?, motionPriority?, expression?, durationMs? } }` |
 | `keyParams`                  | Typing reaction (Live2D only): `{ "<key>": "<model parameter id>" }` — holding the key sets the parameter to 1, releasing to 0 |
 | `mouseParams`                | Mouse feedback (Live2D only): `{ x?, y?, xy?, left?, right?, smooth? }` — each axis is a list of `{param, scale}` mappings, so one axis can drive several parameters |
+| `params`                     | Tunable slot groups (Live2D only): `{ "<slot>": { label?, type?, default?, params? \| options? } }` — adjusted in the pet editor; see "Tunable Parameters" |
 
 Example state definition:
 
@@ -240,12 +261,42 @@ pile of motions you want to fire one key at a time (toggle accessories, switch e
   are **serialized**: while one is playing, later requests **queue** (the newest replaces the
   pending one) and play only after it finishes — matching Bongo ("the next animation is allowed
   only after the current one finishes"). `0`/omitted = preempt immediately.
+- `requires?`: **parameter preconditions** — `{ "<slotId>": "<label>" | [<label>, ...] }`. The
+  action is ignored unless the current choice of every listed slot (compared by option label) is in
+  the list. A boolean slot's labels are `on` / `off`. Omitted = no precondition.
+- `sets?`: **parameter changes** — `{ "<slotId>": "<label>" }`. When the action plays, those slots
+  switch to the given options (written back into the pet's saved choices).
 
 Priority: **state transitions win** — if the current state declares a `hotkey` transition for
 the combo, the state machine runs; otherwise the pack-level action fires. Global hotkeys are
 Windows-only, and the key is **not swallowed** (other apps still receive it).
 
 > Pack-level actions are currently implemented by the Live2D renderer only; the sprite renderer ignores them.
+
+### Tunable Parameters (`params`) — slots
+
+The top-level `params` map declares **mutually-exclusive slot groups** (Live2D only). Each group is
+one control in the pet editor; **within** a group exactly one option is active, **across** groups
+several can be active at once. Options write model parameters directly:
+
+```json
+"params": {
+  "glasses": {
+    "label": "Glasses", "default": "None",
+    "options": [
+      { "label": "None" },
+      { "label": "Round", "params": { "ParamCheek70": 1 } }
+    ]
+  },
+  "whale": { "label": "Whale", "type": "bool", "default": false, "params": { "jingyu": 1 } }
+}
+```
+
+- `type: "bool"` → a switch; the group's `params` are written while it is on.
+- Otherwise a dropdown of `options`; `default` is an option label (or index).
+- Switching an option clears the previous one's parameters, so slots never "fight" — this replaced
+  the exclusive Cubism expression manager (accessories and mood expressions are meant to stack).
+- Values are saved per pet; a pack action may read/change slots with `requires` / `sets`.
 
 ### Typing Reaction (`keyParams`)
 
@@ -326,9 +377,9 @@ axis can drive **several** parameters at once:
 
 **Managing pets**
 - The main window lists every pet, letting you:
-  - Create a pet (name it, pick a pet pack, adjust scale / opacity / speed)
+  - Create a pet (name it, pick a pet pack, adjust scale / opacity)
   - Edit or delete existing pets
-- Global settings tune base scale, opacity and animation speed for all pets (multiplied with per-pet multipliers).
+- Global settings tune base scale and opacity for all pets (multiplied with per-pet multipliers).
 
 **Quick Launch (Windows)**
 - Hold the **middle mouse button** (~1 s) to summon the radial dial around the pet.
@@ -369,5 +420,4 @@ This project is licensed under the [MIT](LICENSE) license.
 
 Third-party components and licenses (see [NOTICES](NOTICES)):
 
-- **live2d_flutter**: BSD-3-Clause.
-- **Live2D Cubism Core / Native SDK**: owned by Live2D Inc., subject to its Free Material / Proprietary / Distribution Licenses; the `live2d_flutter` copy distributed with this repo bundles that SDK. `.moc3` supports versions 3.0–5.3. Please follow Live2D Inc.'s terms when using the Live2D features.
+- **Live2D Cubism Core / Native SDK**: owned by Live2D Inc., subject to its Free Material / Proprietary / Distribution Licenses. The repo does **not** contain the SDK (it is fetched by `tool/fetch_live2d_sdk.ps1` - see [NOTICES](NOTICES)), but `plugins/pet_live2d/` **statically links** the Cubism Core into `pet_live2d_plugin.dll`, so a **build embeds that Core binary** and distributing it is likewise subject to those licenses (carry the license text). `.moc3` supports versions 3.0–5.3. Please follow Live2D Inc.'s terms when using the Live2D features.

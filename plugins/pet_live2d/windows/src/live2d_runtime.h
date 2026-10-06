@@ -57,8 +57,18 @@ class Live2DRuntime {
   /// texture id, or -1 on failure. [width]/[height] are the pet's display box in
   /// physical pixels; the render target is sized from them. The model itself is
   /// loaded asynchronously on the render thread.
+  ///
+  /// [fit_scale] / [fit_offset_x] / [fit_offset_y] are the pack manifest's framing
+  /// (`scale` / `translate`), applied on top of the automatic fit. The offsets are
+  /// in view units (1 = half the box's short side) and in SCREEN orientation
+  /// (+y down), exactly as Dart sends them.
+  ///
+  /// [breath_scale] is the pack manifest's idle-breath amplitude (1 = standard,
+  /// 0 = off); see `Live2DModel::SetBreathScale`.
   int64_t Create(const std::string& pet_id, const std::string& model_dir,
-                 const std::string& model_file, int width, int height);
+                 const std::string& model_file, int width, int height,
+                 double fit_scale, double fit_offset_x, double fit_offset_y,
+                 double breath_scale);
   bool Destroy(const std::string& pet_id);
 
   /// The pet's display box in physical pixels. Rebuilds the render target (and
@@ -73,6 +83,8 @@ class Live2DRuntime {
   bool PostSetExpression(const std::string& pet_id, int index);
   bool PostSetParameter(const std::string& pet_id,
                         const std::string& parameter_id, double value);
+  bool PostResetParameter(const std::string& pet_id,
+                          const std::string& parameter_id);
   bool PostClearParameters(const std::string& pet_id);
   bool PostSetMotionSpeed(const std::string& pet_id, double speed);
   bool PostSetDragging(const std::string& pet_id, double x, double y);

@@ -2,11 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'constants.dart';
-import 'multi_floating_window_android_platform_interface.dart';
+import 'pet_floating_window_platform_interface.dart';
 
-/// An implementation of [MultiFloatingWindowAndroidPlatform] that uses method channels.
-class MethodChannelMultiFloatingWindowAndroid
-    extends MultiFloatingWindowAndroidPlatform {
+/// An implementation of [PetFloatingWindowPlatform] that uses method channels.
+class MethodChannelPetFloatingWindow extends PetFloatingWindowPlatform {
   /// The method channel used to interact with the native platform.
   @visibleForTesting
   final methodChannel = const MethodChannel(Constants.channelName);

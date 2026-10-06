@@ -118,7 +118,8 @@ void Live2DRuntime::Post(std::function<void()> command) {
 int64_t Live2DRuntime::Create(const std::string& pet_id,
                               const std::string& model_dir,
                               const std::string& model_file, int width,
-                              int height) {
+                              int height, double fit_scale, double fit_offset_x,
+                              double fit_offset_y, double breath_scale) {
   if (!ready_) return -1;
 
   // Reuse an instance that already matches: the Flutter side remounts PetWidget
@@ -161,9 +162,13 @@ int64_t Live2DRuntime::Create(const std::string& pet_id,
   // Model loading touches Cubism and the immediate context, so it runs on the
   // render thread. The shared_ptr keeps the instance alive even if the pet is
   // disposed meanwhile.
-  Post([this, instance, pet_id, model_dir, model_file]() {
+  Post([this, instance, pet_id, model_dir, model_file, fit_scale, fit_offset_x,
+        fit_offset_y, breath_scale]() {
     if (!instance->alive()) return;
-    instance->LoadModel(model_dir, model_file);
+    instance->LoadModel(model_dir, model_file, static_cast<float>(fit_scale),
+                        static_cast<float>(fit_offset_x),
+                        static_cast<float>(fit_offset_y),
+                        static_cast<float>(breath_scale));
     if (instance->IsModelLoaded() && on_ready_) on_ready_(pet_id);
   });
   return texture_id;
@@ -226,6 +231,16 @@ bool Live2DRuntime::PostSetParameter(const std::string& pet_id,
   if (!instance) return false;
   Post([instance, parameter_id, value]() {
     if (instance->alive()) instance->SetParameter(parameter_id, value);
+  });
+  return true;
+}
+
+bool Live2DRuntime::PostResetParameter(const std::string& pet_id,
+                                       const std::string& parameter_id) {
+  auto instance = Find(pet_id);
+  if (!instance) return false;
+  Post([instance, parameter_id]() {
+    if (instance->alive()) instance->ResetParameter(parameter_id);
   });
   return true;
 }

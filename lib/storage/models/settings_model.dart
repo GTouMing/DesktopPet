@@ -11,10 +11,6 @@ class SettingsModel {
   /// 全局基础不透明度。与 [PetConfig.opacityMultiplier] 乘算得到最终不透明度。
   double baseOpacity;
 
-  /// 全局基础速度。与 [PetConfig.speedMultiplier] 乘算得到最终动画播放速度。
-  /// 1.0 = 正常速度，2.0 = 2 倍速，0.5 = 半速。
-  double baseSpeed;
-
   /// 全局宠物包目录（绝对路径）。
   /// 为 null 时使用内置宠物包；非 null 时 [PetConfig.packPath] 是相对于此的路径。
   String? packDir;
@@ -31,7 +27,6 @@ class SettingsModel {
   SettingsModel({
     this.baseScale = 1.0,
     this.baseOpacity = 1.0,
-    this.baseSpeed = 1.0,
     this.packDir,
     this.quickLaunchKey = defaultQuickLaunchKey,
     this.quickLaunchModifiers = defaultQuickLaunchModifiers,
@@ -43,7 +38,6 @@ class SettingsModel {
   Map<String, dynamic> toJson() => {
     'baseScale': baseScale,
     'baseOpacity': baseOpacity,
-    'baseSpeed': baseSpeed,
     'packDir': packDir,
     'quickLaunchKey': quickLaunchKey,
     'quickLaunchModifiers': quickLaunchModifiers,
@@ -54,7 +48,6 @@ class SettingsModel {
     return SettingsModel(
       baseScale: (json['baseScale'] as num?)?.toDouble() ?? 1.0,
       baseOpacity: (json['baseOpacity'] as num?)?.toDouble() ?? 1.0,
-      baseSpeed: (json['baseSpeed'] as num?)?.toDouble() ?? 1.0,
       packDir: json['packDir'] as String?,
       quickLaunchKey: json['quickLaunchKey'] as String? ?? defaultQuickLaunchKey,
       quickLaunchModifiers: (json['quickLaunchModifiers'] as List<dynamic>?)
@@ -71,7 +64,6 @@ class SettingsModel {
   SettingsModel copyWith({
     double? baseScale,
     double? baseOpacity,
-    double? baseSpeed,
     Object? packDir = _unset,
     String? quickLaunchKey,
     List<String>? quickLaunchModifiers,
@@ -80,7 +72,6 @@ class SettingsModel {
     return SettingsModel(
       baseScale: baseScale ?? this.baseScale,
       baseOpacity: baseOpacity ?? this.baseOpacity,
-      baseSpeed: baseSpeed ?? this.baseSpeed,
       packDir: identical(packDir, _unset) ? this.packDir : packDir as String?,
       quickLaunchKey: quickLaunchKey ?? this.quickLaunchKey,
       quickLaunchModifiers: quickLaunchModifiers ?? this.quickLaunchModifiers,

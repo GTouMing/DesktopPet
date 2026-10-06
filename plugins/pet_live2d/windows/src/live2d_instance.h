@@ -60,11 +60,15 @@ class Live2DInstance {
 
   // ---- render thread ------------------------------------------------------
 
-  void LoadModel(const std::string& model_dir, const std::string& model_file);
+  void LoadModel(const std::string& model_dir, const std::string& model_file,
+                 float fit_scale, float fit_offset_x, float fit_offset_y,
+                 float breath_scale);
   bool IsModelLoaded() const;
   void StartMotion(const std::string& group, int index, int priority, bool loop);
   void SetExpression(int index);
   void SetParameter(const std::string& parameter_id, double value);
+  /// Restores a parameter to the model's own default (see `Live2DModel::ResetParameter`).
+  void ResetParameter(const std::string& parameter_id);
   void ClearParameters();
   void SetMotionSpeed(double speed);
   void SetDragging(double x, double y);

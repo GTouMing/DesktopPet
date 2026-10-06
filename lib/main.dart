@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:desktop_pet/core/constants.dart';
 import 'package:desktop_pet/pet/pet_providers.dart';
 import 'package:desktop_pet/platform/android/pet_window_channel.dart';
-import 'package:desktop_pet/platform/android/multi_floating_window/multi_floating_window_android.dart';
 import 'package:desktop_pet/platform/windows/app_host.dart';
 import 'package:desktop_pet/storage/storage_service.dart';
 import 'package:desktop_pet/ui/host/overlay_scene.dart';
@@ -12,6 +11,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_alone/flutter_alone.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pet_floating_window/pet_floating_window.dart';
 
 import 'app.dart';
 
@@ -79,7 +79,7 @@ Future<void> _runAndroid(List<String> args) async {
     // 即便早已授权。`requestPermission()` 只是 `startActivity` 后立刻返回，用户是否
     // 授予这里无从得知——授权后重新建悬浮窗由 MainScreen 的 resumed 钩子负责。
     if (!await _hasOverlayPermission()) {
-      await MultiFloatingWindowAndroid.requestPermission()
+      await PetFloatingWindow.requestPermission()
           .catchError((_) => false);
     }
     // 设置变更 → 推送给各桌宠悬浮窗引擎。
@@ -101,7 +101,7 @@ Future<void> _runAndroid(List<String> args) async {
 /// 宁可漏弹一次设置页，也不要每次启动都把用户甩进系统设置。
 Future<bool> _hasOverlayPermission() async {
   try {
-    return await MultiFloatingWindowAndroid.hasPermission();
+    return await PetFloatingWindow.hasPermission();
   } catch (e) {
     _hk('hasPermission failed: $e');
     return true;

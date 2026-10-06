@@ -1,7 +1,8 @@
 import 'dart:io';
 
+import 'package:pet_floating_window/pet_floating_window.dart';
+
 import '../../storage/storage_service.dart';
-import 'multi_floating_window/multi_floating_window_android.dart';
 
 /// 桌宠设置变更通知（Android）。
 ///
@@ -23,7 +24,7 @@ class PetWindowChannel {
 
   static void _notifySettingsChanged() {
     if (Platform.isAndroid) {
-      MultiFloatingWindowAndroid.notifySettingsUpdated();
+      PetFloatingWindow.notifySettingsUpdated();
     }
   }
 }

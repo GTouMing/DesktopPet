@@ -6,7 +6,7 @@ import '../../../storage/models/settings_model.dart';
 import '../../widgets/info_overlay.dart';
 import 'settings_common.dart';
 
-/// 外观分区：全局缩放 / 不透明度 / 播放速度（对所有桌宠生效）。
+/// 外观分区：全局缩放 / 不透明度（对所有桌宠生效）。
 ///
 /// 拖动过程只改本地值，松手（onChangeEnd）才写存储——滑杆每帧都变，逐帧写盘没有
 /// 意义，而且会在拖动时反复重建所有桌宠。
@@ -22,14 +22,12 @@ class AppearanceSection extends StatefulWidget {
 class _AppearanceSectionState extends State<AppearanceSection> {
   late double _opacity;
   late double _scale;
-  late double _speed;
 
   @override
   void initState() {
     super.initState();
     _opacity = widget.settings.baseOpacity;
     _scale = widget.settings.baseScale;
-    _speed = widget.settings.baseSpeed;
   }
 
   @override
@@ -57,16 +55,6 @@ class _AppearanceSectionState extends State<AppearanceSection> {
           divisions: 27,
           onChanged: (v) => setState(() => _scale = v),
           onChangeEnd: _commitScale,
-        ),
-        SliderTile(
-          icon: Icons.speed,
-          label: l10n.globalSpeed(_speed.toStringAsFixed(1)),
-          value: _speed,
-          min: 0.25,
-          max: 3.0,
-          divisions: 11,
-          onChanged: (v) => setState(() => _speed = v),
-          onChangeEnd: (v) => applySettings((s) => s.copyWith(baseSpeed: v)),
         ),
       ],
     );

@@ -1,11 +1,11 @@
-package com.desktop_pet.multi_floating_window
+package com.desktop_pet.pet_floating_window
 
 import android.app.*
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import com.desktop_pet.multi_floating_window.constants.Constants
+import com.desktop_pet.pet_floating_window.constants.Constants
 
 /**
  * Multi Floating Window Service - Manages foreground service for multiple overlays

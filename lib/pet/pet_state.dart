@@ -26,14 +26,15 @@ class PetState {
   /// 最终不透明度（baseOpacity × opacityMultiplier），由 PetNotifier 定期更新。
   final double finalOpacity;
 
-  /// 最终动画播放速度（baseSpeed × speedMultiplier），由 PetNotifier 定期更新。
-  final double finalSpeed;
-
   /// 宠物在屏幕上的渲染尺寸，由 PetNotifier 根据缩放计算后同步。
   final Size finalPetSize;
 
   /// 宠物包原生帧尺寸（缩放前），由 [PetNotifier._init] 设置。
   final Size? basePetSize;
+
+  /// 宠物包"代数"：换包（编辑宠物时改了宠物包路径）时 +1，[PetWidget] 据此丢弃旧
+  /// 渲染器、按新包重建视图（精灵图 ↔ Live2D 也走这条路径）。
+  final int packGeneration;
 
   const PetState({
     this.currentState = '',
@@ -44,9 +45,9 @@ class PetState {
     this.packError,
     this.currentAnim = '',
     this.finalOpacity = 1.0,
-    this.finalSpeed = 1.0,
     this.finalPetSize = Size.zero,
     this.basePetSize,
+    this.packGeneration = 0,
   });
 
   PetState copyWith({
@@ -59,9 +60,9 @@ class PetState {
     String? packError,
     String? currentAnim,
     double? finalOpacity,
-    double? finalSpeed,
     Size? finalPetSize,
     Size? basePetSize,
+    int? packGeneration,
   }) {
     return PetState(
       currentState: currentState ?? this.currentState,
@@ -72,9 +73,9 @@ class PetState {
       packError: packError ?? this.packError,
       currentAnim: currentAnim ?? this.currentAnim,
       finalOpacity: finalOpacity ?? this.finalOpacity,
-      finalSpeed: finalSpeed ?? this.finalSpeed,
       finalPetSize: finalPetSize ?? this.finalPetSize,
       basePetSize: basePetSize ?? this.basePetSize,
+      packGeneration: packGeneration ?? this.packGeneration,
     );
   }
 }

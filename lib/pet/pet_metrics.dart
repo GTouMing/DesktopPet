@@ -14,10 +14,6 @@ import 'pet_size.dart';
 double petOpacity(SettingsModel global, PetConfig? pet) =>
     global.baseOpacity * (pet?.opacityMultiplier ?? 1.0);
 
-/// 最终动画播放速度。
-double petSpeed(SettingsModel global, PetConfig? pet) =>
-    global.baseSpeed * (pet?.speedMultiplier ?? 1.0);
-
 /// 最终渲染尺寸：基帧 × 最终缩放（收敛到 [maxFinalScale]），再等比收敛到
 /// [screen] 内（见 [fitPetSize]）。
 ///

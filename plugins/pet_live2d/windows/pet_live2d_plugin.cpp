@@ -10,6 +10,11 @@ namespace {
 
 constexpr char kChannelName[] = "desktop_pet/live2d";
 
+/// Posted by SendModelReady() (render thread) so the actual channel call runs on
+/// the platform thread. A distinct value out of the WM_APP range, so it cannot
+/// collide with a system message.
+constexpr UINT kModelReadyMessage = WM_APP + 0x4C32;
+
 /// Render-target bounds. The Dart side derives the wanted size from the pet
 /// pack's frame size, the scale ceiling and the device pixel ratio - it is the
 /// pet's maximum plausible size, so scaling never has to touch the texture.
@@ -81,22 +86,61 @@ void PetLive2DPlugin::RegisterWithRegistrar(
 PetLive2DPlugin::PetLive2DPlugin(
     flutter::PluginRegistrarWindows* registrar,
     std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> channel)
-    : channel_(std::move(channel)),
+    : registrar_(registrar),
+      channel_(std::move(channel)),
       runtime_(std::make_unique<Live2DRuntime>(
           registrar->texture_registrar(),
           [this](const std::string& pet_id) { SendModelReady(pet_id); })) {
+  // modelReady is produced on the runtime's render thread; deliver it through a
+  // window message so the platform-channel call happens on the platform thread.
+  if (auto* view = registrar->GetView()) {
+    ready_window_ = ::GetAncestor(view->GetNativeWindow(), GA_ROOT);
+  }
+  window_proc_id_ = registrar->RegisterTopLevelWindowProcDelegate(
+      [this](HWND hwnd, UINT message, WPARAM wparam,
+             LPARAM lparam) -> std::optional<LRESULT> {
+        if (message == kModelReadyMessage) {
+          FlushModelReady();
+          return 0;
+        }
+        return std::nullopt;
+      });
   runtime_->Start();
 }
 
 void PetLive2DPlugin::SendModelReady(const std::string& pet_id) {
-  if (!channel_) return;
-  channel_->InvokeMethod(
-      "modelReady",
-      std::make_unique<flutter::EncodableValue>(flutter::EncodableValue(pet_id)));
+  {
+    std::lock_guard<std::mutex> lock(ready_mutex_);
+    ready_queue_.push_back(pet_id);
+  }
+  if (ready_window_ != nullptr) {
+    ::PostMessage(ready_window_, kModelReadyMessage, 0, 0);
+  }
 }
 
+void PetLive2DPlugin::FlushModelReady() {
+  std::vector<std::string> pending;
+  {
+    std::lock_guard<std::mutex> lock(ready_mutex_);
+    pending.swap(ready_queue_);
+  }
+  if (!channel_) return;
+  for (const auto& pet_id : pending) {
+    channel_->InvokeMethod(
+        "modelReady",
+        std::make_unique<flutter::EncodableValue>(
+            flutter::EncodableValue(pet_id)));
+  }
+}
 
-PetLive2DPlugin::~PetLive2DPlugin() { runtime_->Stop(); }
+PetLive2DPlugin::~PetLive2DPlugin() {
+  // Stop the render thread first: after this no further SendModelReady() can be
+  // queued, so unregistering the window proc cannot strand a pending flush.
+  runtime_->Stop();
+  if (registrar_ != nullptr && window_proc_id_ >= 0) {
+    registrar_->UnregisterTopLevelWindowProcDelegate(window_proc_id_);
+  }
+}
 
 void PetLive2DPlugin::HandleMethodCall(
     const flutter::MethodCall<flutter::EncodableValue>& method_call,
@@ -136,13 +180,23 @@ void PetLive2DPlugin::HandleMethodCall(
         std::clamp(IntArg(*args, "widthPx", kDefaultTarget), kMinTarget, kMaxTarget);
     const int height = std::clamp(IntArg(*args, "heightPx", kDefaultTarget),
                                   kMinTarget, kMaxTarget);
+    // Manifest framing (`scale` / `translate`): the same two knobs the reference
+    // implementation exposes (`scale.set(fit * manifest.scale)`,
+    // `position.set(w/2 + x, h/2 + y)`). The offsets arrive in view units
+    // (1 = half the box's short side) and in screen orientation (+y down).
+    const double fit_scale = DoubleArg(*args, "fitScale", 1.0);
+    const double fit_offset_x = DoubleArg(*args, "fitOffsetX", 0.0);
+    const double fit_offset_y = DoubleArg(*args, "fitOffsetY", 0.0);
+    // Idle-breath amplitude from the pack manifest (1 = Cubism standard, 0 = off).
+    const double breath_scale = DoubleArg(*args, "breathScale", 1.0);
     if (pet_id.empty() || model_dir.empty() || model_file.empty()) {
       result->Error("INVALID_ARGS",
                     "create requires petId, modelDir and modelFileName.");
       return;
     }
-    const int64_t texture_id =
-        runtime_->Create(pet_id, model_dir, model_file, width, height);
+    const int64_t texture_id = runtime_->Create(
+        pet_id, model_dir, model_file, width, height, fit_scale, fit_offset_x,
+        fit_offset_y, breath_scale);
     if (texture_id < 0) {
       result->Error("CREATE_FAILED", "Could not create the Live2D render target.");
       return;
@@ -178,6 +232,10 @@ void PetLive2DPlugin::HandleMethodCall(
       return runtime_->PostSetParameter(pet_id, StringArg(*args, "parameterId"),
                                         DoubleArg(*args, "value", 0.0));
     }
+    if (method == "resetParameter") {
+      return runtime_->PostResetParameter(pet_id,
+                                          StringArg(*args, "parameterId"));
+    }
     if (method == "clearParameters") {
       return runtime_->PostClearParameters(pet_id);
     }
@@ -196,8 +254,9 @@ void PetLive2DPlugin::HandleMethodCall(
     return;
   }
   if (method == "setMotion" || method == "setExpression" ||
-      method == "setParameter" || method == "clearParameters" ||
-      method == "setMotionSpeed" || method == "setDragging") {
+      method == "setParameter" || method == "resetParameter" ||
+      method == "clearParameters" || method == "setMotionSpeed" ||
+      method == "setDragging") {
     // Unknown pet: the instance is gone (pet removed). Not an error worth
     // surfacing - the Dart side keeps pushing until it is told to stop.
     result->Success(flutter::EncodableValue(false));

@@ -21,7 +21,7 @@
   - 内置默认宠物包（精灵图：发呆 / 走路 / 睡觉 / 开心 / 进食 / 拖拽等动画）。
   - 支持从 **ZIP 宠物包** 一键导入：自动解压、按类型校验并注册；导入时自动判别**精灵图 / Live2D**。
   - 支持指定**自定义宠物包目录**，自动扫描其中的宠物包，并支持一键迁移已导入的宠物包。
-- **设置中心**：全局缩放 / 透明度 / 播放速度（与单只桌宠的乘数叠加生效），即时生效并同步到所有桌宠。
+- **设置中心**：全局缩放 / 透明度（与单只桌宠的乘数叠加生效），即时生效并同步到所有桌宠。
 - **数据持久化**：基于 MMKV 多进程存储，配置修改实时写回并广播给所有桌宠窗口。
 
 ## 平台支持
@@ -68,6 +68,20 @@ flutter run -d <device>  # Android 真机 / 模拟器
   它按 `third_party/live2d.sdk.json` 固化的版本 + sha256 拉取并解出所需子集到 `third_party/live2d/`（已 gitignore）。
   官方 SDK zip 位于许可确认页之后、无法稳定直链，脚本支持 `-SdkZip <path>` 指向人工下载的官方包。
   CMake 在缺少该子集时会以可读信息报错并提示跑哪个脚本。
+- **打包分发**：`powershell -ExecutionPolicy Bypass -File tool/package_windows.ps1`
+  会构建 Release → 前置校验（缺 `app.so` / `pet_live2d_plugin.dll` / `FrameworkShaders`、`generated_plugins.cmake`
+  里列出的插件 DLL 少了一个、或 Release 目录里混进 Debug 版引擎，都会直接报错退出——分别对应"启动即退出 /
+  无 Live2D / `Not running in AOT mode`"）→ 清掉已移除插件的陈旧 DLL、运行时产物（`*.log`、`l2d_dump_*.bmp`）
+  与空目录 → 补进 app-local VC 运行时和 `LICENSE`/`NOTICES`/Live2D 许可 → 产出
+  `dist/DesktopPet-<版本>-windows-x64.zip`（打印 sha256）；本机装了 Inno Setup 还会顺带出 `setup.exe`。
+  加 `-SkipBuild` 可复用现有构建，加 `-Clean` 先 `flutter clean` 再构建（**出正式分发包建议用 `-Clean`**：
+  Flutter 不会清理已移除插件留下的 DLL/资源目录，长期存在的 build 目录会把陈旧文件带进包里；脚本会尽量剔除，
+  但干净构建是唯一彻底的解法）。
+- **分发包的运行库与许可**：exe 与各插件都以 `/MD` 链接，目标机若没有 **VC++ 2015–2022 x64 Redistributable**
+  会缺 `VCRUNTIME140.dll`/`MSVCP140.dll` 而启动失败（Cubism Core 只提供 MD/MDd 静态库，改 `/MT` 规避不了）。
+  打包脚本会把 VC 运行时 DLL **app-local 一并打进包**（找不到时打印警告）；包内同时附带 `LICENSE`、`NOTICES`
+  与 Live2D 的 `Live2D-Cubism-Core-LICENSE.md`——Cubism Core 是**静态链进 `pet_live2d_plugin.dll`** 的，
+  发布编译产物需随附其许可文本并遵守 Live2D 的条款。
 - **不再有 `live2d_flutter`**：旧的第三方插件（含其 `dependency_overrides` 的仓库外 vendored 副本）已彻底移除；
   我们为它打过的补丁与它架构上的坑，沉淀为 `doc/live2d-renderer-notes.md` 与 `plugins/pet_live2d/`。
 - **Android `minSdk`**：显式 pin 为 `24`，为后续 Android 端 Live2D（Cubism 运行时要求）预留；不取 `flutter.minSdkVersion`。
@@ -153,10 +167,14 @@ lib/
 | `initialState`               | 初始状态名（默认 `idle`）                                                                                     |
 | `animations`                 | （精灵图）动画定义：`{ folder, fps, frameCount, framePrefix?, frameStart? }`，每帧为 `folder/0.png`、`folder/1.png`… |
 | `model`                      | （Live2D）`.model3.json` 文件名；缺省时自动取包根目录下第一个 `*.model3.json`                                 |
+| `scale`                      | （Live2D）自动适配之上**再乘**的缩放（默认 `1`，需 `> 0` 且 `<= 10`）：作者用它一次把构图定死，比让适配器猜稳 |
+| `translate`                  | （Live2D）模型中心相对盒子中心的偏移 `{ "x": 0, "y": 0 }`，单位**逻辑像素**，`+x` 向右、`+y` 向下 |
+| `breath`                     | （Live2D）待机呼吸幅度（默认 `1`）：引擎固定喂 Cubism 标准呼吸，这里只能**调低**（`0` = 不呼吸）。摆动量本应由模型物理决定，作者用这个开关适配自己的模型 |
 | `states`                     | 状态定义：引用动画/动作组 + 行为 + 变换表达式 + 迁移规则                                                     |
 | `hotkeys`                    | 包级快捷键 → 动作（**不经状态机**，见下节）：`{ "<id>": { key, modifiers?, animation?, motionIndex?, motionPriority?, expression?, durationMs? } }` |
 | `keyParams`                  | "打字反应"（仅 Live2D）：`{ "<键名>": "<模型参数 id>" }`，按住键把参数置 1、松开置 0 |
 | `mouseParams`                | 鼠标反馈（仅 Live2D）：`{ x?, y?, xy?, left?, right?, smooth? }`，每个轴是一组 `{param, scale}` 映射，可一次驱动多个参数 |
+| `params`                     | 可调槽位组（仅 Live2D）：`{ "<槽位>": { label?, type?, default?, params? \| options? } }`，在编辑宠物时可调；见「可调参数」 |
 
 状态定义示例：
 
@@ -239,11 +257,39 @@ lib/
 - `durationMs?`：该动作的时长（毫秒，取 motion 的 `Meta.Duration`）。给了就**串行化**：
   一次动作播放期间，后续动作**排队**（后来的覆盖先前的），播完才播下一个——Bongo 就是
   "当前动画播完才允许下一个"。`0`/缺省 = 立即抢占。
+- `requires?`：**参数前提**——`{ "<槽位id>": "<label>" | ["<label>", ...] }`。当前每个列出槽位的
+  选项（按 label 比较）都命中才允许播放；bool 槽位用 `on` / `off` 两个 label。缺省 = 无前提。
+- `sets?`：**改动参数**——`{ "<槽位id>": "<label>" }`。动作播放时把这些槽位切到指定选项
+  （写回该桌宠保存的选择）。
 
 命中优先级：**状态迁移优先**——当前状态声明了该组合键的 `hotkey` 迁移时走状态机，否则
 触发包级动作。全局快捷键仅 Windows 可用；按键**不吞事件**（其它应用照常收到）。
 
 > 包级动作目前只由 Live2D 渲染器实现，精灵图渲染器忽略。
+
+### 可调参数（`params`，槽位）
+
+顶层 `params` 声明**互斥的槽位组**（仅 Live2D）。每组是编辑宠物时的一个控件：**组内**只能选一个
+选项、**组间**可同时生效；选项直接写模型参数：
+
+```json
+"params": {
+  "glasses": {
+    "label": "眼镜", "default": "无",
+    "options": [
+      { "label": "无" },
+      { "label": "圆眼镜", "params": { "ParamCheek70": 1 } }
+    ]
+  },
+  "whale": { "label": "头顶鲸", "type": "bool", "default": false, "params": { "jingyu": 1 } }
+}
+```
+
+- `type: "bool"` → 一个开关，开启时写入该组的 `params`。
+- 否则是 `options` 下拉；`default` 写选项 label（或下标）。
+- 切选项会把上一个选项的参数复位，槽位之间不打架——它取代了 Cubism 排他式表情管理器
+  （配件与情绪表情本该能叠加）。
+- 选择按桌宠保存；包级动作可用 `requires` / `sets` 读取并改动槽位。
 
 ### 打字反应（`keyParams`）
 
@@ -317,9 +363,9 @@ lib/
 
 **管理桌宠**
 - 主窗口列出所有桌宠，可：
-  - 新建桌宠（命名、选择宠物包、调节缩放/透明度/速度）
+  - 新建桌宠（命名、选择宠物包、调节缩放/透明度）
   - 编辑 / 删除已有桌宠
-- 全局设置可调节所有桌宠的基础缩放、透明度与动画速度（单宠乘数叠加生效）。
+- 全局设置可调节所有桌宠的基础缩放与透明度（单宠乘数叠加生效）。
 
 **快捷启动（Windows）**
 - 长按 **鼠标中键**（约 1 秒）呼出环绕宠物的扇环快捷盘。
@@ -360,5 +406,4 @@ lib/
 
 第三人称组件与许可（详见 [NOTICES](NOTICES)）：
 
-- **live2d_flutter**：BSD-3-Clause。
-- **Live2D Cubism Core / Native SDK**：归 Live2D Inc. 所有，受其 Free Material / Proprietary / Distribution License 约束；随本仓库分发的 `live2d_flutter` 捆绑了该 SDK。`.moc3` 支持版本 3.0–5.3。使用 Live2D 功能时请遵守 Live2D Inc. 的许可条款。
+- **Live2D Cubism Core / Native SDK**：归 Live2D Inc. 所有，受其 Free Material / Proprietary / Distribution License 约束。仓库本身**不含** SDK 源码/二进制（由 `tool/fetch_live2d_sdk.ps1` 拉取，见 [NOTICES](NOTICES)），但 `plugins/pet_live2d/` 把 Cubism Core **静态链接**进 `pet_live2d_plugin.dll`——因此**编译产物内嵌该 Core 二进制**，分发编译产物同样受上述许可约束，需随附其许可文本。`.moc3` 支持版本 3.0–5.3。使用 Live2D 功能时请遵守 Live2D Inc. 的许可条款。

@@ -12,10 +12,12 @@ renders Live2D Cubism models. It replaces the third-party `live2d_flutter`
 plugin, which was removed; the patches we carried for it are documented in
 doc/live2d-renderer-notes.md.
 
-It links against the Live2D Cubism Core / Cubism Native SDK — see below — but
-does not redistribute them: the SDK subset is fetched at setup time into
-third_party/live2d/ (gitignored) by tool/fetch_live2d_sdk.ps1, which keeps the
-SDK's own license files alongside the extracted sources and binaries.
+It links against the Live2D Cubism Core / Cubism Native SDK — see below. The
+SDK subset is not committed: it is fetched at setup time into third_party/live2d/
+(gitignored) by tool/fetch_live2d_sdk.ps1, which keeps the SDK's own license
+files alongside the extracted sources and binaries. The build **statically links
+the Cubism Core** into pet_live2d_plugin.dll, so a distributed build embeds that
+Core binary even though this repository does not contain it.
 
 
 2. Live2D Cubism Core / Cubism Native SDK
@@ -44,3 +46,11 @@ mmkv, window_manager, system_tray, path_provider, archive, file_picker, win32,
 ffi, desktop_multi_window, flutter_alone, audioplayers, styled_widget, intl, and
 their transitive dependencies). Each is used under its own license; consult
 `flutter pub deps` and the individual package pages for details.
+
+
+4. Microsoft Visual C++ Redistributable (runtime)
+-------------------------------------------------
+The application and its plugin DLLs are linked against the Visual C++
+Redistributable (`/MD`). The Windows package ships those runtime DLLs app-local
+(vcruntime140*.dll, msvcp140*.dll) so it also runs on machines without the
+redistributable installed; they are Microsoft redistributable components.

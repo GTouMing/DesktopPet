@@ -1,10 +1,10 @@
-package com.desktop_pet.multi_floating_window
+package com.desktop_pet.pet_floating_window
 
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import com.desktop_pet.multi_floating_window.constants.Constants
-import com.desktop_pet.multi_floating_window.manager.OverlayManager
+import com.desktop_pet.pet_floating_window.constants.Constants
+import com.desktop_pet.pet_floating_window.manager.OverlayManager
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -13,11 +13,11 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 
 /**
- * Multi Floating Window Android Plugin
+ * Pet Floating Window Android Plugin
  *
  * 只暴露桌宠悬浮窗真正需要的方法；每只桌宠一个系统悬浮窗。
  */
-class MultiFloatingWindowAndroidPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
+class PetFloatingWindowPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     private lateinit var channel: MethodChannel
     private lateinit var context: Context
     private var activity: Activity? = null

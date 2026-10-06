@@ -1,8 +1,7 @@
 import 'dart:ui';
 
-import 'multi_floating_window_android_platform_interface.dart';
-
 import 'constants.dart';
+import 'pet_floating_window_platform_interface.dart';
 
 /// 悬浮窗触摸标志(与原生 `Constants.kt` 的字符串值一致)。
 enum OverlayFlag {
@@ -33,16 +32,26 @@ class OverlayPosition {
 }
 
 /// 多悬浮窗(Android):每只桌宠一个系统悬浮窗。
-class MultiFloatingWindowAndroid {
+class PetFloatingWindow {
+  /// 主通道名。悬浮窗引擎侧注册 MethodChannel 处理器时使用。
+  static const String channelName = Constants.channelName;
+
+  /// 原生 → 悬浮窗:设置已更新的方法名。
+  static const String settingsUpdatedEvent = Constants.settingsUpdatedEvent;
+
+  /// 原生取屏幕尺寸失败时的兜底值(物理像素)。
+  static const int fallbackScreenWidth = Constants.fallbackScreenWidth;
+  static const int fallbackScreenHeight = Constants.fallbackScreenHeight;
+
   /// 是否已授予悬浮窗权限（"显示在其他应用上层"）。
   static Future<bool> hasPermission() {
-    return MultiFloatingWindowAndroidPlatform.instance.hasPermission();
+    return PetFloatingWindowPlatform.instance.hasPermission();
   }
 
   /// 请求悬浮窗权限：拉起系统设置页并**立刻返回**（用户是否授予无从得知，
   /// 回到前台后由调用方重新检查）。
   static Future<bool> requestPermission() {
-    return MultiFloatingWindowAndroidPlatform.instance.requestPermission();
+    return PetFloatingWindowPlatform.instance.requestPermission();
   }
 
   /// 创建/显示指定 id 的悬浮窗。
@@ -55,7 +64,7 @@ class MultiFloatingWindowAndroid {
     OverlayFlag flag = OverlayFlag.defaultFlag,
     OverlayPosition? startPosition,
   }) {
-    return MultiFloatingWindowAndroidPlatform.instance.showOverlay(
+    return PetFloatingWindowPlatform.instance.showOverlay(
       overlayId: overlayId,
       height: height,
       width: width,
@@ -66,43 +75,40 @@ class MultiFloatingWindowAndroid {
 
   /// 关闭指定悬浮窗。
   static Future<bool> closeOverlay(String overlayId) {
-    return MultiFloatingWindowAndroidPlatform.instance.closeOverlay(overlayId);
+    return PetFloatingWindowPlatform.instance.closeOverlay(overlayId);
   }
 
   /// 指定悬浮窗是否已显示。
   static Future<bool> isOverlayShowing(String overlayId) {
-    return MultiFloatingWindowAndroidPlatform.instance
-        .isOverlayShowing(overlayId);
+    return PetFloatingWindowPlatform.instance.isOverlayShowing(overlayId);
   }
 
   /// 更新触摸标志。
   static Future<bool> updateFlag(String overlayId, OverlayFlag flag) {
-    return MultiFloatingWindowAndroidPlatform.instance
-        .updateFlag(overlayId, flag.name);
+    return PetFloatingWindowPlatform.instance.updateFlag(overlayId, flag.name);
   }
 
   /// 调整悬浮窗尺寸(物理像素)。
   static Future<bool> resizeOverlay(String overlayId, int width, int height) {
-    return MultiFloatingWindowAndroidPlatform.instance
+    return PetFloatingWindowPlatform.instance
         .resizeOverlay(overlayId, width, height);
   }
 
   /// 移动悬浮窗(物理像素)。
   static Future<bool> moveOverlay(String overlayId, OverlayPosition position) {
-    return MultiFloatingWindowAndroidPlatform.instance
+    return PetFloatingWindowPlatform.instance
         .moveOverlay(overlayId, position.toJson());
   }
 
   /// 交给系统拖拽整个悬浮窗,返回的 Future 完成时表示拖拽结束。
   static Future<void> startDragging(String overlayId) async {
-    await MultiFloatingWindowAndroidPlatform.instance.startDragging(overlayId);
+    await PetFloatingWindowPlatform.instance.startDragging(overlayId);
   }
 
   /// 当前悬浮窗位置(物理像素)。
   static Future<OverlayPosition> getOverlayPosition(String overlayId) async {
     final Map<String, dynamic> position =
-        await MultiFloatingWindowAndroidPlatform.instance
-            .getOverlayPosition(overlayId);
+        await PetFloatingWindowPlatform.instance.getOverlayPosition(overlayId);
     return OverlayPosition(
       position[Constants.x] as int? ?? 0,
       position[Constants.y] as int? ?? 0,
@@ -112,7 +118,7 @@ class MultiFloatingWindowAndroid {
   /// 真实屏幕尺寸(物理像素;逻辑换算由 WindowControllerAndroid 处理)。
   static Future<Size> getScreenSize() async {
     final Map<String, dynamic> size =
-        await MultiFloatingWindowAndroidPlatform.instance.getScreenSize();
+        await PetFloatingWindowPlatform.instance.getScreenSize();
     return Size(
       (size['width'] as int? ?? Constants.fallbackScreenWidth).toDouble(),
       (size['height'] as int? ?? Constants.fallbackScreenHeight).toDouble(),
@@ -122,7 +128,7 @@ class MultiFloatingWindowAndroid {
   /// 通知所有悬浮窗刷新设置(主窗口写入 MMKV 后调用)。
   static Future<void> notifySettingsUpdated() async {
     try {
-      await MultiFloatingWindowAndroidPlatform.instance.sendSettingsUpdated();
+      await PetFloatingWindowPlatform.instance.sendSettingsUpdated();
     } catch (_) {}
   }
 }

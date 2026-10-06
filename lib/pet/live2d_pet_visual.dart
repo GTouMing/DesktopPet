@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../petpack/hotkey_action.dart';
+import '../petpack/live2d/l2d_param_group.dart';
 import '../petpack/live2d_pet_pack.dart';
 import '../petpack/state/state_define.dart';
 import 'live2d/live2d_channel.dart';
@@ -56,8 +57,16 @@ class Live2DPetVisual implements PetVisual {
   int? _boxWidthPx;
   int? _boxHeightPx;
 
-  /// 最近一次生效的播放速度（新实例创建后要补发一次）。
-  double _speed = 1.0;
+  /// 清单 `translate` 换算成原生适配单位的偏移（见 [build]）：`1` = 盒子短边的一半。
+  /// 每次 build 刷新，供建会话与预热下发。
+  double _fitOffsetX = 0;
+  double _fitOffsetY = 0;
+
+  /// 最近一次收到的可调参数选择（会话就绪后补发一次）。
+  Map<String, int> _choices = const {};
+
+  /// 动作 `sets` 改动了参数时回调宿主，把新的选择写回 `PetConfig`。
+  void Function(Map<String, int> choices)? onChoicesChanged;
 
   /// Generation counter: each instance gets its own native key so a warm-up does
   /// not disturb the instance still on screen.
@@ -93,18 +102,86 @@ class Live2DPetVisual implements PetVisual {
   }
 
   /// 包级快捷键 → 瞬时动作：直接播动作（可选先设表情），**不改变状态机**。
+  ///
+  /// 见 [HotkeyAction]：`requires` 是门禁（当前参数不满足就忽略），`sets` 会改动
+  /// 参数，`durationMs` 用于**互斥**——一个动作播完才轮得到下一个（后来的覆盖先前的）。
   @override
   void playAction(HotkeyAction action) {
     if (_disposed || _session == null) return;
+    if (!_meetsRequires(action)) {
+      _report('skip "${action.animation}": precondition not met');
+      return;
+    }
     if (_actionTimer != null) {
       _pendingAction = action; // 上一个还没播完：排队，后来的覆盖先前的。
       return;
     }
+    _beginAction(action);
+  }
+
+  /// 真正开始一次动作：先落参数改动，再播动作，并按 [HotkeyAction.durationMs] 排它。
+  void _beginAction(HotkeyAction action) {
+    _applySets(action);
     _startAction(action);
     if (action.durationMs > 0) {
       _actionTimer = Timer(
           Duration(milliseconds: action.durationMs), _onActionFinished);
     }
+  }
+
+  L2dParamGroup? _groupById(String id) {
+    for (final g in _pack.paramGroups) {
+      if (g.id == id) return g;
+    }
+    return null;
+  }
+
+  /// 某组当前选项的 label；bool 组用 `on` / `off`。
+  String _currentLabel(L2dParamGroup group) {
+    var idx = _choices[group.id] ?? group.defaultIndex;
+    if (idx < 0) idx = 0;
+    if (idx >= group.options.length) idx = group.options.length - 1;
+    return group.isBool ? (idx == 1 ? 'on' : 'off') : group.options[idx].label;
+  }
+
+  int _indexOfLabel(L2dParamGroup group, String label) {
+    if (group.isBool) {
+      if (label == 'on') return 1;
+      if (label == 'off') return 0;
+    }
+    for (var i = 0; i < group.options.length; i++) {
+      if (group.options[i].label == label) return i;
+    }
+    return -1;
+  }
+
+  /// 参数前提是否成立（[HotkeyAction.requires]，空 = 无前提）。
+  bool _meetsRequires(HotkeyAction action) {
+    for (final entry in action.requires.entries) {
+      final group = _groupById(entry.key);
+      if (group == null) return false;
+      if (!entry.value.contains(_currentLabel(group))) return false;
+    }
+    return true;
+  }
+
+  /// 动作改动的参数（[HotkeyAction.sets]）：更新选择、下发生效、并回调持久化。
+  void _applySets(HotkeyAction action) {
+    if (action.sets.isEmpty) return;
+    final next = Map<String, int>.of(_choices);
+    var changed = false;
+    for (final entry in action.sets.entries) {
+      final group = _groupById(entry.key);
+      if (group == null) continue;
+      final idx = _indexOfLabel(group, entry.value);
+      if (idx < 0 || next[group.id] == idx) continue;
+      next[group.id] = idx;
+      changed = true;
+    }
+    if (!changed) return;
+    _choices = next;
+    _applyParams();
+    onChoicesChanged?.call(next);
   }
 
   /// "打字反应"：直接改模型参数（按住 1 / 松开 0）。
@@ -114,19 +191,50 @@ class Live2DPetVisual implements PetVisual {
     _session?.setParameter(parameterId, value);
   }
 
-  /// 播放速度：接到原生的动作速度倍数上（物理/眨眼不受影响，与插件语义一致）。
+  /// 应用可调参数组的选择（组 id → 选项下标）：组内互斥、组间叠加。
+  ///
+  /// 对每个组先把**未选中选项**写入的参数复位为 0，再写选中项，切换即复位、多组共存。
   @override
-  void setSpeed(double speed) {
-    if (_disposed) return;
-    _speed = speed;
-    _session?.setMotionSpeed(speed);
+  void applyParams(Map<String, int> choices) {
+    _choices = choices;
+    _applyParams();
+  }
+
+  void _applyParams() {
+    final session = _session;
+    if (session == null || _pack.paramGroups.isEmpty) return;
+    for (final group in _pack.paramGroups) {
+      var idx = _choices[group.id] ?? group.defaultIndex;
+      if (idx < 0) idx = 0;
+      if (idx >= group.options.length) idx = group.options.length - 1;
+      final chosen = group.options[idx].params;
+      // Un-chosen options are undone by restoring the MODEL's default, not by
+      // writing 0: 0 is not the neutral value in general. This pack's base hands
+      // live at `ParamCheek5x = 1`, so writing 0 hid the hands whenever the slot
+      // was left at its "none" default.
+      for (final id in group.allParamIds) {
+        if (!chosen.containsKey(id)) session.resetParameter(id);
+      }
+      chosen.forEach(session.setParameter);
+    }
   }
 
   @override
   Widget build(BuildContext context, Size size, StateDef? stateDef) {
+    // 渲染目标**超采样**：至少 2×、至多 3× 设备像素比。参考实现
+    // （dsh-pet-live2d）就是这么定的（`resolution = clamp(DPR, 2, 3)`）：1× 屏也按
+    // 2× 渲染，再由 Flutter 缩进盒子，宠物缩小时线条才不会糊；极高 DPI 屏封顶 3×，
+    // 免得白白多画。引擎对同一尺寸的纹理不重读描述符，所以这里只影响目标像素数。
     final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
-    final boxWidthPx = math.max(1, (size.width * devicePixelRatio).round());
-    final boxHeightPx = math.max(1, (size.height * devicePixelRatio).round());
+    final renderScale = devicePixelRatio.clamp(2.0, 3.0);
+    final boxWidthPx = math.max(1, (size.width * renderScale).round());
+    final boxHeightPx = math.max(1, (size.height * renderScale).round());
+
+    // 清单的 translate 是**逻辑像素**且 +y 向下；原生适配矩阵的单位是"盒子短边的一半"，
+    // 所以在这里换算（换算结果与 DPR 无关，用物理像素算同一比值）。符号的翻转在原生做。
+    final halfShortSide = math.max(1.0, math.min(boxWidthPx, boxHeightPx) / 2);
+    _fitOffsetX = _pack.translateX * renderScale / halfShortSide;
+    _fitOffsetY = _pack.translateY * renderScale / halfShortSide;
 
     _ensureSession(boxWidthPx, boxHeightPx);
 
@@ -204,6 +312,10 @@ class Live2DPetVisual implements PetVisual {
       modelFileName: _pack.modelFileName,
       widthPx: widthPx,
       heightPx: heightPx,
+      fitScale: _pack.scale,
+      fitOffsetX: _fitOffsetX,
+      fitOffsetY: _fitOffsetY,
+      breathScale: _pack.breathScale,
     );
     if (!warmUp) _creating = false;
     if (_disposed) {
@@ -225,9 +337,9 @@ class Live2DPetVisual implements PetVisual {
 
     _session = session;
     _textureId.value = session.textureId;
-    session.setMotionSpeed(_speed);
     final state = _pendingState ?? _pack.initialState;
     _play(_pack.states[state], state);
+    _applyParams();
   }
 
   /// The warmed instance finished loading: show it and drop the old one. Until
@@ -243,6 +355,7 @@ class Live2DPetVisual implements PetVisual {
     // The new instance is a fresh model: re-apply the current state.
     final state = _pendingState ?? _pack.initialState;
     _play(_pack.states[state], state);
+    _applyParams();
     old?.dispose();
   }
 
