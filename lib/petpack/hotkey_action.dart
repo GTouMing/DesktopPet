@@ -86,7 +86,7 @@ class HotkeyAction {
         expression: (json['expression'] as num?)?.toInt(),
         durationMs: (json['durationMs'] as num?)?.toInt() ?? 0,
         requires: _parseRequires(json['requires']),
-        sets: _parseSets(json['sets']),
+        sets: parseParamSet(json['sets']),
       );
 
   /// `requires`：`{ "<组>": "<label>" | ["<label>", ...] | true/false }`。
@@ -105,23 +105,6 @@ class HotkeyAction {
             if (item is String && item.isNotEmpty) item,
       ];
       if (labels.isNotEmpty) out[id] = labels;
-    }
-    return out;
-  }
-
-  /// `sets`：`{ "<组>": "<label>" }`。
-  static Map<String, String> _parseSets(Object? raw) {
-    if (raw is! Map) return const {};
-    final out = <String, String>{};
-    for (final entry in raw.entries) {
-      final id = entry.key.toString();
-      if (id.isEmpty) continue;
-      final value = entry.value;
-      if (value is String && value.isNotEmpty) {
-        out[id] = value;
-      } else if (value is bool) {
-        out[id] = value ? 'on' : 'off';
-      }
     }
     return out;
   }

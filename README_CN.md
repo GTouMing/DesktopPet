@@ -150,7 +150,7 @@ lib/
 
 ## 宠物包（Pet Pack）
 
-一个宠物包是一个目录，包含一份清单 **`pet.json`** 与资源。
+一个宠物包是一个目录，包含一份清单 **`pet.json`** 与资源；Live2D 包还可带一份可调参数的 **`params.json`**（见「可调参数」）。
 
 - **内置宠物包**位于 `assets/default_pet_pack/`。
 - **导入的宠物包**默认解压到 `<应用文档目录>/imported_pet_packs/<petId>/`；若设置了自定义宠物包目录，则解压到 `<宠物包目录>/<petId>/`。
@@ -170,11 +170,12 @@ lib/
 | `scale`                      | （Live2D）自动适配之上**再乘**的缩放（默认 `1`，需 `> 0` 且 `<= 10`）：作者用它一次把构图定死，比让适配器猜稳 |
 | `translate`                  | （Live2D）模型中心相对盒子中心的偏移 `{ "x": 0, "y": 0 }`，单位**逻辑像素**，`+x` 向右、`+y` 向下 |
 | `breath`                     | （Live2D）待机呼吸幅度（默认 `1`）：引擎固定喂 Cubism 标准呼吸，这里只能**调低**（`0` = 不呼吸）。摆动量本应由模型物理决定，作者用这个开关适配自己的模型 |
-| `states`                     | 状态定义：引用动画/动作组 + 行为 + 变换表达式 + 迁移规则                                                     |
+| `states`                     | 状态定义：引用动画/动作组 + 行为 + 变换表达式 + 迁移规则（可选 `bubble` 引用聊天气泡）                       |
 | `hotkeys`                    | 包级快捷键 → 动作（**不经状态机**，见下节）：`{ "<id>": { key, modifiers?, animation?, motionIndex?, motionPriority?, expression?, durationMs? } }` |
 | `keyParams`                  | "打字反应"（仅 Live2D）：`{ "<键名>": "<模型参数 id>" }`，按住键把参数置 1、松开置 0 |
 | `mouseParams`                | 鼠标反馈（仅 Live2D）：`{ left?, right?, smooth? }`——跟随参数/幅度读自模型，这里只留无法从模型得知的鼠标按键与缓动；见「鼠标反馈」 |
-| `params`                     | 可调槽位组（仅 Live2D）：`{ "<槽位>": { label?, type?, default?, params? \| offParams? \| options? } }`，在编辑宠物时可调；见「可调参数」 |
+| `params`                     | 可调槽位组（仅 Live2D）：**已拆到包根的 `params.json`**，不在清单里；见「可调参数」 |
+| `bubbles`                    | 聊天气泡命名池：`{ "<key>": { text?, image?, durationMs?, placement?, maxWidth? } }`，由状态的 `bubble` 字段按 key 引用、或 `PetNotifier.showBubble` 按 key 显示；见「聊天气泡」 |
 
 状态定义示例：
 
@@ -202,6 +203,11 @@ lib/
 }
 ```
 
+Live2D 状态还可用 `params` 携带一组**槽位选择**（`{ "<槽位id>": "<选项label>" }`，与
+`hotkeys[].sets` 同写法，bool 槽位写 `on` / `off`）：进入该状态即把槽位切到这些选项，
+随后照常播 `animation`。它是一层**运行时覆盖**，压在编辑页里的用户选择之上，离开状态
+即恢复、不写回设置；精灵图忽略。参数驱动的状态可省略 `animation`。
+
 #### 触发器（trigger）
 
 | 触发器                                     | 触发时机                                      |
@@ -214,6 +220,13 @@ lib/
 | `waitTimer`                                | 固定延时（`afterMs`）后触发                   |
 | `hotkey`                                   | 全局快捷键（`key` + `modifiers`）             |
 | `complete`                                 | 单次（非循环）动画播放完毕                    |
+| `time`                                     | 到点触发：当天时刻 `at`（`HH:MM:SS`，可多个），每个每天一次 |
+| `hold`                                     | 长按触发：按住桌宠 `holdMs` 毫秒（与 `click` 互斥）|
+
+`time` 与 `hold` 既可写标量（`"09:00:00"` / `500`），也可写对象（`{ "at": "09:00:00" }` /
+`{ "holdMs": 500 }`）。`time` 的 `at` 还可给**一串时刻**（`["09:00:00", "14:00:00"]`），
+每个时刻每天各触发一次：已过的顺延到明天，正好到点立即触发（范围 `00:00:00`–`23:59:59`）；
+`hold` 每次按下触发一次；格式或范围非法的时刻被忽略。
 
 #### 行为（behavior）
 
@@ -267,13 +280,13 @@ lib/
 
 > 包级动作目前只由 Live2D 渲染器实现，精灵图渲染器忽略。
 
-### 可调参数（`params`，槽位）
+### 可调参数（`params.json`，槽位）
 
-顶层 `params` 声明**互斥的槽位组**（仅 Live2D）。每组是编辑宠物时的一个控件：**组内**只能选一个
+包根的 **`params.json`** 声明**互斥的槽位组**（仅 Live2D）——原先是清单顶层 `params`，为了清单简洁已拆成独立文件（内容就是这个对象）。每组是编辑宠物时的一个控件：**组内**只能选一个
 选项、**组间**可同时生效；选项直接写模型参数：
 
 ```json
-"params": {
+{
   "glasses": {
     "label": "眼镜", "default": "无",
     "options": [
@@ -339,7 +352,46 @@ X/Y 两个滑杆再乘一道强度（`0`–`2`，默认 `1`，`0` 关闭跟随�
 > 轴向参数都带这个字母标记，小写不算），逐个指定轴（不跟随 / X / Y / XY，默认按标准集预填）；
 > 不配置则用自动标准集。想整体调弱调强用同一页的「鼠标跟随」X/Y 滑杆——都不必改宠物包。
 
-### Live2D 宠物包
+### 聊天气泡（`bubbles`）
+
+顶层 `bubbles` 是一个**命名池**：key → 一条矩形气泡内容，可渲染**文本**和/或**图片**，
+依附单只桌宠、随其移动。
+
+```json
+"bubbles": {
+  "greeting": { "text": "你好呀～", "durationMs": 4000, "placement": "auto" },
+  "wave":     { "image": "bubble/wave.png", "durationMs": 3000 },
+  "tip":      { "text": "记得喝水", "image": "bubble/water.png", "durationMs": 0, "maxWidth": 220 }
+}
+```
+
+| 字段          | 说明                                                                                     |
+|---------------|------------------------------------------------------------------------------------------|
+| `text`        | 文本内容                                                                                 |
+| `image`       | 图片路径，**相对宠物包根目录**（asset 包拼成 asset 键、文件系统包拼成绝对路径，与精灵图帧同一口径） |
+| `durationMs`  | 显示时长（毫秒）：缺省用默认 `4000`；`0` = **粘滞**（驻留到被替换 / 隐藏 / 状态切换）；`> 0` = 到点自动消失 |
+| `placement`   | 相对桌宠的摆放：`auto`（默认，优先上方、放不下自动翻到下方）/ `top` / `bottom` / `left` / `right` |
+| `maxWidth`    | 气泡宽度上限（逻辑像素，默认 `260`）                                                     |
+
+两种触发方式（同一只桌宠同时只显示一个气泡，新的顶掉旧的）：
+
+- **状态机**：在某状态的 `states.<name>` 里写 `"bubble": "<key>"`，进入该状态即显示。
+  新状态没有气泡时会**收掉状态驱动的气泡**，但**保留** API 主动显示的气泡。
+- **API**：`ref.read(petStateProvider(id).notifier).showBubble(key: 'greeting')` 按 key 引用，
+  或用内联参数直接给内容（内联字段逐项覆盖命名池条目）：
+
+  ```dart
+  notifier.showBubble(text: '新消息');                        // 纯文本
+  notifier.showBubble(image: 'bubble/a.png', durationMs: 0);   // 图片、粘滞
+  notifier.showBubble(key: 'greeting', text: '改成这句');       // 引用条目但改文本
+  notifier.hideBubble();                                       // 手动收起
+  ```
+
+气泡**纯展示**、不接收点击（Windows 悬浮窗整窗穿透，本就收不到指针事件），靠 `durationMs`
+计时器、状态切换或 `hideBubble()` 关闭。窗口铺排：Windows 画在悬浮窗场景里（随桌宠行走 /
+拖拽移动），Android 画在该桌宠的悬浮窗内——显示气泡时窗口在桌宠上方临时预留一段高度，
+隐藏即收回。
+
 
 - 目录里放置 `.model3.json` 及其引用的 `.moc3` / 贴图 / 动作；**`.model3.json` 必须在包根目录**（放到子目录会被拒绝），这样包目录即模型目录，模型内部的相对引用才能对上。
 - 状态机与精灵图共用：`state.animation` 被当作**动作组名**（`startMotion`）。

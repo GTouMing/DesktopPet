@@ -2,12 +2,12 @@
 ///
 /// 为什么需要它：本应用原先把表情交给 Cubism 表达式管理器（一次只生效一个），
 /// 而很多模型（如 ds-whale-girl）的表情是按"每个表情只驱动自己的专属参数、可叠加"
-/// 设计的（眼镜 + 情绪 + 配件本应同时存在）。于是改用参数覆盖：清单按**组**声明
+/// 设计的（眼镜 + 情绪 + 配件本应同时存在）。于是改用参数覆盖：包按**组**声明
 /// 互斥选项，用户逐组选择，不同组叠加生效、组内自动互斥。
 ///
-/// 清单格式（`pet.json` 顶层 `params`）：
+/// 文件格式（包根的 `params.json`，内容就是这个对象）：
 /// ```json
-/// "params": {
+/// {
 ///   "glasses": {
 ///     "label": "眼镜", "default": "无",
 ///     "options": [
@@ -68,6 +68,32 @@ class L2dParamGroup {
   /// 组内互斥才成立。
   Set<String> get allParamIds =>
       {for (final o in options) ...o.params.keys};
+
+  /// 选项 label → 下标；bool 组用 `on` / `off`；找不到返回 `-1`。
+  int indexOfLabel(String label) {
+    if (isBool) {
+      if (label == 'on') return 1;
+      if (label == 'off') return 0;
+    }
+    for (var i = 0; i < options.length; i++) {
+      if (options[i].label == label) return i;
+    }
+    return -1;
+  }
+
+  /// 该组当前生效的选项下标：状态携带的 [overlay]（按 label）覆盖用户选择
+  /// [base]（按下标），都没有则用组默认；结果一定落在 `[0, options.length)`。
+  int effectiveIndex(Map<String, int> base, Map<String, String> overlay) {
+    final label = overlay[id];
+    if (label != null) {
+      final i = indexOfLabel(label);
+      if (i >= 0) return i;
+    }
+    final i = base[id] ?? defaultIndex;
+    if (i < 0) return 0;
+    if (i >= options.length) return options.length - 1;
+    return i;
+  }
 
   /// 解析清单里的 `params`（map），跳过无法识别的组。
   static List<L2dParamGroup> parse(Object? raw) {

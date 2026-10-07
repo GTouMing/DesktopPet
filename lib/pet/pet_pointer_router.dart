@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
 
-import '../core/constants.dart';
 import '../core/overlay_controller.dart';
 import '../input/input.dart';
 import '../pet/pet_notifier.dart';
@@ -75,6 +74,8 @@ class PetPointerRouter {
     _grabOffset = hitPosition == null ? null : hitPosition - scenePos;
     _downPos = scenePos;
     _dragging = false;
+    // 按下即开始长按计时（当前状态声明了 hold 迁移才会真的起表）。
+    if (hit != null) resolve(hit)?.onPressStart();
   }
 
   void _onMove(Offset scenePos) {
@@ -104,7 +105,8 @@ class PetPointerRouter {
       if (_dragging) {
         unawaited(notifier.onDragEnd());
       } else {
-        notifier.onEvent(Trigger.click);
+        // 交给 notifier 定夺：长按已触发就不再算点击，否则照旧算一次点击。
+        notifier.onPressEnd();
       }
     }
     _reset();

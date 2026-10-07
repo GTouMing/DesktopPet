@@ -59,6 +59,20 @@ const int quickLaunchSweepMs = 280;
 /// 收起动画：总半径逐帧收缩的时长（毫秒）。
 const int quickLaunchCollapseMs = 200;
 
+// ── 聊天气泡 ─────────────────────────────────────────────────────────
+
+/// 气泡默认显示时长（毫秒）；`0` = 粘滞（驻留到被替换 / 隐藏 / 状态切换）。
+const int chatBubbleDefaultDurationMs = 4000;
+/// 气泡与桌宠之间的间隙（逻辑像素）。
+const double chatBubbleGap = 8.0;
+/// 气泡宽度上限（逻辑像素）。
+const double chatBubbleMaxWidth = 260.0;
+/// 气泡距容器边缘的最小留白（逻辑像素）。
+const double chatBubbleScreenMargin = 8.0;
+/// Android：显示气泡时为悬浮窗在桌宠**上方**预留的高度（逻辑像素），隐藏即收回，
+/// 不留长期透明死区（见 `PetNotifier._applyBubbleHeadroom`）。
+const double chatBubbleAndroidHeadroom = 180.0;
+
 // ── 语言 ─────────────────────────────────────────────────────────────
 
 /// 跟随系统语言。
@@ -80,4 +94,10 @@ class Trigger {
   static const String moveLeft = 'moveLeft';
   static const String moveRight = 'moveRight';
   static const String hotkey = 'hotkey';
+
+  /// 到点触发：规则里给当天时刻（`HH:MM:SS`），每天触发一次。
+  static const String time = 'time';
+
+  /// 长按触发：规则里给按住时长（毫秒），按住桌宠到点触发。
+  static const String hold = 'hold';
 }

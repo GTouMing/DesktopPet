@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+import 'chat_bubble_payload.dart';
+
 /// 桌宠运行时瞬间快照。
 ///
 /// ## 字段说明
@@ -36,6 +38,10 @@ class PetState {
   /// 渲染器、按新包重建视图（精灵图 ↔ Live2D 也走这条路径）。
   final int packGeneration;
 
+  /// 当前显示的聊天气泡；null = 不显示。由 `PetNotifier.showBubble` /
+  /// 状态机的 `StateDef.bubble` 设置，宿主 `ChatBubbleLayer` 消费。
+  final ChatBubblePayload? bubble;
+
   const PetState({
     this.currentState = '',
     this.position = Offset.zero,
@@ -48,6 +54,7 @@ class PetState {
     this.finalPetSize = Size.zero,
     this.basePetSize,
     this.packGeneration = 0,
+    this.bubble,
   });
 
   PetState copyWith({
@@ -63,6 +70,8 @@ class PetState {
     Size? finalPetSize,
     Size? basePetSize,
     int? packGeneration,
+    ChatBubblePayload? bubble,
+    bool clearBubble = false,
   }) {
     return PetState(
       currentState: currentState ?? this.currentState,
@@ -76,6 +85,7 @@ class PetState {
       finalPetSize: finalPetSize ?? this.finalPetSize,
       basePetSize: basePetSize ?? this.basePetSize,
       packGeneration: packGeneration ?? this.packGeneration,
+      bubble: clearBubble ? null : (bubble ?? this.bubble),
     );
   }
 }

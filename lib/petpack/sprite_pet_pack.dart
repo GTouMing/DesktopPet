@@ -20,6 +20,7 @@ class SpritePetPack extends PetPack {
     super.hotkeys,
     super.keyParams,
     super.mouseParams,
+    super.bubbles,
   }) : super(type: PetPackType.sprite);
 
   /// 动画名 → 动画定义。
@@ -69,6 +70,7 @@ class SpritePetPack extends PetPack {
       hotkeys: parsePetPackHotkeys(json),
       keyParams: parsePetPackKeyParams(json),
       mouseParams: parsePetPackMouseParams(json),
+      bubbles: parsePetPackBubbles(json),
     );
   }
 }

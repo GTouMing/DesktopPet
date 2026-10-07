@@ -22,6 +22,15 @@ constexpr int kMinTarget = 16;
 constexpr int kMaxTarget = 4096;
 constexpr int kRetireFrames = 60;
 
+/// Symmetric overscan around the pet's display box. The render target is
+/// `box * (1 + 2*kOverscan)`; `RenderFrame`'s projection maps the (frozen)
+/// resting box to the central `box` region, so props/poses that reach past the
+/// box render into the margin instead of being clipped - and the pet's on-screen
+/// size never changes. Dart presents the texture at this same scale, centred and
+/// overflowing the pet's box, so BOTH SIDES MUST AGREE (see `kLive2dOverscan` in
+/// `lib/pet/live2d_pet_visual.dart`).
+constexpr float kOverscan = 0.25f;
+
 bool TraceEnabled() {
   static const bool enabled = []() {
     const char* value = std::getenv("PET_LIVE2D_TRACE");
@@ -255,12 +264,12 @@ std::shared_ptr<Live2DInstance::RenderTarget> Live2DInstance::target() const {
 
 int Live2DInstance::width() const {
   std::lock_guard<std::mutex> lock(target_mutex_);
-  return target_width_;
+  return box_width_;
 }
 
 int Live2DInstance::height() const {
   std::lock_guard<std::mutex> lock(target_mutex_);
-  return target_height_;
+  return box_height_;
 }
 
 void Live2DInstance::SetBoxSize(int width, int height) {
@@ -277,14 +286,15 @@ void Live2DInstance::SetBoxSize(int width, int height) {
     target_h = target_height_;
   }
 
-  // The render target is EXACTLY the widget's pixel size (1:1). That is the
-  // invariant the vendored plugin kept, and it is what makes resizing crop-free:
-  // the engine never has to scale this texture at all. Any headroom here (a
-  // larger target, rounded up) leaves the engine scaling it, and the leftover
-  // gets clipped by the pet's box - which is exactly what "cropped instead of
-  // scaled" was.
-  const int wanted_w = box_w;
-  const int wanted_h = box_h;
+  // The render target is the display box PLUS a symmetric overscan margin (see
+  // kOverscan). The pet is scaled to the box - not the whole target - so the
+  // pet keeps its size and the margin is free space for artwork that reaches
+  // past the box, which is rendered instead of clipped.
+  const float padded = 1.0f + 2.0f * kOverscan;
+  const int wanted_w = std::clamp(
+      static_cast<int>(box_w * padded + 0.5f), kMinTarget, kMaxTarget);
+  const int wanted_h = std::clamp(
+      static_cast<int>(box_h * padded + 0.5f), kMinTarget, kMaxTarget);
   if (wanted_w == target_w && wanted_h == target_h) return;
 
   auto replacement = CreateRenderTarget(wanted_w, wanted_h);
@@ -506,14 +516,21 @@ bool Live2DInstance::RenderFrame(float delta_time) {
         model_->FitToView(width, height);
       }
 
+      // Map view units to the display BOX, not the whole (overscanned) target:
+      // pixel-per-view-unit = min(box)/2, so the frozen resting silhouette keeps
+      // its size and the overscan margin stays free for revealed artwork. The
+      // margin is symmetric, so the box is centred and no Translate is needed.
+      const float padded = 1.0f + 2.0f * kOverscan;
       Csm::CubismMatrix44 projection;
       projection.LoadIdentity();
       if (width > height) {
-        projection.Scale(static_cast<float>(height) / static_cast<float>(width),
-                         1.0f);
+        projection.Scale(static_cast<float>(height) /
+                             (static_cast<float>(width) * padded),
+                         1.0f / padded);
       } else {
-        projection.Scale(1.0f,
-                         static_cast<float>(width) / static_cast<float>(height));
+        projection.Scale(1.0f / padded,
+                         static_cast<float>(width) /
+                             (static_cast<float>(height) * padded));
       }
       model_->Draw(projection);
       renderer->EndFrame();

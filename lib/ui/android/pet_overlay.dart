@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pet_floating_window/pet_floating_window.dart';
+import '../../chat_bubble/chat_bubble_layer.dart';
 import '../../core/constants.dart';
 import '../../pet/pet_notifier.dart';
 import '../../pet/pet_widget.dart';
@@ -66,16 +67,41 @@ class _AndroidOverlayEntryState extends ConsumerState<AndroidPetOverlay>
     // 信号（见 [_setupSettingsHandler]），真正的刷新在这里统一发生。
     ref.listen(appDataProvider, (_, _) => _notifier.refreshSettings());
 
+    // 显示气泡时窗口会在上方预留 [chatBubbleAndroidHeadroom]，桌宠因此画在窗口底部。
+    final petState = ref.watch(petStateProvider(_petId));
+    final size = petState.finalPetSize;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       resizeToAvoidBottomInset: false,
       body: ExcludeSemantics(
-        child: GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onTap: () => _notifier.onEvent(Trigger.click),
-          // Android 的拖拽交给原生：系统移动整个悬浮窗，松手后回读位置。
-          onPanStart: (_) => _notifier.startWindowDrag(),
-          child: PetWidget(petId: _petId),
+        child: Stack(
+          children: [
+            Align(
+              alignment: Alignment.bottomCenter,
+              // 只包住桌宠：预留区不驱动桌宠交互（点击/长按/拖拽）。
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                // 按下/松开/取消走 notifier：长按（hold 迁移）与点击互斥。
+                onTapDown: (_) => _notifier.onPressStart(),
+                onTapUp: (_) => _notifier.onPressEnd(),
+                onTapCancel: _notifier.onPressCancel,
+                // Android 的拖拽交给原生：系统移动整个悬浮窗，松手后回读位置。
+                onPanStart: (_) => _notifier.startWindowDrag(),
+                child: PetWidget(petId: _petId),
+              ),
+            ),
+            ChatBubbleLayer(
+              petId: _petId,
+              // 窗口局部坐标：桌宠在预留区之下。
+              petRect: Rect.fromLTWH(
+                0,
+                chatBubbleAndroidHeadroom,
+                size.width,
+                size.height,
+              ),
+            ),
+          ],
         ),
       ),
     );

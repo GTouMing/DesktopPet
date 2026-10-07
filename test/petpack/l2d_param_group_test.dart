@@ -94,6 +94,35 @@ void main() {
     expect(ear.allParamIds, {'Param23'});
   });
 
+  test('effectiveIndex：状态覆盖按 label，覆盖不到用用户选择，再退回默认', () {
+    final groups = L2dParamGroup.parse({
+      'expression': {
+        'label': '表情',
+        'default': '默认',
+        'options': [
+          {'label': '默认'},
+          {'label': '昏迷', 'params': {'Param10': 1}},
+          {'label': '放松', 'params': {'Param11': 1}},
+        ],
+      },
+      'ear': {'label': '猫耳', 'type': 'bool', 'default': false, 'params': {'Param23': 1}},
+    });
+    final expr = groups[0];
+    final ear = groups[1];
+
+    expect(expr.effectiveIndex(const {}, const {}), 0); // 默认
+    expect(expr.effectiveIndex({'expression': 2}, const {}), 2); // 用户选择
+    expect(expr.effectiveIndex({'expression': 2}, {'expression': '昏迷'}), 1); // 状态优先
+    expect(expr.effectiveIndex({'expression': 2}, {'expression': '不存在'}), 2); // 解析不了→用户
+    expect(expr.effectiveIndex({'expression': 99}, const {}), 2); // 越界收敛
+
+    expect(ear.indexOfLabel('on'), 1);
+    expect(ear.indexOfLabel('off'), 0);
+    expect(ear.indexOfLabel('bogus'), -1);
+    expect(ear.effectiveIndex(const {}, {'ear': 'on'}), 1);
+    expect(ear.effectiveIndex(const {}, {'ear': 'off'}), 0);
+  });
+
   test('跳过无法识别的组', () {
     final groups = L2dParamGroup.parse({
       'empty_options': {'options': []},

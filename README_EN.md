@@ -150,7 +150,7 @@ lib/
 
 ## Pet Packs
 
-A pet pack is a directory containing a manifest — **`pet.json`** — plus assets.
+A pet pack is a directory containing a manifest — **`pet.json`** — plus assets; a Live2D pack may also carry a **`params.json`** for tunable parameters (see "Tunable Parameters").
 
 - The **built-in pet pack** lives in `assets/default_pet_pack/`.
 - **Imported packs** are extracted to `<app documents>/imported_pet_packs/<petId>/` by default, or to `<packDir>/<petId>/` when a custom pet pack directory is configured.
@@ -170,11 +170,12 @@ A pet pack is a directory containing a manifest — **`pet.json`** — plus asse
 | `scale`                      | (live2d) Scale multiplied **on top of** the automatic fit (default `1`; must be `> 0` and `<= 10`) — lets an author fix the framing instead of leaving it to the fitter |
 | `translate`                  | (live2d) Offset of the model centre from the box centre: `{ "x": 0, "y": 0 }` in **logical pixels**, `+x` right, `+y` down   |
 | `breath`                     | (live2d) Idle-breath amplitude (default `1`): the engine always feeds the standard Cubism breath, and this can only **lower** it (`0` = no breathing). A model's sway is meant to come from its own physics; authors use this to adapt theirs |
-| `states`                     | State definitions: reference an animation/motion group + optional behavior + transform expressions + transitions             |
+| `states`                     | State definitions: reference an animation/motion group + optional behavior + transform expressions + transitions (optional `bubble` references a chat bubble) |
 | `hotkeys`                    | Pack-level hotkey → action (**bypasses the state machine**, see below): `{ "<id>": { key, modifiers?, animation?, motionIndex?, motionPriority?, expression?, durationMs? } }` |
 | `keyParams`                  | Typing reaction (Live2D only): `{ "<key>": "<model parameter id>" }` — holding the key sets the parameter to 1, releasing to 0 |
 | `mouseParams`                | Mouse feedback (Live2D only): `{ left?, right?, smooth? }` — the follow parameters/magnitudes come from the model; only buttons and easing (not derivable from the model) stay here; see "Mouse Feedback" |
-| `params`                     | Tunable slot groups (Live2D only): `{ "<slot>": { label?, type?, default?, params? \| offParams? \| options? } }` — adjusted in the pet editor; see "Tunable Parameters" |
+| `params`                     | Tunable slot groups (Live2D only): **moved out of the manifest into a pack-root `params.json`**; see "Tunable Parameters" |
+| `bubbles`                    | Chat-bubble pool: `{ "<key>": { text?, image?, durationMs?, placement?, maxWidth? } }` — shown by a state's `bubble` field or by `PetNotifier.showBubble` (both reference a key); see "Chat Bubbles" |
 
 Example state definition:
 
@@ -202,6 +203,13 @@ Example state definition:
 }
 ```
 
+A Live2D state may also carry a **slot selection** via `params`
+(`{ "<slot id>": "<option label>" }`, same shape as `hotkeys[].sets`, bool slots use
+`on` / `off`): entering the state switches those slots, then `animation` plays as usual.
+It is a **runtime overlay** on top of the choices made in the pet editor — it reverts when
+the state is left and is never written back; the sprite renderer ignores it. A param-driven
+state may omit `animation`.
+
 #### Triggers
 
 | Trigger                                    | Fires when                                                                 |
@@ -214,6 +222,14 @@ Example state definition:
 | `waitTimer`                                | Fixed delay (`afterMs`) elapses                                            |
 | `hotkey`                                   | Global hotkey pressed (`key` + `modifiers`)                                |
 | `complete`                                 | A one-shot (non-looping) animation finishes                                |
+| `time`                                     | Wall-clock time `at` (`HH:MM:SS`, one or many) is reached — each once a day |
+| `hold`                                     | The pet is held for `holdMs` ms (mutually exclusive with `click`)          |
+
+`time` and `hold` accept either a scalar (`"09:00:00"` / `500`) or an object
+(`{ "at": "09:00:00" }` / `{ "holdMs": 500 }`). `at` may also be a **list of times**
+(`["09:00:00", "14:00:00"]`); each fires once a day (a time already passed rolls over to
+tomorrow; range `00:00:00`–`23:59:59`). `hold` fires once per press; a malformed or
+out-of-range time is ignored.
 
 #### Behaviors
 
@@ -273,14 +289,16 @@ Windows-only, and the key is **not swallowed** (other apps still receive it).
 
 > Pack-level actions are currently implemented by the Live2D renderer only; the sprite renderer ignores them.
 
-### Tunable Parameters (`params`) — slots
+### Tunable Parameters (`params.json`) — slots
 
-The top-level `params` map declares **mutually-exclusive slot groups** (Live2D only). Each group is
-one control in the pet editor; **within** a group exactly one option is active, **across** groups
-several can be active at once. Options write model parameters directly:
+A pack-root **`params.json`** declares **mutually-exclusive slot groups** (Live2D only) — this used to
+be the manifest's top-level `params` and was split into its own file to keep the manifest lean (the
+file's content is that object). Each group is one control in the pet editor; **within** a group
+exactly one option is active, **across** groups several can be active at once. Options write model
+parameters directly:
 
 ```json
-"params": {
+{
   "glasses": {
     "label": "Glasses", "default": "None",
     "options": [
@@ -358,7 +376,48 @@ Only what cannot be derived from the model stays in the manifest:
 > leave it untouched to keep the automatic set. Use the same page's "mouse follow" X/Y sliders to make
 > it weaker or stronger overall — no need to touch the pack.
 
-### Live2D Pet Packs
+### Chat Bubbles (`bubbles`)
+
+The top-level `bubbles` is a **named pool**: key → one rectangular bubble that renders
+**text** and/or an **image**, attached to a single pet and following it around.
+
+```json
+"bubbles": {
+  "greeting": { "text": "Hi there~", "durationMs": 4000, "placement": "auto" },
+  "wave":     { "image": "bubble/wave.png", "durationMs": 3000 },
+  "tip":      { "text": "Drink some water", "image": "bubble/water.png", "durationMs": 0, "maxWidth": 220 }
+}
+```
+
+| Field         | Description                                                                                       |
+|---------------|---------------------------------------------------------------------------------------------------|
+| `text`        | Text content                                                                                      |
+| `image`       | Image path **relative to the pack root** (asset packs join it into an asset key, filesystem packs into an absolute path — same rule as sprite frames) |
+| `durationMs`  | Display time in ms: omitted = default `4000`; `0` = **sticky** (stays until replaced / hidden / state change); `> 0` = auto-dismiss |
+| `placement`   | Position relative to the pet: `auto` (default — prefer above, flip below when there is no room) / `top` / `bottom` / `left` / `right` |
+| `maxWidth`    | Bubble max width in logical pixels (default `260`)                                                |
+
+Two ways to trigger it (a pet shows at most one bubble at a time; a new one replaces the old):
+
+- **State machine**: put `"bubble": "<key>"` on a state in `states.<name>` to show it on entering
+  that state. When the next state has no bubble, a **state-driven bubble is dismissed**, while a
+  bubble shown via the API is **kept**.
+- **API**: `ref.read(petStateProvider(id).notifier).showBubble(key: 'greeting')` references the
+  pool by key, or pass inline fields (inline fields override the pool entry field by field):
+
+  ```dart
+  notifier.showBubble(text: 'New message');                  // text only
+  notifier.showBubble(image: 'bubble/a.png', durationMs: 0);  // image, sticky
+  notifier.showBubble(key: 'greeting', text: 'change it');    // reference a key but change the text
+  notifier.hideBubble();                                      // dismiss manually
+  ```
+
+A bubble is **display-only** and does not receive clicks (the Windows overlay window is entirely
+click-through and receives no pointer events); it closes via its `durationMs` timer, a state change,
+or `hideBubble()`. Placement: on Windows it is drawn in the overlay scene (so it follows the pet as
+it walks / is dragged); on Android it is drawn inside that pet's floating window — while a bubble is
+shown the window temporarily reserves some height above the pet and reclaims it on hide.
+
 
 - Put the `.model3.json` along with the `.moc3` / textures / motions it references in the directory. The **`.model3.json` must be at the pack root** (a subdirectory is rejected) so the pack directory is the model directory and the model's internal relative references resolve.
 - The state machine is shared with sprites: `state.animation` is treated as a **motion group name** (`startMotion`).

@@ -32,8 +32,19 @@ class WindowControllerAndroid implements WindowController {
       // ignore: prefer_initializing_formals (公开命名参数 overlayId)
       : _overlayId = overlayId;
 
+  /// 聊天气泡的预留高度（逻辑像素）：窗口高度 +h、纵坐标 -h，桌宠可视位置不变。
+  ///
+  /// 由 `PetNotifier._applyBubbleHeadroom` 设置；设置后调用方会重新下发尺寸与位置，
+  /// 这里只存值并在 [setSize]/[setPosition]/[getPosition] 的换算里带上它。
+  double _headroom = 0;
+
   @override
   double get devicePixelRatio => currentDevicePixelRatio;
+
+  @override
+  void setHeadroom(double logical) {
+    _headroom = logical;
+  }
 
   // ─── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -50,7 +61,7 @@ class WindowControllerAndroid implements WindowController {
       logical = const Size(defaultPetSize, defaultPetSize);
     } else {
       final scale = finalScaleOf(settings.baseScale, pet.scaleMultiplier);
-      logical = Size(pet.width * scale, pet.height * scale);
+      logical = Size(pet.width * scale, pet.height * scale + _headroom);
     }
     final physical = logicalToPhysicalSize(logical);
     try {
@@ -81,7 +92,11 @@ class WindowControllerAndroid implements WindowController {
       final overlayPosition =
           await PetFloatingWindow.getOverlayPosition(_overlayId);
       final dpr = currentDevicePixelRatio;
-      return Offset(overlayPosition.x / dpr, overlayPosition.y / dpr);
+      // 回读的是窗口位置；减去预留高度还原成桌宠位置（拖拽收敛依赖这个语义）。
+      return Offset(
+        overlayPosition.x / dpr,
+        overlayPosition.y / dpr + _headroom,
+      );
     } catch (e) {
       return Offset.zero;
     }
@@ -89,7 +104,8 @@ class WindowControllerAndroid implements WindowController {
 
   @override
   Future<void> setPosition(Offset pos) async {
-    final physical = logicalToPhysicalOffset(pos);
+    // 窗口上移预留高度，让桌宠落在窗口底部、屏幕上位置不变。
+    final physical = logicalToPhysicalOffset(pos - Offset(0, _headroom));
     PetFloatingWindow.moveOverlay(
       _overlayId,
       OverlayPosition(physical.dx.round(), physical.dy.round()),
@@ -103,7 +119,9 @@ class WindowControllerAndroid implements WindowController {
 
   @override
   Future<void> setSize(Size size) async {
-    final physical = logicalToPhysicalSize(size);
+    // 高度加上预留（气泡区），宽度不变。
+    final physical = logicalToPhysicalSize(
+        Size(size.width, size.height + _headroom));
     await PetFloatingWindow.resizeOverlay(
         _overlayId, physical.width.round(), physical.height.round());
   }

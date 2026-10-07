@@ -26,6 +26,14 @@ import 'pet_visual.dart';
 ///
 /// 会话在**首次 `build`** 时创建：那里才知道宠物盒子的真实尺寸，渲染目标可以
 /// 一次就按正确尺寸分配（避免启动时多一次重注册）。
+///
+/// 渲染目标带**对称外扩余量**：原生按 `盒子 × (1 + 2×kLive2dOverscan)` 分配，
+/// 再把模型缩放到**中间的盒子**（宠物像素尺寸不变），余量用来容纳露到盒外的
+/// 道具/动作姿势，于是它们**被渲染而不是被裁**（见 `live2d_instance.cpp` 的
+/// `kOverscan`）。这边把含余量的整张纹理按同一比例、居中**溢出**盒子显示
+/// （[OverflowBox]，不缩放映射），而不是压进盒子——两者必须一致。
+const double kLive2dOverscan = 0.25;
+
 class Live2DPetVisual implements PetVisual {
   Live2DPetVisual({
     required this.petId,
@@ -63,8 +71,12 @@ class Live2DPetVisual implements PetVisual {
   double _fitOffsetX = 0;
   double _fitOffsetY = 0;
 
-  /// 最近一次收到的可调参数选择（会话就绪后补发一次）。
-  Map<String, int> _choices = const {};
+  /// 用户在编辑页选的槽位（组 id → 选项下标）；来自 `PetConfig.paramChoices`。
+  Map<String, int> _baseChoices = const {};
+
+  /// 当前状态携带的参数集（组 id → 选项 label，见 `StateDef.params`）：一层
+  /// **运行时覆盖**，压在 [_baseChoices] 之上；进入新状态即替换，离开即恢复。
+  Map<String, String> _stateParams = const {};
 
   /// 动作 `sets` 改动了参数时回调宿主，把新的选择写回 `PetConfig`。
   void Function(Map<String, int> choices)? onChoicesChanged;
@@ -105,7 +117,9 @@ class Live2DPetVisual implements PetVisual {
     if (_disposed) return;
     _pendingState = stateName;
     if (_session == null) return; // 会话就绪时会补播 _pendingState。
+    _setStateParams(stateDef);
     _play(stateDef, stateName);
+    _applyParams();
   }
 
   /// 包级快捷键 → 瞬时动作：直接播动作（可选先设表情），**不改变状态机**。
@@ -145,21 +159,8 @@ class Live2DPetVisual implements PetVisual {
 
   /// 某组当前选项的 label；bool 组用 `on` / `off`。
   String _currentLabel(L2dParamGroup group) {
-    var idx = _choices[group.id] ?? group.defaultIndex;
-    if (idx < 0) idx = 0;
-    if (idx >= group.options.length) idx = group.options.length - 1;
+    final idx = group.effectiveIndex(_baseChoices, _stateParams);
     return group.isBool ? (idx == 1 ? 'on' : 'off') : group.options[idx].label;
-  }
-
-  int _indexOfLabel(L2dParamGroup group, String label) {
-    if (group.isBool) {
-      if (label == 'on') return 1;
-      if (label == 'off') return 0;
-    }
-    for (var i = 0; i < group.options.length; i++) {
-      if (group.options[i].label == label) return i;
-    }
-    return -1;
   }
 
   /// 参数前提是否成立（[HotkeyAction.requires]，空 = 无前提）。
@@ -172,21 +173,21 @@ class Live2DPetVisual implements PetVisual {
     return true;
   }
 
-  /// 动作改动的参数（[HotkeyAction.sets]）：更新选择、下发生效、并回调持久化。
+  /// 动作改动的参数（[HotkeyAction.sets]）：更新用户选择、下发生效、并回调持久化。
   void _applySets(HotkeyAction action) {
     if (action.sets.isEmpty) return;
-    final next = Map<String, int>.of(_choices);
+    final next = Map<String, int>.of(_baseChoices);
     var changed = false;
     for (final entry in action.sets.entries) {
       final group = _groupById(entry.key);
       if (group == null) continue;
-      final idx = _indexOfLabel(group, entry.value);
+      final idx = group.indexOfLabel(entry.value);
       if (idx < 0 || next[group.id] == idx) continue;
       next[group.id] = idx;
       changed = true;
     }
     if (!changed) return;
-    _choices = next;
+    _baseChoices = next;
     _applyParams();
     onChoicesChanged?.call(next);
   }
@@ -198,22 +199,23 @@ class Live2DPetVisual implements PetVisual {
     _session?.setParameter(parameterId, value);
   }
 
-  /// 应用可调参数组的选择（组 id → 选项下标）：组内互斥、组间叠加。
-  ///
-  /// 对每个组先把**未选中选项**写入的参数复位为 0，再写选中项，切换即复位、多组共存。
+  /// 应用用户在该桌宠设置里的槽位选择（组 id → 选项下标）。
   @override
   void applyParams(Map<String, int> choices) {
-    _choices = choices;
+    _baseChoices = choices;
     _applyParams();
+  }
+
+  /// 记下当前状态携带的参数集（运行时覆盖层），下一次 [_applyParams] 生效。
+  void _setStateParams(StateDef? stateDef) {
+    _stateParams = stateDef?.params ?? const {};
   }
 
   void _applyParams() {
     final session = _session;
     if (session == null || _pack.paramGroups.isEmpty) return;
     for (final group in _pack.paramGroups) {
-      var idx = _choices[group.id] ?? group.defaultIndex;
-      if (idx < 0) idx = 0;
-      if (idx >= group.options.length) idx = group.options.length - 1;
+      final idx = group.effectiveIndex(_baseChoices, _stateParams);
       final chosen = group.options[idx].params;
       // Un-chosen options are undone by restoring the MODEL's default, not by
       // writing 0: 0 is not the neutral value in general. This pack's base hands
@@ -249,10 +251,24 @@ class Live2DPetVisual implements PetVisual {
       valueListenable: _textureId,
       builder: (context, textureId, _) {
         if (textureId == null) return const SizedBox.shrink();
+        // 纹理带外扩余量，按同一比例居中铺开、溢出盒子（不缩放映射）：这样
+        // 宠物的像素尺寸不变，露到盒外的道具也画得出来（由 OverflowBox 的
+        // Clip.none 保证不被裁）。
         return SizedBox(
           width: size.width,
           height: size.height,
-          child: Texture(textureId: textureId),
+          child: OverflowBox(
+            alignment: Alignment.center,
+            minWidth: 0,
+            maxWidth: double.infinity,
+            minHeight: 0,
+            maxHeight: double.infinity,
+            child: SizedBox(
+              width: size.width * (1 + 2 * kLive2dOverscan),
+              height: size.height * (1 + 2 * kLive2dOverscan),
+              child: Texture(textureId: textureId),
+            ),
+          ),
         );
       },
     );
@@ -349,7 +365,9 @@ class Live2DPetVisual implements PetVisual {
     _emitModelParameters(session);
     _pollReady(session, warmUp: false);
     final state = _pendingState ?? _pack.initialState;
-    _play(_pack.states[state], state);
+    final def = _pack.states[state];
+    _setStateParams(def);
+    _play(def, state);
     _applyParams();
   }
 
@@ -366,7 +384,9 @@ class Live2DPetVisual implements PetVisual {
     _emitModelParameters(warm);
     // The new instance is a fresh model: re-apply the current state.
     final state = _pendingState ?? _pack.initialState;
-    _play(_pack.states[state], state);
+    final def = _pack.states[state];
+    _setStateParams(def);
+    _play(def, state);
     _applyParams();
     old?.dispose();
   }

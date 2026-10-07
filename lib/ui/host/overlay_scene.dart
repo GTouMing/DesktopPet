@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../chat_bubble/chat_bubble_layer.dart';
 import '../../core/device.dart';
 import '../../core/hit_shape.dart';
 import '../../core/overlay_controller.dart';
@@ -135,6 +136,7 @@ class _OverlaySceneState extends ConsumerState<OverlayScene>
     final scene = OverlayController.sceneBounds.value;
 
     final children = <Widget>[];
+    final bubbles = <Widget>[];
     final pets = <PetHit>[];
 
     for (final pet in data.pets) {
@@ -142,15 +144,24 @@ class _OverlaySceneState extends ConsumerState<OverlayScene>
       final petState = ref.watch(petStateProvider(pet.id));
       // 宠物包未就绪时还没有可渲染的尺寸，先不登记（否则会声明一块空的抓取区）。
       if (petState.finalPetSize.isEmpty) continue;
+      final rect = petState.position & petState.finalPetSize;
       pets.add((
         id: pet.id,
-        rect: petState.position & petState.finalPetSize,
+        rect: rect,
         locked: pet.isLocked,
         // v1：整矩形命中。Live2D 的逐格命中留待后续填入（预留 payload）。
         shape: const HitShape.rect(),
       ));
       children.add(PetView(key: ValueKey(pet.id), petId: pet.id));
+      bubbles.add(ChatBubbleLayer(
+        key: ValueKey('bubble-${pet.id}'),
+        petId: pet.id,
+        petRect: rect,
+      ));
     }
+
+    // 气泡画在所有桌宠之上、环形菜单之下。
+    children.addAll(bubbles);
 
     // 环形菜单画在所有桌宠之上（与改造前 ring 窗口始终浮在桌宠窗口之上一致）。
     //

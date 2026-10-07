@@ -42,6 +42,8 @@ class Live2DInstance {
 
   bool ok() const { return texture_id_.load() >= 0 && target() != nullptr; }
   int64_t texture_id() const { return texture_id_.load(); }
+  /// The pet's display box in physical pixels (NOT the render target, which is
+  /// larger by the overscan margin - see SetBoxSize). Used for instance reuse.
   int width() const;
   int height() const;
 

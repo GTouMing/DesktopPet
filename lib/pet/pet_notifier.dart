@@ -10,12 +10,14 @@ import '../core/constants.dart';
 import '../core/overlay_controller.dart';
 import '../input/input.dart';
 import '../petpack/audio/audio_service.dart';
+import '../petpack/chat_bubble_content.dart';
 import '../petpack/hotkey_action.dart';
 import '../petpack/mouse_params.dart';
 import '../petpack/pet_pack.dart';
 import '../storage/models/pet_config.dart';
 import '../storage/storage_service.dart';
 import 'behavior_engine.dart';
+import 'chat_bubble_payload.dart';
 import 'live2d/mouse_follow.dart';
 import 'live2d/model_parameter.dart';
 import 'pet_context.dart';
@@ -124,6 +126,25 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
   /// 当前状态最短 delay 的 timer。
   Timer? _stateTimer;
 
+  /// 当前状态下"下一个 `time` 时刻"的 timer（见 [PetPack.findNextTimeAt]）。
+  Timer? _timeTimer;
+
+  /// 长按判定 timer：在桌宠上按下后按时长起（见 [onPressStart]）。
+  Timer? _holdTimer;
+
+  /// 本次按下是否已被长按触发（触发了就不再算点击）。
+  bool _holdFired = false;
+
+  /// 聊天气泡自动消失计时器；粘滞气泡（`durationMs == 0`）为 null。
+  Timer? _bubbleTimer;
+
+  /// 气泡序号：每次显示自增，让宿主重播入场动画（见 [ChatBubblePayload.seq]）。
+  int _bubbleSeq = 0;
+
+  /// 当前气泡是否由状态机（`StateDef.bubble`）触发：状态切换时据此决定是否收回，
+  /// 以免把 API 主动显示的气泡一并顶掉。
+  bool _bubbleOwnedByState = false;
+
   /// 行为循环定时器（moveToTarget/moveAroundEdge 状态下每 behaviorTickMs 触发一次移动刻）。
   Timer? _behaviorTimer;
 
@@ -141,8 +162,11 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
     if (oldValue.currentState != value.currentState) {
       _cancelStateTimer();
       _checkStateTimer();
+      _cancelTimeTimer();
+      _checkTimeTimer();
       _checkBehaviorTimer();
       _playStateAudio(value.currentState);
+      _checkStateBubble(value.currentState);
     }
   }
 
@@ -241,6 +265,8 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
       currentAnim: '',
       packError: '',
       packGeneration: state.packGeneration + 1,
+      // 换了包，命名池与其内容一并作废，先收起当前气泡。
+      clearBubble: true,
     );
     await hotkey.bind(
       pack: pack,
@@ -550,6 +576,26 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
     _stateTimer = null;
   }
 
+  /// 扫描当前状态的 `time` 迁移，算出"下一个时刻"并起一个定时器。
+  ///
+  /// 与 [_checkStateTimer] 不同：那是相对延时（`limitTimer`/`waitTimer`），这里按
+  /// **当天时刻**（`HH:MM:SS`）触发、每天一次。
+  void _checkTimeTimer() {
+    final (Duration? delay, String? target) =
+        pack.findNextTimeAt(state.currentState, DateTime.now());
+    if (target == null || delay == null) return;
+    _timeTimer = Timer(delay, () {
+      _timeTimer = null;
+      state = state.copyWith(
+          currentState: target, lastInteractionTime: DateTime.now());
+    });
+  }
+
+  void _cancelTimeTimer() {
+    _timeTimer?.cancel();
+    _timeTimer = null;
+  }
+
   void _cancelBehaviorTimer() {
     _behaviorTimer?.cancel();
     _behaviorTimer = null;
@@ -597,7 +643,55 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
 
   // ── 交互事件 ──────────────────────────────────────────────────────────
 
+  /// 指针在桌宠上按下：若当前状态声明了 `hold` 迁移，按住其时长后触发长按。
+  ///
+  /// 长按与点击互斥：到点触发后本次松开不再算点击（见 [onPressEnd]）；中途开始拖拽
+  /// 则由 [onDragStart] 取消。
+  void onPressStart() {
+    _cancelHoldTimer();
+    _holdFired = false;
+    if (!_packReady) return;
+    final def = _pack?.states[state.currentState];
+    if (def == null) return;
+    int? holdMs;
+    for (final rules in def.transitions.values) {
+      final ms = rules[Trigger.hold]?.holdMs;
+      if (ms != null) {
+        holdMs = ms;
+        break;
+      }
+    }
+    if (holdMs == null || holdMs <= 0) return;
+    _holdTimer = Timer(Duration(milliseconds: holdMs), () {
+      _holdTimer = null;
+      _holdFired = true;
+      onEvent(Trigger.hold);
+    });
+  }
+
+  /// 指针松开：长按已触发就吞掉这次点击，否则照旧当作一次点击。
+  void onPressEnd() {
+    _cancelHoldTimer();
+    if (_holdFired) {
+      _holdFired = false;
+      return;
+    }
+    onEvent(Trigger.click);
+  }
+
+  /// 指针取消（手势被拖拽等抢占）：只撤销长按计时，不算点击。
+  void onPressCancel() {
+    _cancelHoldTimer();
+    _holdFired = false;
+  }
+
+  void _cancelHoldTimer() {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+  }
+
   void onDragStart() {
+    _cancelHoldTimer();
     if (!state.isDragging) {
       onEvent(Trigger.drag);
       state = state.copyWith(isDragging: true);
@@ -644,6 +738,89 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
         currentState: next, lastInteractionTime: DateTime.now());
   }
 
+  // ── 聊天气泡 ──────────────────────────────────────────────────────────
+
+  /// 显示一个聊天气泡（模块 API）。
+  ///
+  /// [key] 指向宠物包顶层的 `bubbles` 命名池；内联参数逐项覆盖该条目。两者都没有
+  /// 可显示内容时等价于 [hideBubble]。同一只桌宠同时只显示一个气泡——新的顶掉旧的。
+  ///
+  /// 时长取 `durationMs ?? 宠物包条目 ?? chatBubbleDefaultDurationMs`；`0` 表示粘滞。
+  void showBubble({
+    String? key,
+    String? text,
+    String? image,
+    int? durationMs,
+    BubblePlacement? placement,
+    double? maxWidth,
+  }) {
+    if (!_packReady) return;
+    final base = key != null ? pack.bubbles[key] : null;
+    final content = (base ?? const ChatBubbleContent()).copyWith(
+      text: text,
+      image: image,
+      durationMs: durationMs,
+      placement: placement,
+      maxWidth: maxWidth,
+    );
+    if (content.isEmpty) {
+      hideBubble();
+      return;
+    }
+    _showBubble(content, ownedByState: false);
+  }
+
+  /// 隐藏当前气泡（模块 API）。
+  void hideBubble() {
+    _bubbleTimer?.cancel();
+    _bubbleTimer = null;
+    _bubbleOwnedByState = false;
+    if (state.bubble == null) return;
+    state = state.copyWith(clearBubble: true);
+    _applyBubbleHeadroom();
+  }
+
+  /// 写入气泡状态、按内容时长重置自动消失计时器、同步 Android 窗口预留。
+  void _showBubble(ChatBubbleContent content, {required bool ownedByState}) {
+    _bubbleTimer?.cancel();
+    _bubbleTimer = null;
+    _bubbleOwnedByState = ownedByState;
+    _bubbleSeq++;
+    state = state.copyWith(
+        bubble: ChatBubblePayload(content: content, seq: _bubbleSeq));
+
+    final ms = content.durationMs ?? chatBubbleDefaultDurationMs;
+    if (ms > 0) _bubbleTimer = Timer(Duration(milliseconds: ms), hideBubble);
+
+    _applyBubbleHeadroom();
+  }
+
+  /// 状态机联动：进入新状态时显示该状态 `bubble` 字段引用的气泡。
+  ///
+  /// 新状态没有气泡时，只收掉"状态驱动的"气泡；API 主动显示的气泡保留（除非被新的
+  /// 状态气泡顶掉）。
+  void _checkStateBubble(String stateName) {
+    if (!_packReady) return;
+    final key = pack.states[stateName]?.bubble;
+    final content = (key == null || key.isEmpty) ? null : pack.bubbles[key];
+    if (content != null && !content.isEmpty) {
+      _showBubble(content, ownedByState: true);
+      return;
+    }
+    if (_bubbleOwnedByState) hideBubble();
+  }
+
+  /// 气泡显隐 → Android 悬浮窗的顶部预留高度。
+  ///
+  /// 窗口高度 +headroom、纵坐标 -headroom，桌宠可视位置不变；隐藏即收回，不留长期
+  /// 透明死区。Windows 无窗口（[PetWindowBinding.isAttached] 为假），直接跳过。
+  void _applyBubbleHeadroom() {
+    if (!_window.isAttached) return;
+    _window.setHeadroom(state.bubble == null ? 0 : chatBubbleAndroidHeadroom);
+    unawaited(_applyScale());
+    unawaited(_window.setPosition(state.position));
+  }
+
   /// 把落点收敛到场景内，保证桌宠整体可见（贴边时不越界）。
   Offset _clampToScene(Offset position) {
     final scene = screenSize;
@@ -665,7 +842,10 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
   @override
   void dispose() {
     _cancelStateTimer();
+    _cancelTimeTimer();
+    _cancelHoldTimer();
     _cancelBehaviorTimer();
+    _bubbleTimer?.cancel();
     _teardownMouseParams();
     hotkey.dispose();
     _audio.dispose();

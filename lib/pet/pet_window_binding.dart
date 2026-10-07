@@ -39,6 +39,11 @@ class PetWindowBinding {
 
   Future<void> setSize(Size size) async => _window?.setSize(size);
 
+  /// 聊天气泡的预留高度（逻辑像素）。Windows 无窗口，整体退化为空操作。
+  Future<void> setHeadroom(double logical) async {
+    _window?.setHeadroom(logical);
+  }
+
   void setPositionSync(Offset position) => _window?.setPositionSync(position);
 
   Future<void> setPosition(Offset position) async =>

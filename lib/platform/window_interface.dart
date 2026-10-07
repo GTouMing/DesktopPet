@@ -21,6 +21,12 @@ abstract class WindowController {
   Future<void> setSize(Size size);
   Future<Size> getScreenSize();
 
+  /// 聊天气泡的预留高度（逻辑像素，仅在桌宠**上方**预留）。
+  ///
+  /// 窗口高度 +h、纵坐标 -h，使桌宠在屏幕上的可视位置保持不变；0 = 不预留（收回）。
+  /// 只影响窗口几何，重下发尺寸/位置由调用方（`PetNotifier._applyBubbleHeadroom`）负责。
+  void setHeadroom(double logical);
+
   /// 设备像素比，用于逻辑/物理像素转换。
   ///
   /// Android 原生悬浮窗用物理像素，而 Flutter 侧一律用逻辑像素，故调用侧需据此
