@@ -8,14 +8,19 @@ import 'package:flutter/material.dart';
 /// 环形菜单的纯粉色主色。
 const Color _ringPink = Color(0xFFFF69B4);
 
+/// 整圈张角(2π):可用弧缺省即整圈。
+const double ringFullSpan = 2 * math.pi;
+
 /// 环形菜单面板的数据与几何(单点真相,纯函数可单测)。
 ///
-/// 几何(均以**悬浮窗内容坐标**表示):
+/// 几何(均以**场景坐标**表示,见 `ui/host/scene_geometry.dart`):
 /// - 环心 [centerInWindow] = 目标桌宠中心;
 /// - [totalRadius] 总半径(粉色带外缘);
-/// - [solidRadius] 外接圆半径(纯粉带内缘),再向内按二次函数渐隐至透明。
+/// - [solidRadius] 外接圆半径(纯粉带内缘),再向内按二次函数渐隐至透明;
+/// - [startAngle]/[spanAngle] = 本次实际使用的**可用弧**:贴边时只占朝向屏内的
+///   那一段(见 [ringFittingArc]),整圈可用时即 `(0, 2π)`。
 class RingPayload {
-  /// 环心(窗口内容坐标)。
+  /// 环心(场景坐标)。
   final Offset centerInWindow;
 
   /// 总半径:粉色带外缘。
@@ -24,18 +29,23 @@ class RingPayload {
   /// 外接圆半径:纯粉带内缘;由此向内二次渐隐至透明。
   final double solidRadius;
 
-  /// 展示的快捷项(最多 8 个)。
+  /// 可用弧的起始角(弧度)。整圈可用时为 0。
+  final double startAngle;
+
+  /// 可用弧的张角(弧度)。整圈可用时为 [ringFullSpan]。
+  final double spanAngle;
+
+  /// 展示的快捷项(最多 [quickLaunchMaxItems] 个)。
   final List<AppShortcut> items;
 
   const RingPayload({
     this.centerInWindow = Offset.zero,
     this.totalRadius = quickLaunchMinRadius,
     required this.solidRadius,
+    this.startAngle = 0,
+    this.spanAngle = ringFullSpan,
     required this.items,
   });
-
-  /// 8 槽固定角布局的最大槽数。
-  static const int maxSlots = 8;
 }
 
 /// 当前呈现中的环形菜单（null = 未呈现）。
@@ -85,22 +95,134 @@ double ringTotalRadius(Size petSize) {
   );
 }
 
-/// 第 [index]/[count] 个扇区的角度:边界处各截断
-/// [quickLaunchSectorGapDeg] / 2,合计留出 5° 间隔区分触发区。
+/// 每项两侧各截断的间隔(弧度)。
+///
+/// 弧紧到单项跨度容不下间隔时不留间隔(否则 sweep 会变成负数)。
+double _insetFor(double step) {
+  final gap = quickLaunchSectorGapDeg * math.pi / 180;
+  return step > 2 * gap ? gap / 2 : 0.0;
+}
+
+/// 第 [index]/[count] 个扇区的角度。
+///
+/// 默认铺满整圈;贴边时 [startAngle]/[spanAngle] 给出可用的那段弧,各项在弧内
+/// 平分。边界处各截断 [quickLaunchSectorGapDeg] / 2(合计 5°) 区分触发区。
 ({double start, double sweep}) ringSectorAngles({
   required int index,
   required int count,
+  double startAngle = 0,
+  double spanAngle = ringFullSpan,
 }) {
   assert(count > 0, 'count must be positive');
-  final step = 2 * math.pi / count;
-  final gap = quickLaunchSectorGapDeg * math.pi / 180;
-  return (start: index * step + gap / 2, sweep: step - gap);
+  final step = spanAngle / count;
+  final inset = _insetFor(step);
+  return (start: startAngle + index * step + inset, sweep: step - 2 * inset);
 }
 
-/// 命中断言测试: [contentPoint] 为悬浮窗内容坐标(光标 − 悬浮窗原点)。
+/// 贴边时的**可用弧**:半径不变时环能完整落屏的那段连续角度区间。
 ///
-/// 仅纯粉带(外接圆半径 ~ 总半径)参与命中;返回命中的槽位 `0..items.length-1`,
-/// 未命中/间隔区/越界返回 null。
+/// 判据(充要):环形扇区 `[a,b] × [solidRadius, totalRadius]` 的包围盒 ⊆ [scene]
+/// ——矩形包含一个集合,等价于包含它的包围盒。
+///
+/// 以 [scanDeg] 为步长逐格判定,取**最长连续可行段**;按圆周处理(允许跨 0°):
+/// 否则贴左边界时可行段会被 0° 切成两半、只能取到一半弧。
+///
+/// 返回:
+/// - 整圈都可行 → `(0, 2π)`,与不贴边时的行为逐值一致;
+/// - 可行弧窄于 `count × [minItemDeg]` → `null`,由调用方退回"整圈 + 等比缩小"。
+({double start, double span})? ringFittingArc({
+  required Offset center,
+  required Rect scene,
+  required double solidRadius,
+  required double totalRadius,
+  required int count,
+  double minItemDeg = quickLaunchMinItemDeg,
+  double scanDeg = quickLaunchArcScanDeg,
+}) {
+  if (count <= 0 || scene.isEmpty || totalRadius <= 0) return null;
+
+  final step = scanDeg * math.pi / 180;
+  if (step <= 0) return null;
+  final cells = (2 * math.pi / step).round();
+  if (cells <= 0) return null;
+
+  const eps = 1e-6;
+  final ok = List<bool>.filled(cells, false);
+  for (var i = 0; i < cells; i++) {
+    final a = i * step;
+    // _arcBounds 以原点为心,必须平移到环心才是扇区在场景里的包围盒。
+    final box = _arcBounds(totalRadius, a, a + step)
+        .expandToInclude(_arcBounds(solidRadius, a, a + step))
+        .shift(center);
+    ok[i] = box.left >= scene.left - eps &&
+        box.top >= scene.top - eps &&
+        box.right <= scene.right + eps &&
+        box.bottom <= scene.bottom + eps;
+  }
+
+  // 整圈都可行。
+  var anchor = -1;
+  for (var i = 0; i < cells; i++) {
+    if (!ok[i]) {
+      anchor = i;
+      break;
+    }
+  }
+  if (anchor < 0) return (start: 0.0, span: ringFullSpan);
+
+  // 从不可行格的下一个开始绕行一圈,记录最长连续可行段。
+  var bestStart = -1;
+  var bestLen = 0;
+  var runStart = -1;
+  var runLen = 0;
+  for (var k = 1; k <= cells; k++) {
+    final i = (anchor + k) % cells;
+    if (ok[i]) {
+      if (runLen == 0) runStart = i;
+      runLen++;
+      if (runLen > bestLen) {
+        bestLen = runLen;
+        bestStart = runStart;
+      }
+    } else {
+      runLen = 0;
+    }
+  }
+  if (bestLen == 0) return null;
+
+  final span = bestLen * step;
+  if (span < count * minItemDeg * math.pi / 180) return null;
+  return (start: bestStart * step, span: span);
+}
+
+/// 半径 [radius] 的圆弧在角度区间 `[a,b]` 上的包围盒。
+///
+/// 极值出现在两端点,以及区间内的 0°/90°/180°/270° 轴交点。
+Rect _arcBounds(double radius, double a, double b) {
+  final ca = math.cos(a);
+  final sa = math.sin(a);
+  final cb = math.cos(b);
+  final sb = math.sin(b);
+  var minX = math.min(ca, cb) * radius;
+  var maxX = math.max(ca, cb) * radius;
+  var minY = math.min(sa, sb) * radius;
+  var maxY = math.max(sa, sb) * radius;
+  for (var k = 0; k < 4; k++) {
+    final axis = k * math.pi / 2;
+    if (axis > a && axis < b) {
+      minX = math.min(minX, math.cos(axis) * radius);
+      maxX = math.max(maxX, math.cos(axis) * radius);
+      minY = math.min(minY, math.sin(axis) * radius);
+      maxY = math.max(maxY, math.sin(axis) * radius);
+    }
+  }
+  return Rect.fromLTRB(minX, minY, maxX, maxY);
+}
+
+/// 命中断言测试: [contentPoint] 为场景坐标(与 [RingPayload.centerInWindow] 同一坐标系)。
+///
+/// 仅纯粉带(外接圆半径 ~ 总半径)且落在**可用弧内**才算命中;返回命中的槽位
+/// `0..items.length-1`,未命中/间隔区/弧外/越界返回 null。
 int? hitRingSector({
   required Offset contentPoint,
   required RingPayload payload,
@@ -115,15 +237,17 @@ int? hitRingSector({
   }
 
   final count = items.length;
-  final step = 2 * math.pi / count;
-  final gap = quickLaunchSectorGapDeg * math.pi / 180;
-  final sweep = step - gap;
+  final step = payload.spanAngle / count;
+  final inset = _insetFor(step);
+  final sweep = step - 2 * inset;
 
-  var angle = math.atan2(local.dy, local.dx);
-  if (angle < 0) angle += 2 * math.pi;
+  // 相对可用弧起点的角度(0 ~ 2π);弧外不命中。
+  var angle = math.atan2(local.dy, local.dx) - payload.startAngle;
+  angle %= 2 * math.pi;
+  if (angle > payload.spanAngle) return null;
 
-  // 去掉起始偏移后落在第几个扇区、是否处于截断间隔内。
-  final offset = angle - gap / 2;
+  // 去掉起始间隔后落在第几个扇区、是否处于截断间隔内。
+  final offset = angle - inset;
   if (offset < 0) return null;
   final index = (offset / step).floor();
   if (index >= count) return null;
@@ -152,7 +276,7 @@ Path buildRingSectorPath({
 /// 环形菜单绘制器。
 ///
 /// - [radiusFactor]: 1 = 展开态;收起时逐帧减小 → 所有扇形向内收缩;
-/// - [revealProgress]: 0..1 顺时针扫开的进度(0 = 未展开);
+/// - [revealProgress]: 0..1 沿可用弧顺时针扫开的进度(0 = 未展开);
 /// - [lineProgress]: 0..1 引导线长度系数;
 /// - [lineAngle]: 引导线角度(弧度)——扫开阶段随前沿一起旋转;
 /// - [lineOpacity]: 引导线透明度。
@@ -192,9 +316,16 @@ class RingMenuPainter extends CustomPainter {
       ..shader = shader
       ..isAntiAlias = true;
 
-    final revealAngle = revealProgress * 2 * math.pi;
+    final start = payload.startAngle;
+    final span = payload.spanAngle;
+    final revealAngle = start + revealProgress * span;
     for (var i = 0; i < count; i++) {
-      final angles = ringSectorAngles(index: i, count: count);
+      final angles = ringSectorAngles(
+        index: i,
+        count: count,
+        startAngle: start,
+        spanAngle: span,
+      );
       final visible =
           (revealAngle - angles.start).clamp(0.0, angles.sweep).toDouble();
       if (visible <= 0) continue;
@@ -233,7 +364,12 @@ class RingMenuPainter extends CustomPainter {
     final band = total - solid;
     if (band <= 0) return;
 
-    final angles = ringSectorAngles(index: index, count: payload.items.length);
+    final angles = ringSectorAngles(
+      index: index,
+      count: payload.items.length,
+      startAngle: payload.startAngle,
+      spanAngle: payload.spanAngle,
+    );
     final midAngle = angles.start + angles.sweep / 2;
     final radius = solid + band / 2;
     final position = center +

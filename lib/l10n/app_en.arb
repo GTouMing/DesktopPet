@@ -2,7 +2,7 @@
   "@@locale": "en",
   "appName": "Desktop Pet",
   "cancel": "Cancel",
-  "confirm": "OK",
+  "dismiss": "Dismiss",
   "delete": "Delete",
   "retry": "Retry",
   "save": "Save",
@@ -17,18 +17,8 @@
   "sectionQuickLaunch": "Launch shortcuts",
   "sectionAbout": "About",
   "sectionLanguage": "Language",
-  "globalOpacity": "Global opacity — {percent}%",
-  "@globalOpacity": {
-    "placeholders": {
-      "percent": { "type": "int" }
-    }
-  },
-  "globalScale": "Global scale — {scale}x",
-  "@globalScale": {
-    "placeholders": {
-      "scale": { "type": "String" }
-    }
-  },
+  "globalOpacityLabel": "Global opacity",
+  "globalScaleLabel": "Global scale",
   "scaleLimitExceeded": "Global scale cannot exceed {limit}x",
   "@scaleLimitExceeded": {
     "placeholders": {
@@ -74,22 +64,32 @@
   "shown": "Visible",
   "hidden": "Hidden",
   "deletePetTitle": "Delete pet",
-  "deletePetBody": "Delete \"{name}\"?\n\nScale: {scale}%\nOpacity: {opacity}%",
+  "deletePetBody": "Delete \"{name}\"?\n\nScale: {scale}x\nOpacity: {opacity}%",
   "@deletePetBody": {
     "placeholders": {
       "name": { "type": "String" },
-      "scale": { "type": "int" },
+      "scale": { "type": "String" },
       "opacity": { "type": "int" }
     }
   },
   "keepOnePet": "Keep at least one pet",
   "editPet": "Edit pet",
+  "unsavedChanges": "You have unsaved changes",
+  "discardChanges": "Discard changes",
   "preview": "Preview",
   "name": "Name",
   "nameHint": "Enter pet name",
   "scaleMultiplier": "Scale multiplier",
   "opacityMultiplier": "Opacity multiplier",
   "l2dParamsSection": "Parameters",
+  "mouseFollowSection": "Mouse follow",
+  "mouseFollowX": "Horizontally",
+  "mouseFollowY": "Vertically",
+  "mouseFollowParamsSection": "Cursor-follow parameters",
+  "mouseFollowNone": "Don't follow",
+  "mouseFollowAxisX": "X",
+  "mouseFollowAxisY": "Y",
+  "mouseFollowAxisXY": "XY",
   "petPack": "Pet pack",
   "useGlobalPetPack": "Use pet pack from global settings",
   "importZipPetPack": "Import ZIP pet pack",
@@ -111,6 +111,7 @@
   "loadPetPacksFailed": "Failed to load pet packs",
   "noPetPacksFound": "No pet packs found",
   "noPetPacksFoundHint": "No valid pet pack (with pet.json) in this directory",
+  "loadingPetPacks": "Reading pet packs",
   "petPackSourceImported": "Source: imported pet pack",
   "petPackSourceDir": "Directory: {path}",
   "@petPackSourceDir": {
@@ -128,6 +129,7 @@
   "pathLabel": "Executable path",
   "pathHint": "e.g. C:\\Windows\\notepad.exe",
   "browseFile": "Browse file",
+  "requiredField": "Required",
   "hotkeyTitle": "Set shortcut",
   "hotkeyPlaceholder": "(tap a button below to choose)",
   "modifiersLabel": "Modifiers (multi-select)",

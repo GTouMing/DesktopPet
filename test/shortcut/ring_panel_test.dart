@@ -18,6 +18,30 @@ Offset _polar(Offset center, double degrees, double radius) {
   return center + Offset(radius * math.cos(rad), radius * math.sin(rad));
 }
 
+/// 采样扇区边界(两侧直边 + 内外弧),断言全部落在 [scene] 内。
+///
+/// 与实现里的包围盒判据是**两条独立路径**,避免"用实现验证实现"。
+void _expectSectorInside(
+  Rect scene,
+  Offset center,
+  double solidRadius,
+  double totalRadius,
+  ({double start, double sweep}) angles,
+) {
+  final safe = scene.inflate(1e-6);
+  for (var k = 0; k <= 32; k++) {
+    final a = angles.start + angles.sweep * k / 32;
+    for (final r in [solidRadius, totalRadius]) {
+      final p = center + Offset(r * math.cos(a), r * math.sin(a));
+      expect(
+        safe.contains(p),
+        isTrue,
+        reason: '越界点 $p(角度 ${(a * 180 / math.pi).toStringAsFixed(1)}°, 半径 $r)',
+      );
+    }
+  }
+}
+
 void main() {
   group('ringTotalRadius', () {
     test('一般尺寸: 外接圆半径 + 边长/2', () {
@@ -131,6 +155,210 @@ void main() {
     test('空 items: 不命中', () {
       final p = payload(0);
       expect(hitRingSector(contentPoint: p.centerInWindow + const Offset(150, 0), payload: p), isNull);
+    });
+  });
+
+  group('ringFittingArc', () {
+    const scene = Rect.fromLTWH(0, 0, 1920, 1080);
+    const petSize = Size(200, 200);
+    final solid = ringSolidRadius(petSize);
+    final total = ringTotalRadius(petSize);
+
+    /// 逐项断言 8 个扇区都完整落屏。
+    void expectAllSectorsInside(Offset center, ({double start, double span}) arc) {
+      for (var i = 0; i < 8; i++) {
+        _expectSectorInside(
+          scene,
+          center,
+          solid,
+          total,
+          ringSectorAngles(
+            index: i,
+            count: 8,
+            startAngle: arc.start,
+            spanAngle: arc.span,
+          ),
+        );
+      }
+    }
+
+    test('居中: 整圈可用 → (0, 2π)', () {
+      final arc = ringFittingArc(
+        center: const Offset(960, 540),
+        scene: scene,
+        solidRadius: solid,
+        totalRadius: total,
+        count: 8,
+      );
+      expect(arc, isNotNull);
+      expect(arc!.start, 0);
+      expect(arc.span, closeTo(ringFullSpan, 1e-9));
+    });
+
+    test('贴左边界: 弧避开屏幕外方向, 且每个扇区都落屏', () {
+      const center = Offset(60, 540);
+      final arc = ringFittingArc(
+        center: center,
+        scene: scene,
+        solidRadius: solid,
+        totalRadius: total,
+        count: 8,
+      );
+      expect(arc, isNotNull);
+      expect(arc!.span, lessThan(ringFullSpan));
+
+      // 正左方(180°)在屏幕外,不能落在可用弧内。
+      final startDeg = arc.start * 180 / math.pi;
+      final spanDeg = arc.span * 180 / math.pi;
+      expect((180 - startDeg) % 360, greaterThan(spanDeg));
+
+      expectAllSectorsInside(center, arc);
+    });
+
+    test('贴左上角: 弧约占一圈的四分之一, 且每个扇区都落屏', () {
+      const center = Offset(60, 60);
+      final arc = ringFittingArc(
+        center: center,
+        scene: scene,
+        solidRadius: solid,
+        totalRadius: total,
+        count: 8,
+      );
+      expect(arc, isNotNull);
+      final spanDeg = arc!.span * 180 / math.pi;
+      expect(spanDeg, greaterThan(80));
+      expect(spanDeg, lessThan(180));
+
+      expectAllSectorsInside(center, arc);
+    });
+
+    test('可用弧窄到点不中 → null(退回整圈);项数少时仍可用', () {
+      // 环带几乎顶到四边:只有四条对角线附近各约 46° 可用 —— 8 项各需 8°,
+      // 46 < 64,判定为"点不中"而退回整圈;只要 1 项(8°)就足够。
+      const tight = Rect.fromLTWH(0, 0, 400, 400);
+      const center = Offset(200, 200);
+      expect(
+        ringFittingArc(
+          center: center,
+          scene: tight,
+          solidRadius: 190,
+          totalRadius: 215,
+          count: 8,
+        ),
+        isNull,
+      );
+      expect(
+        ringFittingArc(
+          center: center,
+          scene: tight,
+          solidRadius: 190,
+          totalRadius: 215,
+          count: 1,
+        ),
+        isNotNull,
+      );
+    });
+
+    test('退化参数: 空场景 / 非正项数 → null', () {
+      expect(
+        ringFittingArc(
+          center: Offset.zero,
+          scene: Rect.zero,
+          solidRadius: 100,
+          totalRadius: 200,
+          count: 4,
+        ),
+        isNull,
+      );
+      expect(
+        ringFittingArc(
+          center: const Offset(960, 540),
+          scene: scene,
+          solidRadius: solid,
+          totalRadius: total,
+          count: 0,
+        ),
+        isNull,
+      );
+    });
+  });
+
+  group('ringSectorAngles 可用弧', () {
+    test('在 90° 弧内平分: 8 项 = 11.25° 一步, 首项偏移 2.5°', () {
+      final a = ringSectorAngles(
+        index: 0,
+        count: 8,
+        startAngle: 0,
+        spanAngle: 90 * math.pi / 180,
+      );
+      expect(a.start, closeTo(2.5 * math.pi / 180, 1e-9));
+      expect(a.sweep, closeTo(6.25 * math.pi / 180, 1e-9));
+
+      final b = ringSectorAngles(
+        index: 7,
+        count: 8,
+        startAngle: 0,
+        spanAngle: 90 * math.pi / 180,
+      );
+      expect(b.start, closeTo(81.25 * math.pi / 180, 1e-9));
+    });
+
+    test('弧紧到容不下间隔: 不留间隔, 且 sweep 不为负', () {
+      final a = ringSectorAngles(
+        index: 0,
+        count: 8,
+        startAngle: 0,
+        spanAngle: 20 * math.pi / 180,
+      );
+      expect(a.sweep, closeTo(2.5 * math.pi / 180, 1e-9));
+    });
+  });
+
+  group('hitRingSector 可用弧', () {
+    // 90° / 2 项 → 步长 45°、间隔 5°:扇区0=[2.5°,42.5°],扇区1=[47.5°,87.5°]。
+    RingPayload arcPayload() => RingPayload(
+          centerInWindow: const Offset(300, 300),
+          totalRadius: 200,
+          solidRadius: 100,
+          startAngle: 0,
+          spanAngle: 90 * math.pi / 180,
+          items: _items(2),
+        );
+
+    test('弧内: 各扇区中心命中', () {
+      final p = arcPayload();
+      expect(
+        hitRingSector(contentPoint: _polar(p.centerInWindow, 20, 150), payload: p),
+        0,
+      );
+      expect(
+        hitRingSector(contentPoint: _polar(p.centerInWindow, 65, 150), payload: p),
+        1,
+      );
+    });
+
+    test('弧外(超过 span)不命中', () {
+      final p = arcPayload();
+      expect(
+        hitRingSector(contentPoint: _polar(p.centerInWindow, 100, 150), payload: p),
+        isNull,
+      );
+      expect(
+        hitRingSector(contentPoint: _polar(p.centerInWindow, 300, 150), payload: p),
+        isNull,
+      );
+    });
+
+    test('弧内间隔区 / 起始间隔不命中', () {
+      final p = arcPayload();
+      expect(
+        hitRingSector(contentPoint: _polar(p.centerInWindow, 45, 150), payload: p),
+        isNull,
+      );
+      expect(
+        hitRingSector(contentPoint: _polar(p.centerInWindow, 1, 150), payload: p),
+        isNull,
+      );
     });
   });
 

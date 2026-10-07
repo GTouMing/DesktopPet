@@ -33,11 +33,7 @@ namespace pet_live2d {
 ///    queued and executed on the render thread.
 class Live2DRuntime {
  public:
-  /// Fired on the render thread once a model finished loading. The Dart side uses
-  /// it to swap in a warmed-up instance only when it can actually draw.
-  using ReadyFn = std::function<void(const std::string& pet_id)>;
-
-  Live2DRuntime(flutter::TextureRegistrar* texture_registrar, ReadyFn on_ready);
+  Live2DRuntime(flutter::TextureRegistrar* texture_registrar);
   ~Live2DRuntime();
 
   Live2DRuntime(const Live2DRuntime&) = delete;
@@ -71,6 +67,11 @@ class Live2DRuntime {
                  double breath_scale);
   bool Destroy(const std::string& pet_id);
 
+  /// Parameter metadata + readiness for `pet_id`, for the Dart side to poll
+  /// (the native `modelReady` push does not reach child/multi-window engines).
+  /// Platform thread; `ready=false` while loading or when the instance is gone.
+  Live2DInstance::ModelInfo GetModelInfo(const std::string& pet_id);
+
   /// The pet's display box in physical pixels. Rebuilds the render target (and
   /// re-registers the texture, notifying through TextureChangedFn) only when the
   /// box leaves the current target's headroom.
@@ -97,7 +98,6 @@ class Live2DRuntime {
   void StopDevice();
 
   flutter::TextureRegistrar* texture_registrar_ = nullptr;
-  ReadyFn on_ready_;
 
   Microsoft::WRL::ComPtr<ID3D11Device> device_;
   Microsoft::WRL::ComPtr<ID3D11DeviceContext> context_;

@@ -110,11 +110,11 @@ abstract class AppLocalizations {
   /// **'Cancel'**
   String get cancel;
 
-  /// No description provided for @confirm.
+  /// No description provided for @dismiss.
   ///
   /// In en, this message translates to:
-  /// **'OK'**
-  String get confirm;
+  /// **'Dismiss'**
+  String get dismiss;
 
   /// No description provided for @delete.
   ///
@@ -200,17 +200,17 @@ abstract class AppLocalizations {
   /// **'Language'**
   String get sectionLanguage;
 
-  /// No description provided for @globalOpacity.
+  /// No description provided for @globalOpacityLabel.
   ///
   /// In en, this message translates to:
-  /// **'Global opacity — {percent}%'**
-  String globalOpacity(int percent);
+  /// **'Global opacity'**
+  String get globalOpacityLabel;
 
-  /// No description provided for @globalScale.
+  /// No description provided for @globalScaleLabel.
   ///
   /// In en, this message translates to:
-  /// **'Global scale — {scale}x'**
-  String globalScale(String scale);
+  /// **'Global scale'**
+  String get globalScaleLabel;
 
   /// No description provided for @scaleLimitExceeded.
   ///
@@ -365,8 +365,8 @@ abstract class AppLocalizations {
   /// No description provided for @deletePetBody.
   ///
   /// In en, this message translates to:
-  /// **'Delete \"{name}\"?\n\nScale: {scale}%\nOpacity: {opacity}%'**
-  String deletePetBody(String name, int scale, int opacity);
+  /// **'Delete \"{name}\"?\n\nScale: {scale}x\nOpacity: {opacity}%'**
+  String deletePetBody(String name, String scale, int opacity);
 
   /// No description provided for @keepOnePet.
   ///
@@ -379,6 +379,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Edit pet'**
   String get editPet;
+
+  /// No description provided for @unsavedChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'You have unsaved changes'**
+  String get unsavedChanges;
+
+  /// No description provided for @discardChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard changes'**
+  String get discardChanges;
 
   /// No description provided for @preview.
   ///
@@ -415,6 +427,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Parameters'**
   String get l2dParamsSection;
+
+  /// No description provided for @mouseFollowSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Mouse follow'**
+  String get mouseFollowSection;
+
+  /// No description provided for @mouseFollowX.
+  ///
+  /// In en, this message translates to:
+  /// **'Horizontally'**
+  String get mouseFollowX;
+
+  /// No description provided for @mouseFollowY.
+  ///
+  /// In en, this message translates to:
+  /// **'Vertically'**
+  String get mouseFollowY;
+
+  /// No description provided for @mouseFollowParamsSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Cursor-follow parameters'**
+  String get mouseFollowParamsSection;
+
+  /// No description provided for @mouseFollowNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Don\'t follow'**
+  String get mouseFollowNone;
+
+  /// No description provided for @mouseFollowAxisX.
+  ///
+  /// In en, this message translates to:
+  /// **'X'**
+  String get mouseFollowAxisX;
+
+  /// No description provided for @mouseFollowAxisY.
+  ///
+  /// In en, this message translates to:
+  /// **'Y'**
+  String get mouseFollowAxisY;
+
+  /// No description provided for @mouseFollowAxisXY.
+  ///
+  /// In en, this message translates to:
+  /// **'XY'**
+  String get mouseFollowAxisXY;
 
   /// No description provided for @petPack.
   ///
@@ -512,6 +572,12 @@ abstract class AppLocalizations {
   /// **'No valid pet pack (with pet.json) in this directory'**
   String get noPetPacksFoundHint;
 
+  /// No description provided for @loadingPetPacks.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading pet packs'**
+  String get loadingPetPacks;
+
   /// No description provided for @petPackSourceImported.
   ///
   /// In en, this message translates to:
@@ -583,6 +649,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Browse file'**
   String get browseFile;
+
+  /// No description provided for @requiredField.
+  ///
+  /// In en, this message translates to:
+  /// **'Required'**
+  String get requiredField;
 
   /// No description provided for @hotkeyTitle.
   ///

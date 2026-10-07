@@ -16,6 +16,8 @@ import '../petpack/pet_pack.dart';
 import '../storage/models/pet_config.dart';
 import '../storage/storage_service.dart';
 import 'behavior_engine.dart';
+import 'live2d/mouse_follow.dart';
+import 'live2d/model_parameter.dart';
 import 'pet_context.dart';
 import 'pet_metrics.dart';
 import 'pet_state.dart';
@@ -74,10 +76,19 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
   /// 模型参数出口（"打字反应" + 鼠标反馈），由 [PetWidget] 挂到渲染器。
   void Function(String parameterId, double value)? onParameter;
 
-  /// 鼠标反馈（见 [MouseParams]）：光标跟随 + 鼠标按键。
+  /// 鼠标按键反馈与缓动（见 [MouseParams]）。光标跟随的参数/幅度**读自模型**。
   MouseParams? _mouseParams;
   StreamSubscription<({MouseButton button, bool down})>? _mouseSub;
   bool _mouseTracking = false;
+
+  /// 是否已订阅 [OverlayController.cursorNorm]（模型参数到了、且有跟随映射才订）。
+  bool _cursorSubscribed = false;
+
+  /// 由模型标准跟随参数生成的光标跟随映射（见 `buildMouseFollow`）。
+  MouseFollow _follow = const MouseFollow();
+
+  /// 模型参数元数据（`setModelParameters` 时缓存）；构建跟随映射用。
+  List<ModelParameter> _modelParams = const [];
 
   /// 光标跟随的缓动状态（[MouseParams.smooth] > 0 时启用）。
   ///
@@ -90,8 +101,14 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
   double _userTimeSeconds = 0, _lastTimeSeconds = 0;
   bool _mouseInited = false;
 
-  /// 最近一次原始光标值（供 `raw: true` 的映射直接用）。
+  /// 最近一次原始光标值（强度变了要立即重下发时用得到）。
   Offset _mouseRaw = Offset.zero;
+
+  /// 本宠的鼠标跟随强度（乘在模型的跟随映射之上）。
+  ///
+  /// 缓存自 [PetConfig]——[_applyMouseNorm] 在缓动时以 60Hz 调用，不能每帧读 MMKV。
+  double _followX = 1.0;
+  double _followY = 1.0;
 
   // `CubismTargetPoint.cpp` 里的常量。
   static const double _faceFrameRate = 30.0;
@@ -145,6 +162,7 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
       _loadedPackPath = pet.packPath;
       _packReady = true;
       _setupMouseParams();
+      _syncFollowStrength();
       state = state.copyWith(
           basePetSize: pack.baseSize, currentState: pack.initialState);
 
@@ -215,6 +233,7 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
     _loadedPackPath = pet.packPath;
     _packReady = true;
     _setupMouseParams();
+    _syncFollowStrength();
     state = state.copyWith(
       basePetSize: pack.baseSize,
       currentState: pack.initialState,
@@ -240,35 +259,76 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
     state = state.copyWith(position: _clampToScene(state.position));
   }
 
-  /// 装配鼠标反馈（见 [MouseParams]）：
-  /// - 光标跟随听 [OverlayController.cursorNorm]（场景归一化坐标）；
-  /// - 鼠标按键订 [InputService.mouseButtons]；
-  /// - 并向输入层**申请**开启全局鼠标上报（引用计数，多宠安全）。
-  void _setupMouseParams() {
-    final mp = pack.mouseParams;
-    if (mp == null) return;
-    _mouseParams = mp;
+  /// 从本宠配置缓存鼠标跟随强度（见 [PetConfig.mouseFollowX]）。
+  ///
+  /// 与 `paramChoices` 一样按 id 读单宠配置；缺省 `1.0` = 不改变模型本身的幅度。
+  void _syncFollowStrength() {
+    final pet = _petConfig;
+    _followX = pet?.mouseFollowX ?? 1.0;
+    _followY = pet?.mouseFollowY ?? 1.0;
+  }
 
-    if (mp.followsCursor) {
+  /// 模型加载完成，原生回传了参数元数据 → 生成跟随映射并接上光标。
+  ///
+  /// 参数/幅度**读自模型**（标准跟随参数的范围与默认值，见 [buildMouseFollow]），
+  /// 与宠物包清单无关；清单只提供鼠标按键（[MouseParams.left]/[MouseParams.right]）与缓动。
+  void setModelParameters(List<ModelParameter> parameters) {
+    if (!mounted) return;
+    _modelParams = parameters;
+    _rebuildFollow();
+    if (_follow.isNotEmpty && !_cursorSubscribed) {
       OverlayController.cursorNorm.addListener(_onCursorNorm);
+      _cursorSubscribed = true;
+      if (HotkeyEngine.supported) {
+        _mouseTracking = true;
+        unawaited(InputService.instance.setMouseTracking(true));
+      }
     }
-    if (mp.hasButtons) {
+    _refreshMouseFollow();
+  }
+
+  /// 按本宠的逐参数绑定重建跟随映射；未配置（空表）时回退到引擎的标准集。
+  ///
+  /// 设置页改完跟随轴保存后由 [refreshSettings] 调到这里，**无需重载模型**即时生效。
+  void _rebuildFollow() {
+    final bindings = _petConfig?.mouseBindings ?? const {};
+    _follow = bindings.isEmpty
+        ? buildMouseFollow(_modelParams)
+        : buildMouseFollowFromBindings(bindings, _modelParams);
+  }
+
+  /// 用当前强度立即重下发一次跟随值。
+  ///
+  /// 单独调强度而光标不在动时，缓动到点就停了、不会再走 [_applyMouseNorm]，
+  /// 所以设置改动后要主动补这一下。
+  void _refreshMouseFollow() {
+    if (_follow.isEmpty) return;
+    final eased = _mouseInited ? Offset(_faceX, _faceY) : _mouseRaw;
+    _applyMouseNorm(eased);
+  }
+
+  /// 装配鼠标反馈：鼠标按键订 [InputService.mouseButtons]。
+  ///
+  /// 光标跟随不在这里订阅——要等模型参数元数据到了（[setModelParameters]）才知道
+  /// 该驱动哪些参数、幅度多大。
+  void _setupMouseParams() {
+    _mouseParams = pack.mouseParams;
+    if (_mouseParams?.hasButtons ?? false) {
       _mouseSub = InputService.instance.mouseButtons.listen(_onMouseButton);
-    }
-    if (HotkeyEngine.supported) {
-      _mouseTracking = true;
-      unawaited(InputService.instance.setMouseTracking(true));
     }
   }
 
+  /// 缓动倍率：来自包的 `smooth`，缺省 `1.0`（Bongo 那套）。
+  double get _mouseSmooth => _mouseParams?.smooth ?? 1.0;
+
   void _onCursorNorm() {
-    final mp = _mouseParams;
     final norm = OverlayController.cursorNorm.value;
-    if (mp == null || norm == null) return;
+    if (norm == null || _follow.isEmpty) return;
 
     _mouseRaw = norm;
-    if (mp.smooth <= 0) {
-      _applyMouseNorm(mp, norm, norm);
+    final smooth = _mouseSmooth;
+    if (smooth <= 0) {
+      _applyMouseNorm(norm);
       return;
     }
     // 缓动：只记目标，由 60Hz 定时器按 CubismTargetPoint 逐步逼近。
@@ -283,16 +343,15 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
     }
     _faceTargetX = norm.dx;
     _faceTargetY = norm.dy;
-    // 缓动项用当前 face 值，raw 项立刻用最新光标。
-    _applyMouseNorm(mp, Offset(_faceX, _faceY), norm);
-    _mouseTimer ??= Timer.periodic(
-        const Duration(milliseconds: 16), (_) => _tickMouseEase(mp));
+    _applyMouseNorm(Offset(_faceX, _faceY));
+    _mouseTimer ??=
+        Timer.periodic(const Duration(milliseconds: 16), (_) => _tickMouseEase());
   }
 
   /// 一帧的缓动积分（`CubismTargetPoint::Update` 的 Dart 版，`dt` 固定 1/60）。
-  void _tickMouseEase(MouseParams mp) {
+  void _tickMouseEase() {
     const dt = 1 / 60;
-    final maxV = _faceMaxParamV * mp.smooth / _faceFrameRate; // 每帧最大速度
+    final maxV = _faceMaxParamV * _mouseSmooth / _faceFrameRate; // 每帧最大速度
 
     _userTimeSeconds += dt;
     if (_lastTimeSeconds == 0) {
@@ -309,7 +368,7 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
     final dy = _faceTargetY - _faceY;
     if (dx.abs() <= _faceEpsilon && dy.abs() <= _faceEpsilon) {
       // 到目标附近：停止（与原实现一致，保留当前值）。
-      _applyMouseNorm(mp, Offset(_faceX, _faceY), _mouseRaw);
+      _applyMouseNorm(Offset(_faceX, _faceY));
       _mouseTimer?.cancel();
       _mouseTimer = null;
       return;
@@ -341,22 +400,25 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
 
     _faceX += _faceVX;
     _faceY += _faceVY;
-    _applyMouseNorm(mp, Offset(_faceX, _faceY), _mouseRaw);
+    _applyMouseNorm(Offset(_faceX, _faceY));
   }
 
-  /// 下发跟随值：[eased] 给缓动项，[raw] 给 `raw: true` 的项（直接跟光标）。
-  void _applyMouseNorm(MouseParams mp, Offset eased, Offset raw) {
-    for (final m in mp.x) {
-      onParameter?.call(m.param, (m.raw ? raw.dx : eased.dx) * m.scale);
+  /// 下发跟随值：`value = base + eased × 跟随强度 × scale`。
+  ///
+  /// [FollowMapping.base] 是参数在模型里的默认值——光标居中时回到中性姿态，
+  /// 而不是被压成 0。每轴再乘本宠的跟随强度 [_followX]/[_followY]（`xy` 乘两者之积）。
+  void _applyMouseNorm(Offset eased) {
+    for (final m in _follow.x) {
+      onParameter?.call(m.param, m.base + eased.dx * _followX * m.scale);
     }
-    for (final m in mp.y) {
-      onParameter?.call(m.param, (m.raw ? raw.dy : eased.dy) * m.scale);
+    for (final m in _follow.y) {
+      onParameter?.call(m.param, m.base + eased.dy * _followY * m.scale);
     }
-    if (mp.xy.isNotEmpty) {
-      final easedBoth = eased.dx * eased.dy;
-      final rawBoth = raw.dx * raw.dy;
-      for (final m in mp.xy) {
-        onParameter?.call(m.param, (m.raw ? rawBoth : easedBoth) * m.scale);
+    if (_follow.xy.isNotEmpty) {
+      final both = eased.dx * eased.dy;
+      final follow = _followX * _followY;
+      for (final m in _follow.xy) {
+        onParameter?.call(m.param, m.base + both * follow * m.scale);
       }
     }
   }
@@ -370,6 +432,7 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
 
   void _teardownMouseParams() {
     OverlayController.cursorNorm.removeListener(_onCursorNorm);
+    _cursorSubscribed = false;
     _mouseTimer?.cancel();
     _mouseTimer = null;
     unawaited(_mouseSub?.cancel());
@@ -378,6 +441,11 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
       _mouseTracking = false;
       unawaited(InputService.instance.setMouseTracking(false));
     }
+    _mouseParams = null;
+    _follow = const MouseFollow();
+    _modelParams = const [];
+    _mouseInited = false;
+    _mouseRaw = Offset.zero;
   }
 
   /// 当前桌宠的配置（尚未落库 / 已被删除时为 null）。
@@ -430,10 +498,14 @@ class PetNotifier extends StateNotifier<PetState> implements PetContext {
   /// ——包括换宠物包——都会立刻作用到正在运行的桌宠。
   Future<void> refreshSettings() async {
     await _reloadPackIfChanged();
+    _syncFollowStrength();
+    _rebuildFollow();
     await _applyScale();
     _applyOpacity();
     await _window.applyLocked(_petConfig);
     await _window.applyVisible(_petConfig);
+    // 跟随强度改了就立即重下发一次（光标不动时看不出变化）。
+    _refreshMouseFollow();
   }
 
   // ── 接口 ──────────────────────────────────────────────────────────

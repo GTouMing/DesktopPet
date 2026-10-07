@@ -26,7 +26,6 @@ dependencies:
   desktop_multi_window: ^0.3.0
   flutter_alone: ^4.1.0
   audioplayers: ^6.1.0
-  styled_widget: ^0.4.1
   # 自研 Live2D 渲染器（进程级运行时 + 定尺寸渲染目标 + 预热切换）。
   # 取代了 live2d_flutter：后者的架构与本项目不合（模型归视图所有、重注册会破坏
   # 引擎持有的纹理对象、渲染目标尺寸只能创建时确定），我们为它打过的补丁已沉淀在

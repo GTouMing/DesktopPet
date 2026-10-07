@@ -173,8 +173,8 @@ lib/
 | `states`                     | 状态定义：引用动画/动作组 + 行为 + 变换表达式 + 迁移规则                                                     |
 | `hotkeys`                    | 包级快捷键 → 动作（**不经状态机**，见下节）：`{ "<id>": { key, modifiers?, animation?, motionIndex?, motionPriority?, expression?, durationMs? } }` |
 | `keyParams`                  | "打字反应"（仅 Live2D）：`{ "<键名>": "<模型参数 id>" }`，按住键把参数置 1、松开置 0 |
-| `mouseParams`                | 鼠标反馈（仅 Live2D）：`{ x?, y?, xy?, left?, right?, smooth? }`，每个轴是一组 `{param, scale}` 映射，可一次驱动多个参数 |
-| `params`                     | 可调槽位组（仅 Live2D）：`{ "<槽位>": { label?, type?, default?, params? \| options? } }`，在编辑宠物时可调；见「可调参数」 |
+| `mouseParams`                | 鼠标反馈（仅 Live2D）：`{ left?, right?, smooth? }`——跟随参数/幅度读自模型，这里只留无法从模型得知的鼠标按键与缓动；见「鼠标反馈」 |
+| `params`                     | 可调槽位组（仅 Live2D）：`{ "<槽位>": { label?, type?, default?, params? \| offParams? \| options? } }`，在编辑宠物时可调；见「可调参数」 |
 
 状态定义示例：
 
@@ -285,7 +285,7 @@ lib/
 }
 ```
 
-- `type: "bool"` → 一个开关，开启时写入该组的 `params`。
+- `type: "bool"` → 一个开关，开启时写入该组的 `params`；关闭默认复位模型默认值，若部件默认值本身就是"开"（如猫耳），用 `offParams` 显式给出关闭时要写的参数。
 - 否则是 `options` 下拉；`default` 写选项 label（或下标）。
 - 切选项会把上一个选项的参数复位，槽位之间不打架——它取代了 Cubism 排他式表情管理器
   （配件与情绪表情本该能叠加）。
@@ -311,42 +311,33 @@ lib/
 
 ### 鼠标反馈（`mouseParams`）
 
-顶层 `mouseParams` 把**光标**映射到 Live2D 模型参数（仅 Live2D）。每个轴可以一次驱动**多个**参数：
+**光标跟随的参数与幅度读自模型**：渲染器挑出模型里实际存在的**标准跟随参数**——
+`ParamAngleX` / `ParamAngleY` / `ParamAngleZ` / `ParamBodyAngleX` / `ParamEyeBallX` / `ParamEyeBallY`
+——`scale` 取该参数的 `min`/`max` 范围半径，`base` 取该参数的**默认值**（于是光标居中时回到
+模型的中性姿态，而不是被压成 0）。因此宠物包**不必**声明跟随映射；每只桌宠还能在编辑页用
+X/Y 两个滑杆再乘一道强度（`0`–`2`，默认 `1`，`0` 关闭跟随）。
+
+清单只剩**无法从模型得知**的两项：
 
 ```json
 "mouseParams": {
-  "x": [
-    { "param": "ParamAngleX",   "scale": 30 },
-    { "param": "ParamEyeBallX", "scale": 1 },
-    { "param": "ParamMouseX",   "scale": 30, "raw": true }
-  ],
-  "y": [
-    { "param": "ParamAngleY",   "scale": 30 },
-    { "param": "ParamEyeBallY", "scale": 1 },
-    { "param": "ParamMouseY",   "scale": 30, "raw": true }
-  ],
-  "xy": [
-    { "param": "ParamAngleZ", "scale": -30 }
-  ],
   "left": "ParamMouseLeftDown",
   "right": "ParamMouseRightDown",
   "smooth": 1.0
 }
 ```
 
-- `x`：光标左右（屏幕中心 = 0，右为正）；`y`：光标上下（上为正）；`xy`：`x*y`
-  （用于头部倾斜这类乘积曲线）。
-- 每项写法：`{ "param": "<参数 id>", "scale": <系数>, "raw"? }`；也可以只写参数名字符串（`scale` 取 1）。
-- `scale` 要匹配模型里该参数的取值范围（例如 `ParamAngleX` ≈ ±30、`ParamEyeBallX` ≈ ±1）。
-- `raw: true`：该项**不缓动**，直接用原始光标值。Bongo 里平滑只作用在 look-at（角度/眼珠），
-  手/鼠标图形是直接跟光标的——给后者标 `raw: true`。
-- `left` / `right`：鼠标左/右键按下 → `1`、松开 → `0`。
-- `smooth`：缓动速度倍率（默认 `0` = 瞬时跟随）。`> 0` 时用 Bongo/`CubismTargetPoint`
-  那套**加速度受限**模型跟随——最大速度 `4.0/s`、`0.15s` 加到满速、接近目标时刹车、停止阈值
-  `0.01`（都在归一化 `±1` 范围内）；`1.0` 与 Bongo **完全一致**，`> 1` 更快、`< 1` 更慢。
-- 全空 = 不启用（此时也不开启全局光标上报，零开销）。
+- `left` / `right`：鼠标左/右键按下 → `1`、松开 → `0`（模型有该参数才生效）。
+- `smooth`：缓动速度倍率（默认 `1.0`）。`> 0` 用 Bongo/`CubismTargetPoint` 那套**加速度受限**
+  模型跟随——最大速度 `4.0/s`、`0.15s` 加到满速、接近目标时刹车、停止阈值 `0.01`（都在归一化
+  `±1` 范围内）；`1.0` 与 Bongo **完全一致**，`0` = 瞬时跟随，`> 1` 更快、`< 1` 更慢。
+- 全空 / 无此段 = 不做鼠标按键反馈（光标跟随仍由模型自动提供）。
 
-> 光标上报只在有包声明 `mouseParams` 时开启；某轴方向/幅度不对时调对应 `scale`（取负即可反向）。
+> 方向/幅度由模型参数的范围决定；`ParamAngleZ`（头部倾斜）取负号是标准 look-at 约定，写在引擎里。
+> **编辑桌宠页**的「跟随参数」区**只列出"标准跟随参数所在分组"里、且 id 或名带大写 `X`/`Y`/`Z`
+> 的参数**（模型作者本就把跟随相关的放在同一组：猫的「基础参数」、鲸鱼娘的「顔 / 体 / 表情」；
+> 轴向参数都带这个字母标记，小写不算），逐个指定轴（不跟随 / X / Y / XY，默认按标准集预填）；
+> 不配置则用自动标准集。想整体调弱调强用同一页的「鼠标跟随」X/Y 滑杆——都不必改宠物包。
 
 ### Live2D 宠物包
 
@@ -363,7 +354,7 @@ lib/
 
 **管理桌宠**
 - 主窗口列出所有桌宠，可：
-  - 新建桌宠（命名、选择宠物包、调节缩放/透明度）
+  - 新建桌宠（命名、选择宠物包、调节缩放/透明度/鼠标跟随强度）
   - 编辑 / 删除已有桌宠
 - 全局设置可调节所有桌宠的基础缩放与透明度（单宠乘数叠加生效）。
 

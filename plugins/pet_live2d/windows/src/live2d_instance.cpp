@@ -331,6 +331,11 @@ void Live2DInstance::LoadModel(const std::string& model_dir,
                                float breath_scale) {
   if (!device_) return;
   model_loaded_ = false;
+  {
+    std::lock_guard<std::mutex> lock(info_mutex_);
+    model_ready_ = false;
+    parameter_info_.clear();
+  }
   texture_manager_ = std::make_unique<Live2DTextureManager>(device_.Get());
   model_ = std::make_unique<Live2DModel>(texture_manager_.get());
   // Must be set before LoadAssets(): its SetupModel() is what creates the breath.
@@ -352,6 +357,10 @@ void Live2DInstance::LoadModel(const std::string& model_dir,
     target_w = target_width_;
     target_h = target_height_;
   }
+  // CreateRenderer is where Cubism's D3D11 shader set is prepared on first use
+  // (CubismRenderer_D3D11::Initialize -> OnDeviceChanged ->
+  // CubismDeviceInfo_D3D11::GetDeviceInfo -> CubismShader_D3D11::SetupShader).
+  // That set is compiled lazily now, so it is no longer a startup bottleneck.
   model_->CreateRenderer(static_cast<Csm::csmUint32>(target_w),
                          static_cast<Csm::csmUint32>(target_h));
   model_->ResizeMaskBuffer(target_w, target_h);
@@ -360,8 +369,17 @@ void Live2DInstance::LoadModel(const std::string& model_dir,
   // before the fit so the first frame is already framed the way the author wants.
   // The manifest's y is screen-space (down); model space is up, hence the flip.
   model_->SetFitAdjust(fit_scale, fit_offset_x, -fit_offset_y);
+  // Freeze the fit box from the model's resting pose before the first fit: the
+  // pet is scaled to this for its whole lifetime, so revealing a prop can never
+  // shrink it (see MeasureRestingBounds).
+  model_->MeasureRestingBounds();
   model_->FitToView(target_w, target_h);
   model_loaded_ = true;
+  {
+    std::lock_guard<std::mutex> lock(info_mutex_);
+    parameter_info_ = model_->GetParameterInfo();
+    model_ready_ = true;
+  }
 }
 
 bool Live2DInstance::IsModelLoaded() const { return model_loaded_ && model_; }
@@ -413,6 +431,11 @@ void Live2DInstance::ClearParameters() {
   if (model_) model_->ClearParameterOverrides();
 }
 
+Live2DInstance::ModelInfo Live2DInstance::GetModelInfo() const {
+  std::lock_guard<std::mutex> lock(info_mutex_);
+  return ModelInfo{model_ready_, parameter_info_};
+}
+
 void Live2DInstance::SetMotionSpeed(double speed) {
   if (TraceEnabled()) {
     LogLine("[l2d] speed pet=" + pet_id_ + " " + std::to_string(speed));
@@ -459,15 +482,16 @@ bool Live2DInstance::RenderFrame(float delta_time) {
       renderer->StartFrame(context_.Get());
       model_->Update(delta_time);
       // Re-fit whenever the rendered target's size differs from the fitted one,
-      // and while the model is still growing its fit box to cover artwork that
-      // has just been revealed (cheap: pure matrix math, nothing is allocated).
-      // Comparing sizes rather than consuming a one-shot flag: a one-shot was
-      // race-prone: the platform thread can swap the target mid-frame, the flag
-      // got consumed while still rendering the previous target, and the new one
-      // was then never fitted (the model rendered oversized for the smaller
-      // target and came out cropped).
+      // or on the first frame after a load. The fit box itself is frozen at load
+      // (see MeasureRestingBounds), so no per-frame re-fit is needed (this is
+      // cheap anyway: pure matrix math, nothing is allocated). Comparing sizes
+      // rather than consuming a one-shot flag: a one-shot was race-prone: the
+      // platform thread can swap the target mid-frame, the flag got consumed
+      // while still rendering the previous target, and the new one was then
+      // never fitted (the model rendered oversized for the smaller target and
+      // came out cropped).
       if (fitted_width_ != width || fitted_height_ != height ||
-          bounds_refit_pending_ || model_->IsAdaptingBounds()) {
+          bounds_refit_pending_) {
         bounds_refit_pending_ = false;
         const bool target_resized =
             fitted_width_ != width || fitted_height_ != height;

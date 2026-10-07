@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:desktop_pet/core/constants.dart';
@@ -98,19 +97,22 @@ class _RingOverlayState extends State<RingOverlay>
 
   /// 把 [AnimationController] 的值拆成"线生长 / 顺时针扫开 / 半径收缩"。
   ///
-  /// 扫开阶段引导线的角度跟随扇形前沿(reveal 前沿)一起旋转,扫过一整圈。
+  /// 扫开阶段引导线的角度跟随扇形前沿(reveal 前沿)一起旋转,扫过**可用弧**
+  /// (`_payload` 的 `startAngle → startAngle + spanAngle`;整圈可用时就是一圈)。
   ({double line, double lineAngle, double reveal, double radius, double lineOpacity})
       _phase(double t) {
     if (_collapsing) {
       return (line: 0, lineAngle: 0, reveal: 1, radius: t, lineOpacity: 0);
     }
+    final start = _payload?.startAngle ?? 0;
+    final span = _payload?.spanAngle ?? ringFullSpan;
     final lineFraction =
         quickLaunchLineMs / (quickLaunchLineMs + quickLaunchSweepMs);
     if (t < lineFraction) {
-      // 先由圆心沿 0° 径向生长。
+      // 先由圆心沿可用弧起点径向生长。
       return (
         line: (t / lineFraction).clamp(0.0, 1.0).toDouble(),
-        lineAngle: 0,
+        lineAngle: start,
         reveal: 0,
         radius: 1,
         lineOpacity: 1,
@@ -120,8 +122,8 @@ class _RingOverlayState extends State<RingOverlay>
         ((t - lineFraction) / (1 - lineFraction)).clamp(0.0, 1.0).toDouble();
     return (
       line: 1,
-      // 线的前端角 = 扇形扫开前沿,顺时针扫过一整圈。
-      lineAngle: reveal * 2 * math.pi,
+      // 线的前端角 = 扇形扫开前沿,沿可用弧顺时针扫过。
+      lineAngle: start + reveal * span,
       reveal: reveal,
       radius: 1,
       // 扫开期间保持可见,仅在最后一小段渐隐。

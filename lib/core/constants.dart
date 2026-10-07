@@ -3,6 +3,9 @@ import 'dart:math';
 /// 最终缩放上限（baseScale × scaleMultiplier）
 const double maxFinalScale = 3.0;
 
+/// 鼠标跟随强度上限（每只桌宠的 X / Y 乘数，乘在宠物包的 `mouseParams` 之上）。
+const double maxMouseFollow = 2.0;
+
 /// 未收敛的最终缩放（全局 baseScale × 本宠 scaleMultiplier）。
 double rawFinalScale(double baseScale, double scaleMultiplier) =>
     baseScale * scaleMultiplier;
@@ -41,6 +44,10 @@ const double quickLaunchMinRadius = 150.0;
 const double quickLaunchFallbackPetSize = 200.0;
 /// 相邻扇区之间在边界处截断的夹角（度），用于区分各 item 触发区域。
 const double quickLaunchSectorGapDeg = 5.0;
+/// 贴边时扫描"可用弧"的角度步长（度）。
+const double quickLaunchArcScanDeg = 1.0;
+/// 每个启动区的最小夹角（度）：可用弧窄于此值即退回整圈(细扇区点不中)。
+const double quickLaunchMinItemDeg = 8.0;
 /// 快捷启动最大按钮数。
 const int quickLaunchMaxItems = 8;
 /// 长按判定阈值（毫秒）。

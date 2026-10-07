@@ -4,6 +4,10 @@ import '../../../l10n/app_localizations.dart';
 import '../../../storage/models/app_shortcut.dart';
 import '../../../storage/models/settings_model.dart';
 import '../../../storage/storage_service.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/icon_plate.dart';
+import '../../widgets/keycap_row.dart';
+import '../../widgets/section_panel.dart';
 import '../hotkey_picker_dialog.dart';
 import '../shortcut_edit_dialog.dart';
 import 'settings_common.dart';
@@ -19,87 +23,87 @@ class ShortcutSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     return Column(
       children: [
-        SectionHeader(title: l10n.sectionShortcut),
-        _HotkeyTile(
-          keyName: settings.quickLaunchKey,
-          modifiers: settings.quickLaunchModifiers,
-          onChanged: (key, mods) => applySettings(
-            (s) => s.copyWith(
-              quickLaunchKey: key,
-              quickLaunchModifiers: mods,
-            ),
-          ),
-        ),
-        SectionHeader(title: l10n.sectionQuickLaunch),
-        const _QuickLaunchList(),
+        _HotkeyPanel(settings: settings),
+        const SizedBox(height: Insets.xl),
+        const _QuickLaunchPanel(),
       ],
     );
   }
 }
 
-/// 快捷键行：显示当前组合键，可编辑或清除。
-class _HotkeyTile extends StatelessWidget {
-  const _HotkeyTile({
-    required this.keyName,
-    required this.modifiers,
-    required this.onChanged,
-  });
+/// 全局快捷键：当前组合键以键帽呈现，可编辑或清除。
+class _HotkeyPanel extends StatelessWidget {
+  const _HotkeyPanel({required this.settings});
 
-  final String keyName;
-  final List<String> modifiers;
-  final void Function(String key, List<String> mods) onChanged;
-
-  String _display(AppLocalizations l10n) {
-    if (keyName.isEmpty) return l10n.disable;
-    return [...modifiers, keyName.toUpperCase()].join(' + ');
-  }
+  final SettingsModel settings;
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
-    return ListTile(
-      leading: const Icon(Icons.keyboard),
-      title: Text(l10n.quickLaunchTitle),
-      subtitle: Text(_display(l10n)),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.edit, size: 18),
-            tooltip: l10n.setShortcut,
-            onPressed: () => showDialog(
-              context: context,
-              builder: (_) => HotkeyPickerDialog(
-                initialKey: keyName,
-                initialMods: modifiers,
-                onConfirm: onChanged,
+    final keyName = settings.quickLaunchKey;
+
+    return SectionPanel(
+      label: l10n.sectionShortcut,
+      child: ListTile(
+        leading: const IconPlate(icon: Icons.keyboard_rounded),
+        title: Text(l10n.quickLaunchTitle),
+        subtitle: KeycapRow(
+          keys: keyName.isEmpty
+              ? const []
+              : [...settings.quickLaunchModifiers, keyName],
+          placeholder: l10n.disable,
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit_rounded, size: 18),
+              tooltip: l10n.setShortcut,
+              onPressed: () => showDialog(
+                context: context,
+                builder: (_) => HotkeyPickerDialog(
+                  initialKey: keyName,
+                  initialMods: settings.quickLaunchModifiers,
+                  onConfirm: (key, mods) => applySettings(
+                    (s) => s.copyWith(
+                      quickLaunchKey: key,
+                      quickLaunchModifiers: mods,
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-          if (keyName.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.clear, size: 18),
-              tooltip: l10n.disable,
-              onPressed: () => onChanged('', []),
-            ),
-        ],
+            if (keyName.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.close_rounded, size: 18),
+                color: scheme.onSurfaceVariant,
+                tooltip: l10n.disable,
+                onPressed: () => applySettings(
+                  (s) => s.copyWith(
+                    quickLaunchKey: '',
+                    quickLaunchModifiers: const [],
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 }
 
 /// 快捷启动应用列表：增删改 + 拖拽排序。
-class _QuickLaunchList extends StatefulWidget {
-  const _QuickLaunchList();
+class _QuickLaunchPanel extends StatefulWidget {
+  const _QuickLaunchPanel();
 
   @override
-  State<_QuickLaunchList> createState() => _QuickLaunchListState();
+  State<_QuickLaunchPanel> createState() => _QuickLaunchPanelState();
 }
 
-class _QuickLaunchListState extends State<_QuickLaunchList> {
+class _QuickLaunchPanelState extends State<_QuickLaunchPanel> {
   List<AppShortcut> _shortcuts = [];
 
   @override
@@ -111,6 +115,105 @@ class _QuickLaunchListState extends State<_QuickLaunchList> {
   void _reload() {
     _shortcuts = StorageService.readShortcuts()
       ..sort((a, b) => a.order.compareTo(b.order));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
+
+    return SectionPanel(
+      label: l10n.sectionQuickLaunch,
+      child: Column(
+        children: [
+          if (_shortcuts.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  Insets.lg, Insets.lg, Insets.lg, Insets.md),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 16,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: Insets.sm),
+                  Expanded(
+                    child: Text(l10n.noShortcuts,
+                        style: theme.textTheme.bodySmall),
+                  ),
+                ],
+              ),
+            )
+          else
+            ReorderableListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              buildDefaultDragHandles: false,
+              itemCount: _shortcuts.length,
+              onReorderItem: _reorder,
+              itemBuilder: (context, index) =>
+                  _shortcutTile(context, index, _shortcuts[index]),
+            ),
+          const Divider(height: 1),
+          ListTile(
+            leading:
+                const IconPlate(icon: Icons.add_rounded, tone: PlateTone.accent),
+            title: Text(
+              l10n.addShortcut,
+              style: theme.textTheme.titleMedium?.copyWith(color: scheme.primary),
+            ),
+            onTap: _add,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _shortcutTile(BuildContext context, int index, AppShortcut shortcut) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
+    return ListTile(
+      key: ValueKey(shortcut.executablePath + shortcut.name),
+      leading: const IconPlate(icon: Icons.launch_rounded),
+      title: Text(shortcut.name, overflow: TextOverflow.ellipsis),
+      subtitle: Text(
+        shortcut.executablePath,
+        overflow: TextOverflow.ellipsis,
+        maxLines: 1,
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.edit_rounded, size: 18),
+            tooltip: l10n.editShortcutTitle,
+            onPressed: () => _edit(index),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline_rounded, size: 18),
+            color: scheme.onSurfaceVariant,
+            tooltip: l10n.delete,
+            onPressed: () => _delete(index),
+          ),
+          ReorderableDragStartListener(
+            index: index,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: Insets.xs),
+              child: Icon(
+                Icons.drag_handle_rounded,
+                size: 18,
+                color: scheme.outline,
+              ),
+            ),
+          ),
+        ],
+      ),
+      onTap: () => _edit(index),
+    );
   }
 
   Future<void> _add() async {
@@ -172,74 +275,5 @@ class _QuickLaunchListState extends State<_QuickLaunchList> {
   void _afterWrite() {
     _reload();
     if (mounted) setState(() {});
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-
-    if (_shortcuts.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(l10n.noShortcuts,
-                  style: Theme.of(context).textTheme.bodySmall),
-            ),
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline),
-              tooltip: l10n.addShortcut,
-              onPressed: _add,
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        Row(
-          children: [
-            const Spacer(),
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline),
-              tooltip: l10n.addShortcut,
-              onPressed: _add,
-            ),
-          ],
-        ),
-        ReorderableListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _shortcuts.length,
-          onReorderItem: _reorder,
-          itemBuilder: (context, index) {
-            final shortcut = _shortcuts[index];
-            return ListTile(
-              key: ValueKey(shortcut.executablePath + shortcut.name),
-              leading: const Icon(Icons.launch, size: 18),
-              title: Text(shortcut.name, overflow: TextOverflow.ellipsis),
-              subtitle: Text(shortcut.executablePath,
-                  overflow: TextOverflow.ellipsis, maxLines: 1),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit, size: 18),
-                    onPressed: () => _edit(index),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 18),
-                    onPressed: () => _delete(index),
-                  ),
-                ],
-              ),
-              onTap: () => _edit(index),
-            );
-          },
-        ),
-      ],
-    );
   }
 }

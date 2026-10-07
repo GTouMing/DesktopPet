@@ -25,15 +25,23 @@ const D3D_FEATURE_LEVEL kFeatureLevels[] = {
 
 }  // namespace
 
-Live2DRuntime::Live2DRuntime(flutter::TextureRegistrar* texture_registrar,
-                             ReadyFn on_ready)
-    : texture_registrar_(texture_registrar), on_ready_(std::move(on_ready)) {}
+Live2DRuntime::Live2DRuntime(flutter::TextureRegistrar* texture_registrar)
+    : texture_registrar_(texture_registrar) {}
 
 Live2DRuntime::~Live2DRuntime() { Stop(); }
 
 bool Live2DRuntime::Start() {
   if (running_.load()) return true;
+  // Device + Cubism framework init happen on the platform thread during plugin
+  // registration, i.e. before the first Flutter frame - time them.
+  const auto init_start = std::chrono::steady_clock::now();
   if (!StartDevice()) return false;
+  const long long init_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                std::chrono::steady_clock::now() - init_start)
+                                .count();
+  LogLine("[l2d] runtime init took " + std::to_string(init_ms) +
+          "ms featureLevel=" + std::to_string(feature_level_) +
+          (warp_fallback_ ? " WARP" : " hardware"));
   running_.store(true);
   render_thread_ = std::thread([this]() { RenderLoop(); });
   ready_ = true;
@@ -169,9 +177,15 @@ int64_t Live2DRuntime::Create(const std::string& pet_id,
                         static_cast<float>(fit_offset_x),
                         static_cast<float>(fit_offset_y),
                         static_cast<float>(breath_scale));
-    if (instance->IsModelLoaded() && on_ready_) on_ready_(pet_id);
   });
   return texture_id;
+}
+
+Live2DInstance::ModelInfo Live2DRuntime::GetModelInfo(
+    const std::string& pet_id) {
+  auto instance = Find(pet_id);
+  if (!instance) return Live2DInstance::ModelInfo{};
+  return instance->GetModelInfo();
 }
 
 bool Live2DRuntime::Destroy(const std::string& pet_id) {

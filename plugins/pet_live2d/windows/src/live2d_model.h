@@ -8,6 +8,7 @@
 #include <Type/csmVector.hpp>
 
 #include <string>
+#include <vector>
 
 #include "live2d_texture_manager.h"
 
@@ -37,6 +38,20 @@ class Live2DModel : public Csm::CubismUserModel {
                   const Csm::csmChar* model_file_name);
   bool IsLoaded() const { return model_setting_ != nullptr && _model != nullptr; }
 
+  /// One parameter's metadata, read from the model itself. Dart derives the
+  /// cursor-follow mapping from it: the standard look-at parameters' `[minimum,
+  /// maximum]` give the scale, and `default_value` is the neutral baseline the
+  /// follow is applied on top of (see `pet/mouse_follow.dart`).
+  struct ParameterInfo {
+    std::string id;
+    float minimum = 0.0f;
+    float maximum = 0.0f;
+    float default_value = 0.0f;
+  };
+
+  /// Every parameter's metadata. Empty until the model is loaded.
+  std::vector<ParameterInfo> GetParameterInfo() const;
+
   /// Advances the model by `delta_time` seconds. Call with a FIXED step: Cubism
   /// motion evaluation assumes a constant frame delta.
   void Update(Csm::csmFloat32 delta_time);
@@ -61,11 +76,20 @@ class Live2DModel : public Csm::CubismUserModel {
   /// Loads the model's textures into the Cubism D3D11 renderer.
   void SetupTextures();
 
-  /// Fits the model to a view of `width` x `height` pixels, using the box
-  /// `AccumulateContentBounds()` has grown rather than the declared canvas: this
+  /// Measures the fit box ONCE from the model's resting (default) pose and
+  /// freezes it. The pet is scaled and centred to this box for its whole
+  /// lifetime: a prop revealed later (parameter write, action, expression) may
+  /// extend past it and be clipped by the pet's window, but it can never shrink
+  /// the pet on screen. Must run before the first FitToView().
+  void MeasureRestingBounds();
+
+  /// Fits the model to a view of `width` x `height` pixels, using the RESTING
+  /// box frozen by `MeasureRestingBounds()` rather than the declared canvas: this
   /// pack's artwork extends past the (normalized 1x1) canvas, so a canvas fit
-  /// crops the desk. Idempotent: the matrix is reset first, since
-  /// SetWidth/SetHeight multiply.
+  /// crops the desk. The box never changes for the model's lifetime, so artwork
+  /// revealed later can be clipped by the pet's window but can never rescale the
+  /// pet down. Idempotent: the matrix is reset first, since Scale/Translate
+  /// multiply.
   void FitToView(int width, int height);
 
   /// Clipping-mask buffers follow the render target's size.
@@ -77,12 +101,6 @@ class Live2DModel : public Csm::CubismUserModel {
   /// True while a motion is in flight (or a loop is armed). The render loop uses
   /// this to give an active pet the full frame rate and a resting one a lower one.
   bool IsMotionPlaying() const;
-
-  /// True while the fit box is still growing to cover artwork that has just been
-  /// revealed. The render loop re-fits every frame until it settles, so a part
-  /// is fitted in the same frame it appears; afterwards a re-fit is only needed
-  /// when the target's size changes.
-  bool IsAdaptingBounds() const { return bounds_adapting_; }
 
   /// Framing declared by the pack manifest, applied on top of the automatic fit:
   /// [scale] multiplies it, and [offset_x]/[offset_y] shift the model away from
@@ -117,14 +135,6 @@ class Live2DModel : public Csm::CubismUserModel {
   /// `LoadParameters()` (and after ResetParametersToDefault), or a one-shot write
   /// from Dart is discarded by the restored base.
   void ApplyParameterOverrides();
-  /// Folds the currently visible drawables' vertices into the fit box (grow-only)
-  /// and locks the box once it has stopped growing. Must run after
-  /// `_model->Update()`, otherwise the vertices are not deformed yet.
-  void AccumulateContentBounds();
-  /// Re-opens the growth window, for any event that can reveal or move artwork
-  /// (motion start, expression, parameter write). The accumulated box is NOT
-  /// reset - the box only ever grows.
-  void RestartBoundsAdaptation();
 
   Csm::ICubismModelSetting* model_setting_ = nullptr;
   std::string model_home_dir_;
@@ -137,13 +147,12 @@ class Live2DModel : public Csm::CubismUserModel {
   float fit_offset_x_ = 0.0f;
   float fit_offset_y_ = 0.0f;
 
-  /// Fit box in model units: the UNION of every visible drawable's vertices seen
-  /// so far - grow-only, so artwork that has been on screen once can never be
-  /// clipped again. `bounds_adapting_` stays true until the union has not grown
-  /// for a few frames, i.e. everything that was going to appear has appeared.
+  /// Fit box in model units: the resting pose's silhouette, measured once by
+  /// MeasureRestingBounds() and never changed afterwards. A stable reference that
+  /// keeps the pet the same size however much artwork a parameter or an action
+  /// reveals. `bounds_valid_` is false until that measurement has run, in which
+  /// case FitToView falls back to the declared canvas.
   bool bounds_valid_ = false;
-  bool bounds_adapting_ = true;
-  int bounds_stable_frames_ = 0;
   float bounds_min_x_ = 0.0f;
   float bounds_min_y_ = 0.0f;
   float bounds_max_x_ = 0.0f;

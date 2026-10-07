@@ -173,8 +173,8 @@ A pet pack is a directory containing a manifest — **`pet.json`** — plus asse
 | `states`                     | State definitions: reference an animation/motion group + optional behavior + transform expressions + transitions             |
 | `hotkeys`                    | Pack-level hotkey → action (**bypasses the state machine**, see below): `{ "<id>": { key, modifiers?, animation?, motionIndex?, motionPriority?, expression?, durationMs? } }` |
 | `keyParams`                  | Typing reaction (Live2D only): `{ "<key>": "<model parameter id>" }` — holding the key sets the parameter to 1, releasing to 0 |
-| `mouseParams`                | Mouse feedback (Live2D only): `{ x?, y?, xy?, left?, right?, smooth? }` — each axis is a list of `{param, scale}` mappings, so one axis can drive several parameters |
-| `params`                     | Tunable slot groups (Live2D only): `{ "<slot>": { label?, type?, default?, params? \| options? } }` — adjusted in the pet editor; see "Tunable Parameters" |
+| `mouseParams`                | Mouse feedback (Live2D only): `{ left?, right?, smooth? }` — the follow parameters/magnitudes come from the model; only buttons and easing (not derivable from the model) stay here; see "Mouse Feedback" |
+| `params`                     | Tunable slot groups (Live2D only): `{ "<slot>": { label?, type?, default?, params? \| offParams? \| options? } }` — adjusted in the pet editor; see "Tunable Parameters" |
 
 Example state definition:
 
@@ -292,7 +292,9 @@ several can be active at once. Options write model parameters directly:
 }
 ```
 
-- `type: "bool"` → a switch; the group's `params` are written while it is on.
+- `type: "bool"` → a switch; the group's `params` are written while it is on. Turning it off
+  restores the model default, so a part whose default is itself "on" (e.g. cat ears) needs
+  `offParams` to state the parameters to write when off.
 - Otherwise a dropdown of `options`; `default` is an option label (or index).
 - Switching an option clears the previous one's parameters, so slots never "fight" — this replaced
   the exclusive Cubism expression manager (accessories and mood expressions are meant to stack).
@@ -319,48 +321,42 @@ are Windows-only, and the key is **not swallowed** (other apps still receive it)
 
 ### Mouse Feedback (`mouseParams`)
 
-The top-level `mouseParams` map binds the **cursor** to Live2D parameters (Live2D only). Each
-axis can drive **several** parameters at once:
+**The cursor-follow parameters and their magnitudes are read from the model**: the renderer picks
+the **standard follow parameters** that actually exist in the model — `ParamAngleX` / `ParamAngleY`
+/ `ParamAngleZ` / `ParamBodyAngleX` / `ParamEyeBallX` / `ParamEyeBallY` — takes each parameter's
+`min`/`max` range radius as `scale`, and its **default value** as the neutral baseline (so a centred
+cursor returns the model to its rest pose instead of being forced to 0). A pack therefore **does
+not** declare follow mappings; each pet can additionally scale the follow with the X/Y sliders in
+the pet editor (`0`–`2`, default `1`, `0` disables following).
+
+Only what cannot be derived from the model stays in the manifest:
 
 ```json
 "mouseParams": {
-  "x": [
-    { "param": "ParamAngleX",   "scale": 30 },
-    { "param": "ParamEyeBallX", "scale": 1 },
-    { "param": "ParamMouseX",   "scale": 30, "raw": true }
-  ],
-  "y": [
-    { "param": "ParamAngleY",   "scale": 30 },
-    { "param": "ParamEyeBallY", "scale": 1 },
-    { "param": "ParamMouseY",   "scale": 30, "raw": true }
-  ],
-  "xy": [
-    { "param": "ParamAngleZ", "scale": -30 }
-  ],
   "left": "ParamMouseLeftDown",
   "right": "ParamMouseRightDown",
   "smooth": 1.0
 }
 ```
 
-- `x`: cursor left/right (screen centre = 0, right positive); `y`: cursor up/down (up positive);
-  `xy`: `x*y` (for product curves such as head tilt).
-- Each entry is `{ "param": "<id>", "scale": <factor>, "raw"? }`, or just the parameter name as a
-  string (`scale` defaults to 1).
-- `scale` must match the parameter's range in the model (e.g. `ParamAngleX` ≈ ±30,
-  `ParamEyeBallX` ≈ ±1).
-- `raw: true`: that entry bypasses the easing and uses the raw cursor value. In Bongo the
-  smoothing only drives the look-at (angles/eyeballs); the hand / drawn mouse tracks the cursor
-  directly — mark those `raw: true`.
-- `left` / `right`: left/right mouse button down → `1`, up → `0`.
-- `smooth`: easing speed multiplier (default `0` = instant follow). When `> 0` the follow uses
-  Bongo's / Cubism's `CubismTargetPoint` model — an **acceleration-limited** servo: max speed
-  `4.0/s`, `0.15 s` to reach max speed, braking near the target, stop threshold `0.01` (all in the
-  normalized `±1` range). `1.0` is **exactly Bongo**; `> 1` is faster, `< 1` slower.
-- An empty map disables it (and then no global cursor reporting happens at all).
+- `left` / `right`: left/right mouse button down → `1`, up → `0` (effective only if the model has
+  the parameter).
+- `smooth`: easing speed multiplier (default `1.0`). When `> 0` the follow uses Bongo's /
+  Cubism's `CubismTargetPoint` model — an **acceleration-limited** servo: max speed `4.0/s`,
+  `0.15 s` to reach max speed, braking near the target, stop threshold `0.01` (all in the
+  normalized `±1` range). `1.0` is **exactly Bongo**; `0` = instant follow, `> 1` faster, `< 1`
+  slower.
+- Empty / absent = no mouse-button feedback (the cursor follow still comes from the model).
 
-> Cursor reporting only turns on when a pack declares `mouseParams`; if an axis is inverted or has
-> the wrong magnitude, tune that entry's `scale` (negative flips it).
+> Direction and magnitude come from each parameter's range; the negative sign on `ParamAngleZ`
+> (head tilt) is the standard look-at convention and lives in the engine. In the **pet editor**, the
+> "cursor-follow parameters" section lists **only the parameters that are in the same group(s) as
+> the standard follow parameters AND whose id or name contains an uppercase `X`/`Y`/`Z`** — authors
+> already keep follow-related parameters together (e.g. the cat's "basic parameters", the whale's
+> "face / body / expression"), and axis parameters carry that letter as a marker (lowercase does not
+> count). Pick the axis per parameter (don't follow / X / Y / XY, prefilled from the standard set);
+> leave it untouched to keep the automatic set. Use the same page's "mouse follow" X/Y sliders to make
+> it weaker or stronger overall — no need to touch the pack.
 
 ### Live2D Pet Packs
 
@@ -377,7 +373,7 @@ axis can drive **several** parameters at once:
 
 **Managing pets**
 - The main window lists every pet, letting you:
-  - Create a pet (name it, pick a pet pack, adjust scale / opacity)
+  - Create a pet (name it, pick a pet pack, adjust scale / opacity / mouse-follow strength)
   - Edit or delete existing pets
 - Global settings tune base scale and opacity for all pets (multiplied with per-pet multipliers).
 

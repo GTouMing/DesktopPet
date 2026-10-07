@@ -10,11 +10,6 @@ namespace {
 
 constexpr char kChannelName[] = "desktop_pet/live2d";
 
-/// Posted by SendModelReady() (render thread) so the actual channel call runs on
-/// the platform thread. A distinct value out of the WM_APP range, so it cannot
-/// collide with a system message.
-constexpr UINT kModelReadyMessage = WM_APP + 0x4C32;
-
 /// Render-target bounds. The Dart side derives the wanted size from the pet
 /// pack's frame size, the scale ceiling and the device pixel ratio - it is the
 /// pet's maximum plausible size, so scaling never has to touch the texture.
@@ -64,6 +59,26 @@ bool BoolArg(const flutter::EncodableMap& args, const char* key,
   return value ? *value : fallback;
 }
 
+/// Encodes parameter metadata for the channel (see `ModelParameter` in Dart).
+flutter::EncodableList EncodeParameters(
+    const std::vector<Live2DModel::ParameterInfo>& parameters) {
+  flutter::EncodableList list;
+  list.reserve(parameters.size());
+  for (const auto& parameter : parameters) {
+    flutter::EncodableMap entry;
+    entry[flutter::EncodableValue("id")] =
+        flutter::EncodableValue(parameter.id);
+    entry[flutter::EncodableValue("min")] =
+        flutter::EncodableValue(static_cast<double>(parameter.minimum));
+    entry[flutter::EncodableValue("max")] =
+        flutter::EncodableValue(static_cast<double>(parameter.maximum));
+    entry[flutter::EncodableValue("default")] =
+        flutter::EncodableValue(static_cast<double>(parameter.default_value));
+    list.push_back(flutter::EncodableValue(entry));
+  }
+  return list;
+}
+
 }  // namespace
 
 void PetLive2DPlugin::RegisterWithRegistrar(
@@ -86,61 +101,12 @@ void PetLive2DPlugin::RegisterWithRegistrar(
 PetLive2DPlugin::PetLive2DPlugin(
     flutter::PluginRegistrarWindows* registrar,
     std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> channel)
-    : registrar_(registrar),
-      channel_(std::move(channel)),
-      runtime_(std::make_unique<Live2DRuntime>(
-          registrar->texture_registrar(),
-          [this](const std::string& pet_id) { SendModelReady(pet_id); })) {
-  // modelReady is produced on the runtime's render thread; deliver it through a
-  // window message so the platform-channel call happens on the platform thread.
-  if (auto* view = registrar->GetView()) {
-    ready_window_ = ::GetAncestor(view->GetNativeWindow(), GA_ROOT);
-  }
-  window_proc_id_ = registrar->RegisterTopLevelWindowProcDelegate(
-      [this](HWND hwnd, UINT message, WPARAM wparam,
-             LPARAM lparam) -> std::optional<LRESULT> {
-        if (message == kModelReadyMessage) {
-          FlushModelReady();
-          return 0;
-        }
-        return std::nullopt;
-      });
+    : channel_(std::move(channel)),
+      runtime_(std::make_unique<Live2DRuntime>(registrar->texture_registrar())) {
   runtime_->Start();
 }
 
-void PetLive2DPlugin::SendModelReady(const std::string& pet_id) {
-  {
-    std::lock_guard<std::mutex> lock(ready_mutex_);
-    ready_queue_.push_back(pet_id);
-  }
-  if (ready_window_ != nullptr) {
-    ::PostMessage(ready_window_, kModelReadyMessage, 0, 0);
-  }
-}
-
-void PetLive2DPlugin::FlushModelReady() {
-  std::vector<std::string> pending;
-  {
-    std::lock_guard<std::mutex> lock(ready_mutex_);
-    pending.swap(ready_queue_);
-  }
-  if (!channel_) return;
-  for (const auto& pet_id : pending) {
-    channel_->InvokeMethod(
-        "modelReady",
-        std::make_unique<flutter::EncodableValue>(
-            flutter::EncodableValue(pet_id)));
-  }
-}
-
-PetLive2DPlugin::~PetLive2DPlugin() {
-  // Stop the render thread first: after this no further SendModelReady() can be
-  // queued, so unregistering the window proc cannot strand a pending flush.
-  runtime_->Stop();
-  if (registrar_ != nullptr && window_proc_id_ >= 0) {
-    registrar_->UnregisterTopLevelWindowProcDelegate(window_proc_id_);
-  }
-}
+PetLive2DPlugin::~PetLive2DPlugin() { runtime_->Stop(); }
 
 void PetLive2DPlugin::HandleMethodCall(
     const flutter::MethodCall<flutter::EncodableValue>& method_call,
@@ -213,6 +179,17 @@ void PetLive2DPlugin::HandleMethodCall(
   if (method == "dispose") {
     result->Success(
         flutter::EncodableValue(runtime_->Destroy(StringArg(*args, "petId"))));
+    return;
+  }
+
+  if (method == "getModelInfo") {
+    const auto info = runtime_->GetModelInfo(StringArg(*args, "petId"));
+    flutter::EncodableMap reply;
+    reply[flutter::EncodableValue("ready")] =
+        flutter::EncodableValue(info.ready);
+    reply[flutter::EncodableValue("parameters")] =
+        flutter::EncodableValue(EncodeParameters(info.parameters));
+    result->Success(flutter::EncodableValue(reply));
     return;
   }
 

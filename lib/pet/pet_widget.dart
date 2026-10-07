@@ -84,6 +84,8 @@ class _PetWidgetState extends ConsumerState<PetWidget>
         final live2d = Live2DPetVisual(petId: widget.petId, pack: pack);
         // 动作 `sets` 改动参数时写回本宠的配置。
         live2d.onChoicesChanged = _notifier.setParamChoices;
+        // 模型加载完成后回传参数元数据 → 构建光标跟随映射。
+        live2d.onModelParameters = _notifier.setModelParameters;
         visual = live2d;
       } else {
         return;

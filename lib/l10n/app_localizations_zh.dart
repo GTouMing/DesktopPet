@@ -15,7 +15,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cancel => '取消';
 
   @override
-  String get confirm => '确定';
+  String get dismiss => '关闭';
 
   @override
   String get delete => '删除';
@@ -60,14 +60,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sectionLanguage => '语言';
 
   @override
-  String globalOpacity(int percent) {
-    return '全局透明度 — $percent%';
-  }
+  String get globalOpacityLabel => '全局透明度';
 
   @override
-  String globalScale(String scale) {
-    return '全局缩放 — ${scale}x';
-  }
+  String get globalScaleLabel => '全局缩放';
 
   @override
   String scaleLimitExceeded(String limit) {
@@ -153,8 +149,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get deletePetTitle => '删除桌宠';
 
   @override
-  String deletePetBody(String name, int scale, int opacity) {
-    return '确定要删除「$name」吗？\n\n缩放: $scale%\n透明度: $opacity%';
+  String deletePetBody(String name, String scale, int opacity) {
+    return '确定要删除「$name」吗？\n\n缩放: ${scale}x\n透明度: $opacity%';
   }
 
   @override
@@ -162,6 +158,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get editPet => '修改桌宠';
+
+  @override
+  String get unsavedChanges => '有未保存的修改';
+
+  @override
+  String get discardChanges => '放弃修改';
 
   @override
   String get preview => '预览';
@@ -180,6 +182,30 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get l2dParamsSection => '参数';
+
+  @override
+  String get mouseFollowSection => '鼠标跟随';
+
+  @override
+  String get mouseFollowX => '左右跟随';
+
+  @override
+  String get mouseFollowY => '上下跟随';
+
+  @override
+  String get mouseFollowParamsSection => '跟随参数';
+
+  @override
+  String get mouseFollowNone => '不跟随';
+
+  @override
+  String get mouseFollowAxisX => 'X';
+
+  @override
+  String get mouseFollowAxisY => 'Y';
+
+  @override
+  String get mouseFollowAxisXY => 'XY';
 
   @override
   String get petPack => '宠物包';
@@ -232,6 +258,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noPetPacksFoundHint => '该目录下没有包含 pet.json 的有效宠物包';
 
   @override
+  String get loadingPetPacks => '正在读取宠物包';
+
+  @override
   String get petPackSourceImported => '来源: 已导入的宠物包';
 
   @override
@@ -268,6 +297,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get browseFile => '浏览文件';
+
+  @override
+  String get requiredField => '此项必填';
 
   @override
   String get hotkeyTitle => '设置快捷键';

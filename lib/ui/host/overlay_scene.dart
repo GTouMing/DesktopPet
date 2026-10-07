@@ -15,6 +15,7 @@ import '../../pet/pet_providers.dart';
 import '../../pet/pet_view.dart';
 import '../../shortcut/ring_overlay.dart';
 import '../../storage/storage_service.dart';
+import '../theme/app_theme.dart';
 import 'grab_rects.dart';
 import 'scene_geometry.dart';
 import 'settings_window_channel.dart';
@@ -164,11 +165,7 @@ class _OverlaySceneState extends ConsumerState<OverlayScene>
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: Colors.pink,
-        useMaterial3: true,
-        scaffoldBackgroundColor: Colors.transparent,
-      ),
+      theme: AppTheme.overlay(),
       locale: settingsLocale(locale),
       supportedLocales: appSupportedLocales,
       localizationsDelegates: AppLocalizations.localizationsDelegates,

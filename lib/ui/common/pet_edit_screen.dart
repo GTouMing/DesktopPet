@@ -1,20 +1,26 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart' show FilePicker, FileType;
-import 'package:styled_widget/styled_widget.dart';
 
 import '../../core/constants.dart';
 import '../../l10n/app_localizations.dart';
+import '../../pet/live2d/mouse_follow.dart';
 import '../../petpack/import/pet_pack_importer.dart';
+import '../../petpack/live2d/cdi_parameters.dart';
 import '../../petpack/live2d/l2d_param_group.dart';
 import '../../petpack/live2d_pet_pack.dart';
 import '../../petpack/pet_pack.dart';
 import '../../storage/storage_service.dart';
 import '../../storage/models/pet_config.dart';
-import 'pet_pack_picker_screen.dart';
+import '../theme/app_theme.dart';
+import '../widgets/icon_plate.dart';
 import '../widgets/info_overlay.dart';
+import '../widgets/section_panel.dart';
+import '../widgets/slider_field.dart';
+import 'pet_pack_picker_screen.dart';
 
 class PetEditScreen extends ConsumerStatefulWidget {
   final PetConfig pet;
@@ -36,6 +42,25 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
   List<L2dParamGroup> _paramGroups = const [];
   late Map<String, int> _paramChoices;
 
+  /// 当前包是不是 Live2D——决定是否显示「鼠标跟随」区。
+  ///
+  /// 跟随参数/幅度读自模型，编辑页无法预知，所以只要 Live2D 就显示（无标准参数的
+  /// 模型滑杆不产生效果）。
+  bool _hasMouseFollow = false;
+
+  /// 鼠标跟随强度（乘在模型的跟随映射之上）。
+  late double _followX;
+  late double _followY;
+
+  /// 该模型的参数清单 + 分组（读自包的 `cdi3.json`）；空 = 不显示「跟随参数」区。
+  CdiParameters _cdi = CdiParameters.empty;
+
+  /// 逐参数跟随轴：参数 id → `'x' | 'y' | 'xy'`（缺项 = 不跟随）。
+  Map<String, String> _bindings = const {};
+
+  /// 打开时的跟随轴快照，用于 [dirty] 判断。
+  Map<String, String> _initialBindings = const {};
+
   static const double _stepSize = 0.1;
 
   @override
@@ -46,6 +71,10 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
     _opacityMultiplier = widget.pet.snappedOpacityMultiplier;
     _packPath = widget.pet.packPath;
     _paramChoices = Map.of(widget.pet.paramChoices);
+    _followX = widget.pet.snappedMouseFollowX;
+    _followY = widget.pet.snappedMouseFollowY;
+    _bindings = Map.of(widget.pet.mouseBindings);
+    _initialBindings = Map.of(widget.pet.mouseBindings);
     unawaited(_loadParamGroups(_packPath));
   }
 
@@ -57,285 +86,375 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    // 有未保存改动时先在返回路径上确认。编辑页横跨多个字段，手滑一次全丢且没有撤销。
+    return PopScope<PetConfig>(
+      canPop: !_dirty,
+      onPopInvokedWithResult: _onPopInvokedWithResult,
+      child: _buildScaffold(context),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final settings = StorageService.readSettings();
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: Text(l10n.editPet),
-        centerTitle: true,
         actions: [
-          TextButton.icon(
-            onPressed: _saveChanges,
-            icon: const Icon(Icons.check),
-            label: Text(l10n.save),
+          Padding(
+            padding: const EdgeInsets.only(right: Insets.lg),
+            child: FilledButton.icon(
+              onPressed: _saveChanges,
+              icon: const Icon(Icons.check_rounded, size: 18),
+              label: Text(l10n.save),
+            ),
           ),
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(
+            Insets.lg, Insets.sm, Insets.lg, Insets.xxl),
         children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 24),
-            child: _buildPreviewSection(context, theme),
+          _PreviewStage(
+            scale: _scaleMultiplier,
+            opacity: _opacityMultiplier,
+            packName: _packPath.isEmpty ? null : _packPath.split('/').last,
+            finalScale: rawFinalScale(settings.baseScale, _scaleMultiplier),
+            finalOpacity: settings.baseOpacity * _opacityMultiplier,
           ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 24),
-            child: _buildNameField(context, theme),
+          const SizedBox(height: Insets.xl),
+          SectionPanel(
+            label: l10n.sectionAppearance,
+            child: Column(
+              children: [
+                _nameField(context),
+                const Divider(height: 1),
+                SliderField(
+                  icon: Icons.zoom_in_rounded,
+                  label: l10n.scaleMultiplier,
+                  valueLabel: '${_scaleMultiplier.toStringAsFixed(1)}x',
+                  value: _scaleMultiplier,
+                  min: 0.1,
+                  max: 3.0,
+                  divisions: 29,
+                  onChanged: (value) =>
+                      setState(() => _scaleMultiplier = _snapValue(value)),
+                ),
+                const Divider(height: 1),
+                SliderField(
+                  icon: Icons.opacity_rounded,
+                  label: l10n.opacityMultiplier,
+                  valueLabel: '${(_opacityMultiplier * 100).round()}%',
+                  value: _opacityMultiplier,
+                  min: 0.1,
+                  max: 1.0,
+                  divisions: 9,
+                  onChanged: (value) =>
+                      setState(() => _opacityMultiplier = _snapValue(value)),
+                ),
+              ],
+            ),
           ),
-          _buildScaleSlider(context, theme),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 24),
-            child: _buildMultiplierHint(l10n, isScale: true),
-          ),
-          _buildOpacitySlider(context, theme),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 24),
-            child: _buildMultiplierHint(l10n, isScale: false),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 32),
-            child: _buildPackPathField(context, theme),
+          const SizedBox(height: Insets.xl),
+          SectionPanel(
+            label: l10n.petPack,
+            child: _packRow(context),
           ),
           if (_paramGroups.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(l10n.l2dParamsSection,
-                  style: theme.textTheme.labelLarge),
+            const SizedBox(height: Insets.xl),
+            SectionPanel(
+              label: l10n.l2dParamsSection,
+              child: Column(
+                children: [
+                  for (var i = 0; i < _paramGroups.length; i++) ...[
+                    if (i > 0) const Divider(height: 1),
+                    _paramRow(_paramGroups[i]),
+                  ],
+                ],
+              ),
             ),
-            for (final group in _paramGroups) _buildParamGroup(group),
-            const SizedBox(height: 16),
           ],
-          _buildDeleteButton(context),
+          if (_hasMouseFollow) ...[
+            const SizedBox(height: Insets.xl),
+            SectionPanel(
+              label: l10n.mouseFollowSection,
+              child: Column(
+                children: [
+                  SliderField(
+                    icon: Icons.open_with_rounded,
+                    label: l10n.mouseFollowX,
+                    valueLabel: 'x${_followX.toStringAsFixed(1)}',
+                    value: _followX,
+                    min: 0.0,
+                    max: maxMouseFollow,
+                    divisions: 20,
+                    onChanged: (value) =>
+                        setState(() => _followX = _snapValue(value)),
+                  ),
+                  const Divider(height: 1),
+                  SliderField(
+                    icon: Icons.swap_vert_rounded,
+                    label: l10n.mouseFollowY,
+                    valueLabel: 'x${_followY.toStringAsFixed(1)}',
+                    value: _followY,
+                    min: 0.0,
+                    max: maxMouseFollow,
+                    divisions: 20,
+                    onChanged: (value) =>
+                        setState(() => _followY = _snapValue(value)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (_cdi.parameters.isNotEmpty) ...[
+            const SizedBox(height: Insets.xl),
+            SectionPanel(
+              label: l10n.mouseFollowParamsSection,
+              child: _followParamsSection(context),
+            ),
+          ],
+          const SizedBox(height: Insets.xxl),
+          _deleteButton(context),
         ],
       ),
     );
   }
 
-  Widget _buildMultiplierHint(AppLocalizations l10n, {required bool isScale}) {
-    final text = isScale
-        ? l10n.finalScaleFormula
-        : l10n.finalOpacityFormula;
+  // ── 预览 ─────────────────────────────────────────────────────────────
+
+  Widget _nameField(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return Padding(
-      padding: const EdgeInsets.only(left: 16),
-      child: Text(text).fontSize(11).textColor(Colors.grey),
+      padding: const EdgeInsets.all(Insets.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(l10n.name, style: theme.textTheme.labelSmall),
+          const SizedBox(height: Insets.sm),
+          TextField(
+            controller: _nameController,
+            decoration: InputDecoration(
+              hintText: l10n.nameHint,
+              prefixIcon: const Icon(Icons.edit_rounded, size: 20),
+            ),
+            // 需要重建才能让 _dirty 跟上输入，否则返回键的拦截会停在旧值上。
+            onChanged: (_) => setState(() {}),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildPreviewSection(BuildContext context, ThemeData theme) {
+  // ── 宠物包 ───────────────────────────────────────────────────────────
+
+  Widget _packRow(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final l10n = AppLocalizations.of(context);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Text(l10n.preview, style: theme.textTheme.labelLarge),
+    final isDefault = _packPath.isEmpty || _packPath == defaultPackPath;
+
+    return ListTile(
+      onTap: _openPackPicker,
+      leading: IconPlate(
+        icon: isDefault ? Icons.auto_awesome_rounded : Icons.folder_rounded,
+        tone: isDefault ? PlateTone.accent : PlateTone.neutral,
+      ),
+      title: Text(
+        isDefault ? l10n.defaultPetPackName : _packPath.split('/').last,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        isDefault ? l10n.useGlobalPetPack : _packPath,
+        overflow: TextOverflow.ellipsis,
+        maxLines: 1,
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (!isDefault)
+            IconButton(
+              icon: const Icon(Icons.close_rounded, size: 18),
+              tooltip: l10n.restoreDefault,
+              onPressed: () {
+                setState(() => _packPath = '');
+                unawaited(_loadParamGroups(''));
+              },
             ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Transform.scale(
-                  scale: _scaleMultiplier,
-                  child: Opacity(
-                    opacity: _opacityMultiplier,
-                    child: Icon(
-                      Icons.auto_awesome,
-                      size: 60,
-                      color: theme.colorScheme.onPrimaryContainer,
-                    ),
-                  ),
-                ),
+          IconButton(
+            icon: const Icon(Icons.archive_rounded, size: 18),
+            color: scheme.onSurfaceVariant,
+            tooltip: l10n.importZipPetPack,
+            onPressed: _importZipPack,
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right_rounded, size: 20),
+            color: scheme.onSurfaceVariant,
+            tooltip: l10n.choosePetPack,
+            onPressed: _openPackPicker,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _paramRow(L2dParamGroup group) {
+    final theme = Theme.of(context);
+    var idx = _paramChoices[group.id] ?? group.defaultIndex;
+    if (idx < 0) idx = 0;
+    if (idx >= group.options.length) idx = group.options.length - 1;
+
+    if (group.isBool) {
+      return SwitchListTile(
+        title: Text(group.label),
+        value: idx == 1,
+        onChanged: (v) => setState(() => _paramChoices[group.id] = v ? 1 : 0),
+      );
+    }
+    return ListTile(
+      title: Text(group.label),
+      trailing: DropdownButton<int>(
+        value: idx,
+        style: theme.textTheme.titleMedium,
+        underline: const SizedBox.shrink(),
+        borderRadius: BorderRadius.circular(Radii.control),
+        items: [
+          for (var i = 0; i < group.options.length; i++)
+            DropdownMenuItem<int>(
+              value: i,
+              child: Text(
+                group.options[i].label.isEmpty ? '-' : group.options[i].label,
               ),
             ),
-            Text(
-              '${(_scaleMultiplier * 100).round()}% · ${(_opacityMultiplier * 100).round()}%',
-            ).fontSize(12).textColor(Colors.grey),
-            if (_packPath.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(l10n.petPackLabel(_packPath.split('/').last))
-                    .fontSize(11)
-                    .textColor(Colors.blue),
-              ),
-          ],
+        ],
+        onChanged: (v) {
+          if (v != null) setState(() => _paramChoices[group.id] = v);
+        },
+      ),
+    );
+  }
+
+  // ── 跟随参数 ─────────────────────────────────────────────────────────
+
+  static const String _axisNone = 'none';
+
+  /// 「跟随参数」区：只列**标准跟随参数所在分组**里的参数（作者把跟随相关的放在
+  /// 同一组），逐参数选轴（不跟随 / X / Y / XY）；组名当小标题。
+  Widget _followParamsSection(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final rows = <Widget>[];
+    String? lastGroup;
+    for (final parameter in _followCandidates()) {
+      if (parameter.groupId != lastGroup) {
+        lastGroup = parameter.groupId;
+        final name = _cdi.groupNames[parameter.groupId];
+        if (name != null) {
+          rows.add(Padding(
+            padding: const EdgeInsets.fromLTRB(
+                Insets.lg, Insets.md, Insets.lg, Insets.sm),
+            child: Text(name, style: theme.textTheme.labelMedium),
+          ));
+        }
+      }
+      rows.add(_followParamRow(l10n, parameter));
+    }
+    return Column(children: rows);
+  }
+
+  /// 候选参数：标准跟随参数所在的 cdi3 分组里、**id 或名带大写 X/Y/Z** 的参数
+  /// （轴向参数都带这个标记）。模型没有标准跟随参数时回退到全部参数。
+  List<L2dModelParameter> _followCandidates() {
+    final byId = {for (final p in _cdi.parameters) p.id: p};
+    final groups = <String>{};
+    for (final id in standardFollowAxes.keys) {
+      final parameter = byId[id];
+      if (parameter != null && parameter.groupId.isNotEmpty) {
+        groups.add(parameter.groupId);
+      }
+    }
+    final scope = groups.isEmpty
+        ? _cdi.parameters
+        : _cdi.parameters.where((p) => groups.contains(p.groupId));
+    return scope.where((p) => hasFollowAxisLetter(p.id, p.name)).toList();
+  }
+
+  Widget _followParamRow(AppLocalizations l10n, L2dModelParameter parameter) {
+    final axis = _bindings[parameter.id] ?? _axisNone;
+    return ListTile(
+      dense: true,
+      title: Text(parameter.name, overflow: TextOverflow.ellipsis),
+      subtitle: Text(
+        parameter.id,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+      trailing: DropdownButton<String>(
+        value: axis,
+        underline: const SizedBox.shrink(),
+        borderRadius: BorderRadius.circular(Radii.control),
+        items: [
+          DropdownMenuItem(
+              value: _axisNone, child: Text(l10n.mouseFollowNone)),
+          DropdownMenuItem(value: 'x', child: Text(l10n.mouseFollowAxisX)),
+          DropdownMenuItem(value: 'y', child: Text(l10n.mouseFollowAxisY)),
+          DropdownMenuItem(value: 'xy', child: Text(l10n.mouseFollowAxisXY)),
+        ],
+        onChanged: (value) => setState(() {
+          if (value == null || value == _axisNone) {
+            _bindings.remove(parameter.id);
+          } else {
+            _bindings[parameter.id] = value;
+          }
+        }),
+      ),
+    );
+  }
+
+  /// 保存用：与自动标准集等价 → 存空（继续自动）；否则存当前表。
+  Map<String, String> _bindingsToStore() {
+    final auto = _autoBindings(_cdi.parameters);
+    return mapEquals(_bindings, auto) ? const {} : Map.of(_bindings);
+  }
+
+  // ── 危险操作 ─────────────────────────────────────────────────────────
+
+  Widget _deleteButton(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: _showDeleteDialog,
+        icon: const Icon(Icons.delete_outline_rounded, size: 18),
+        label: Text(l10n.deletePetTitle),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: scheme.error,
+          side: BorderSide(color: scheme.error.withValues(alpha: 0.45)),
         ),
       ),
     );
   }
 
-  Widget _buildNameField(BuildContext context, ThemeData theme) {
-    final l10n = AppLocalizations.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Text(l10n.name, style: theme.textTheme.labelLarge),
-        ),
-        TextField(
-          controller: _nameController,
-          decoration: InputDecoration(
-            hintText: l10n.nameHint,
-            border: const OutlineInputBorder(),
-            prefixIcon: const Icon(Icons.edit),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildScaleSlider(BuildContext context, ThemeData theme) {
-    final l10n = AppLocalizations.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(l10n.scaleMultiplier, style: theme.textTheme.labelLarge),
-              Text('${(_scaleMultiplier * 100).round()}%')
-                  .bold().fontSize(14).textColor(theme.colorScheme.primary),
-            ],
-          ),
-        ),
-        Row(
-          children: [
-            const Icon(Icons.zoom_out, size: 20, color: Colors.grey),
-            Expanded(
-              child: Slider(
-                value: _scaleMultiplier,
-                min: 0.1,
-                max: 3.0,
-                divisions: 29,
-                label: '${(_scaleMultiplier * 100).round()}%',
-                onChanged: (value) {
-                  setState(() {
-                    _scaleMultiplier = _snapValue(value);
-                  });
-                },
-              ),
-            ),
-            const Icon(Icons.zoom_in, size: 20, color: Colors.grey),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildOpacitySlider(BuildContext context, ThemeData theme) {
-    final l10n = AppLocalizations.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(l10n.opacityMultiplier, style: theme.textTheme.labelLarge),
-              Text('${(_opacityMultiplier * 100).round()}%')
-                  .bold().fontSize(14).textColor(theme.colorScheme.primary),
-            ],
-          ),
-        ),
-        Row(
-          children: [
-            const Icon(Icons.opacity, size: 20, color: Colors.grey),
-            Expanded(
-              child: Slider(
-                value: _opacityMultiplier,
-                min: 0.1,
-                max: 1.0,
-                divisions: 9,
-                label: '${(_opacityMultiplier * 100).round()}%',
-                onChanged: (value) {
-                  setState(() {
-                    _opacityMultiplier = _snapValue(value);
-                  });
-                },
-              ),
-            ),
-            const Icon(Icons.opacity, size: 20),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPackPathField(BuildContext context, ThemeData theme) {
-    final l10n = AppLocalizations.of(context);
-    final isDefault = _packPath.isEmpty || _packPath == defaultPackPath;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Text(l10n.petPack, style: theme.textTheme.labelLarge),
-        ),
-        Card(
-          child: ListTile(
-            leading: Icon(
-              isDefault ? Icons.auto_awesome : Icons.folder,
-              color: isDefault ? theme.colorScheme.primary : null,
-            ),
-            title: Text(
-              isDefault ? l10n.defaultPetPackName : _packPath.split('/').last,
-              overflow: TextOverflow.ellipsis,
-            ),
-            subtitle: Text(
-              isDefault ? l10n.useGlobalPetPack : _packPath,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-            ).fontSize(12),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (!isDefault)
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 18),
-                    tooltip: l10n.restoreDefault,
-                    onPressed: () {
-                      setState(() => _packPath = '');
-                      unawaited(_loadParamGroups(''));
-                    },
-                  ),
-                IconButton(
-                  icon: const Icon(Icons.archive_outlined, size: 18),
-                  tooltip: l10n.importZipPetPack,
-                  onPressed: _importZipPack,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.chevron_right, size: 18),
-                  tooltip: l10n.choosePetPack,
-                  onPressed: _openPackPicker,
-                ),
-              ],
-            ),
-            onTap: _openPackPicker,
-          ),
-        ),
-      ],
-    );
-  }
+  // ── 加载与保存 ───────────────────────────────────────────────────────
 
   /// 读取当前宠物包的参数组（Live2D 才有），并剪掉不属于该包的旧选择。
   Future<void> _loadParamGroups(String path) async {
     var groups = const <L2dParamGroup>[];
+    var hasMouseFollow = false;
+    var cdi = CdiParameters.empty;
     if (path.isNotEmpty) {
       try {
         final pack = await PetPack.load(path);
-        if (pack is Live2DPetPack) groups = pack.paramGroups;
+        if (pack is Live2DPetPack) {
+          groups = pack.paramGroups;
+          hasMouseFollow = true;
+          cdi = await loadModelParameters(pack);
+        }
       } catch (_) {
         // 包缺失/不可读：当作没有可调参数。
       }
@@ -344,6 +463,10 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
     final ids = {for (final g in groups) g.id};
     setState(() {
       _paramGroups = groups;
+      _hasMouseFollow = hasMouseFollow;
+      _cdi = cdi;
+      _bindings = _storedOrAutoBindings(cdi.parameters);
+      _initialBindings = Map.of(_bindings);
       _paramChoices = {
         for (final e in _paramChoices.entries)
           if (ids.contains(e.key)) e.key: e.value,
@@ -351,59 +474,24 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
     });
   }
 
-  Widget _buildParamGroup(L2dParamGroup group) {
-    var idx = _paramChoices[group.id] ?? group.defaultIndex;
-    if (idx < 0) idx = 0;
-    if (idx >= group.options.length) idx = group.options.length - 1;
-
-    if (group.isBool) {
-      return Card(
-        child: SwitchListTile(
-          title: Text(group.label),
-          value: idx == 1,
-          onChanged: (v) => setState(() => _paramChoices[group.id] = v ? 1 : 0),
-        ),
-      );
-    }
-    return Card(
-      child: ListTile(
-        title: Text(group.label),
-        trailing: DropdownButton<int>(
-          value: idx,
-          underline: const SizedBox.shrink(),
-          items: [
-            for (var i = 0; i < group.options.length; i++)
-              DropdownMenuItem<int>(
-                value: i,
-                child: Text(
-                  group.options[i].label.isEmpty ? '-' : group.options[i].label,
-                ),
-              ),
-          ],
-          onChanged: (v) {
-            if (v != null) setState(() => _paramChoices[group.id] = v);
-          },
-        ),
-      ),
-    );
+  /// 自动标准集 ∩ 该模型参数——编辑页下拉的预填。
+  Map<String, String> _autoBindings(List<L2dModelParameter> parameters) {
+    final ids = {for (final p in parameters) p.id};
+    return {
+      for (final e in standardFollowAxes.entries)
+        if (ids.contains(e.key)) e.key: e.value,
+    };
   }
 
-  Widget _buildDeleteButton(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return OutlinedButton.icon(
-      onPressed: () => _showDeleteDialog(),
-      icon: const Icon(Icons.delete, color: Colors.red),
-      label: Text(l10n.deletePetTitle,
-          style: const TextStyle(color: Colors.red)),
-      style: OutlinedButton.styleFrom(
-        side: const BorderSide(color: Colors.red),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-      ),
-    );
-  }
-
-  double _snapValue(double value) {
-    return (value / _stepSize).round() * _stepSize;
+  /// 存储的绑定（剪掉不属于该模型的）优先；无存储则回退自动标准集。
+  Map<String, String> _storedOrAutoBindings(List<L2dModelParameter> parameters) {
+    final stored = widget.pet.mouseBindings;
+    if (stored.isEmpty) return _autoBindings(parameters);
+    final ids = {for (final p in parameters) p.id};
+    return {
+      for (final e in stored.entries)
+        if (ids.contains(e.key)) e.key: e.value,
+    };
   }
 
   void _openPackPicker() {
@@ -472,17 +560,64 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
     }
 
     final updatedPet = widget.pet.copyWith(
-      name: _nameController.text.isNotEmpty ? _nameController.text : widget.pet.name,
+      name: _nameController.text.isNotEmpty
+          ? _nameController.text
+          : widget.pet.name,
       scaleMultiplier: _scaleMultiplier,
       opacityMultiplier: _opacityMultiplier,
       packPath: _packPath,
       paramChoices: _paramChoices,
+      mouseFollowX: _followX,
+      mouseFollowY: _followY,
+      mouseBindings: _bindingsToStore(),
     );
     final resultPet = widget.isNewPet && widget.pet.id.isEmpty
         ? updatedPet.copyWith(id: newPetId())
         : updatedPet;
 
     Navigator.pop(context, resultPet);
+  }
+
+  /// 是否已偏离打开时的值。
+  bool get _dirty =>
+      _nameController.text != widget.pet.name ||
+      _scaleMultiplier != widget.pet.snappedScaleMultiplier ||
+      _opacityMultiplier != widget.pet.snappedOpacityMultiplier ||
+      _packPath != widget.pet.packPath ||
+      !mapEquals(_paramChoices, widget.pet.paramChoices) ||
+      _followX != widget.pet.snappedMouseFollowX ||
+      _followY != widget.pet.snappedMouseFollowY ||
+      !mapEquals(_bindings, _initialBindings);
+
+  Future<void> _onPopInvokedWithResult(bool didPop, PetConfig? result) async {
+    if (didPop) return;
+    final navigator = Navigator.of(context);
+    if (await _confirmDiscard(context)) navigator.pop();
+  }
+
+  /// 放弃修改前的确认。
+  ///
+  /// 破坏性的一方（放弃）放在右侧且不是焦点默认落点——对话框打开时第一个可聚焦
+  /// 元素是「取消」。
+  Future<bool> _confirmDiscard(BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.unsavedChanges),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.discardChanges),
+          ),
+        ],
+      ),
+    );
+    return discard ?? false;
   }
 
   void _showDeleteDialog() {
@@ -502,8 +637,154 @@ class _PetEditScreenState extends ConsumerState<PetEditScreen> {
               Navigator.pop(context);
               Navigator.pop(context, null);
             },
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
             child: Text(l10n.delete),
+          ),
+        ],
+      ),
+    );
+  }
+
+  double _snapValue(double value) {
+    return (value / _stepSize).round() * _stepSize;
+  }
+}
+
+/// 预览舞台：把乘数效果直接画出来，并在下面给出最终生效值。
+class _PreviewStage extends StatelessWidget {
+  const _PreviewStage({
+    required this.scale,
+    required this.opacity,
+    required this.packName,
+    required this.finalScale,
+    required this.finalOpacity,
+  });
+
+  final double scale;
+  final double opacity;
+  final String? packName;
+  final double finalScale;
+  final double finalOpacity;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
+
+    return SectionPanel(
+      label: l10n.preview,
+      child: Column(
+        children: [
+          Container(
+            height: 180,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  scheme.primaryContainer.withValues(alpha: 0.55),
+                  scheme.surfaceContainerLow,
+                ],
+              ),
+            ),
+            child: Center(
+              child: Transform.scale(
+                scale: scale,
+                child: Opacity(
+                  opacity: opacity,
+                  child: Container(
+                    width: 92,
+                    height: 92,
+                    decoration: BoxDecoration(
+                      color: scheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(26),
+                    ),
+                    child: Icon(
+                      Icons.pets_rounded,
+                      size: 48,
+                      color: scheme.onPrimaryContainer,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(Insets.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: Insets.sm,
+                  runSpacing: Insets.sm,
+                  children: [
+                    _Readout(
+                      icon: Icons.zoom_in_rounded,
+                      text: '${scale.toStringAsFixed(1)}x',
+                    ),
+                    _Readout(
+                      icon: Icons.opacity_rounded,
+                      text: '${(opacity * 100).round()}%',
+                    ),
+                    if (packName != null)
+                      _Readout(
+                        icon: Icons.folder_rounded,
+                        text: packName!,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: Insets.md),
+                Text(
+                  '${l10n.finalScaleFormula}  →  '
+                  '${finalScale.toStringAsFixed(1)}x',
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${l10n.finalOpacityFormula}  →  '
+                  '${(finalOpacity * 100).round()}%',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Readout extends StatelessWidget {
+  const _Readout({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: Insets.md, vertical: Insets.xs + 2),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(Radii.pill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: theme.textTheme.labelMedium
+                ?.copyWith(color: scheme.onSurface),
           ),
         ],
       ),

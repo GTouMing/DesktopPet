@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../core/constants.dart';
 import '../../l10n/app_localizations.dart';
 import '../../storage/storage_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/icon_plate.dart';
+import '../widgets/section_panel.dart';
 
 /// 语言选择界面(设置 → 语言)。
 class LanguageScreen extends StatefulWidget {
@@ -36,22 +39,57 @@ class _LanguageScreenState extends State<LanguageScreen> {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      appBar: AppBar(title: Text(l10n.language), centerTitle: true),
+      appBar: AppBar(title: Text(l10n.language)),
       body: ListView(
+        padding: const EdgeInsets.fromLTRB(
+            Insets.lg, Insets.sm, Insets.lg, Insets.xxl),
         children: [
-          _option(context, localeSystem, l10n.languageSystem),
-          _option(context, localeZh, l10n.languageChinese),
-          _option(context, localeEn, l10n.languageEnglish),
+          SectionPanel(
+            label: l10n.sectionLanguage,
+            child: Column(
+              children: [
+                _option(context, localeSystem, l10n.languageSystem),
+                const Divider(height: 1),
+                _option(context, localeZh, l10n.languageChinese),
+                const Divider(height: 1),
+                _option(context, localeEn, l10n.languageEnglish),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _option(BuildContext context, String value, String label) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final selected = _locale == value;
+
     return ListTile(
-      title: Text(label),
-      trailing: _locale == value ? const Icon(Icons.check) : null,
       onTap: () => _select(value),
+      leading: IconPlate(
+        icon: Icons.language_rounded,
+        tone: selected ? PlateTone.accent : PlateTone.neutral,
+      ),
+      title: Text(
+        label,
+        style: theme.textTheme.titleMedium?.copyWith(
+          color: selected ? scheme.primary : scheme.onSurface,
+        ),
+      ),
+      trailing: selected
+          ? Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: scheme.primary,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.check_rounded,
+                  size: 16, color: scheme.onPrimary),
+            )
+          : null,
     );
   }
 }

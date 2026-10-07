@@ -253,37 +253,30 @@ void main() {
     expect(params, {'q': 'Q1', 'space': 'Space'});
   });
 
-  test('解析清单 mouseParams 表（多组映射 + 字符串简写；全空返回 null）', () {
+  test('解析清单 mouseParams 表（只取左右键与缓动；空表返回 null）', () {
     final mp = parsePetPackMouseParams({
       'mouseParams': {
-        'x': [
-          {'param': 'ParamAngleX', 'scale': 30},
-          'ParamEyeBallX',
-          {'param': 'ParamMouseX', 'scale': 30, 'raw': true},
-        ],
-        'y': 'ParamAngleY',
-        'xy': [
-          {'param': 'ParamAngleZ', 'scale': -30},
-        ],
         'left': 'LDown',
         'right': 'RDown',
         'smooth': 1.0,
+        // 跟随轴已作废：清单里给了也不解析（参数/幅度改由模型提供）。
+        'x': [
+          {'param': 'ParamAngleX', 'scale': 30},
+        ],
       },
     });
     expect(mp, isNotNull);
-    expect(mp!.followsCursor, isTrue);
-    expect(mp.hasButtons, isTrue);
+    expect(mp!.hasButtons, isTrue);
+    expect(mp.left, 'LDown');
+    expect(mp.right, 'RDown');
     expect(mp.smooth, 1.0);
-    expect(mp.x.length, 3);
-    expect(mp.x[0].param, 'ParamAngleX');
-    expect(mp.x[0].scale, 30.0);
-    expect(mp.x[0].raw, isFalse);
-    expect(mp.x[1].param, 'ParamEyeBallX');
-    expect(mp.x[1].scale, 1.0, reason: '字符串简写 → scale 1');
-    expect(mp.x[2].param, 'ParamMouseX');
-    expect(mp.x[2].raw, isTrue, reason: 'raw: true → 不缓动');
-    expect(mp.y.single.param, 'ParamAngleY');
-    expect(mp.xy.single.scale, -30.0);
+
+    // 只给 smooth 也算配置；缺省 smooth = 1.0。
+    final smoothOnly =
+        parsePetPackMouseParams({'mouseParams': {'smooth': 0.5}});
+    expect(smoothOnly, isNotNull);
+    expect(smoothOnly!.hasButtons, isFalse);
+    expect(smoothOnly.smooth, 0.5);
 
     expect(parsePetPackMouseParams({'mouseParams': {}}), isNull);
     expect(parsePetPackMouseParams(const {}), isNull);

@@ -3,6 +3,8 @@ import 'package:desktop_pet/storage/models/app_shortcut.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 /// 快捷启动应用编辑对话框（新增 / 编辑）。
 class ShortcutEditDialog extends StatefulWidget {
   final AppShortcut? initial;
@@ -16,6 +18,9 @@ class ShortcutEditDialog extends StatefulWidget {
 class _ShortcutEditDialogState extends State<ShortcutEditDialog> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _pathCtrl;
+
+  /// 是否已经尝试提交过：只有提交失败后才把"必填"标在字段上。
+  bool _showErrors = false;
 
   @override
   void initState() {
@@ -32,17 +37,36 @@ class _ShortcutEditDialogState extends State<ShortcutEditDialog> {
     super.dispose();
   }
 
-  bool get _valid =>
-      _nameCtrl.text.trim().isNotEmpty && _pathCtrl.text.trim().isNotEmpty;
+  bool get _nameValid => _nameCtrl.text.trim().isNotEmpty;
+  bool get _pathValid => _pathCtrl.text.trim().isNotEmpty;
 
   void _pickExecutable() async {
     final result = await FilePicker.pickFiles(
       type: FileType.any,
     );
-    if (result != null && result.files.single.path != null) {
-      _pathCtrl.text = result.files.single.path!;
-      setState(() {});
+    final path = result?.files.single.path;
+    if (path == null) return;
+    _pathCtrl.text = path;
+    setState(() {});
+  }
+
+  /// 校验并提交。
+  ///
+  /// 确认键**始终可点**：缺什么就直接标在对应字段上，而不是把按钮灰掉让用户
+  /// 自己猜哪里没填。
+  void _submit() {
+    if (!_nameValid || !_pathValid) {
+      setState(() => _showErrors = true);
+      return;
     }
+    Navigator.pop(
+      context,
+      AppShortcut(
+        name: _nameCtrl.text.trim(),
+        executablePath: _pathCtrl.text.trim(),
+        order: widget.initial?.order ?? 0,
+      ),
+    );
   }
 
   @override
@@ -52,41 +76,50 @@ class _ShortcutEditDialogState extends State<ShortcutEditDialog> {
 
     return AlertDialog(
       title: Text(isNew ? l10n.addShortcutTitle : l10n.editShortcutTitle),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _nameCtrl,
-            decoration: InputDecoration(
-              labelText: l10n.nameLabel,
-              hintText: l10n.nameHintShortcut,
-              border: const OutlineInputBorder(),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameCtrl,
+              decoration: InputDecoration(
+                labelText: l10n.nameLabel,
+                hintText: l10n.nameHintShortcut,
+                errorText:
+                    _showErrors && !_nameValid ? l10n.requiredField : null,
+              ),
+              onChanged: (_) => setState(() {}),
             ),
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _pathCtrl,
-                  decoration: InputDecoration(
-                    labelText: l10n.pathLabel,
-                    hintText: l10n.pathHint,
-                    border: const OutlineInputBorder(),
+            const SizedBox(height: Insets.lg),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _pathCtrl,
+                    decoration: InputDecoration(
+                      labelText: l10n.pathLabel,
+                      hintText: l10n.pathHint,
+                      errorText:
+                          _showErrors && !_pathValid ? l10n.requiredField : null,
+                    ),
+                    onChanged: (_) => setState(() {}),
                   ),
-                  onChanged: (_) => setState(() {}),
                 ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(Icons.folder_open),
-                tooltip: l10n.browseFile,
-                onPressed: _pickExecutable,
-              ),
-            ],
-          ),
-        ],
+                const SizedBox(width: Insets.xs),
+                Padding(
+                  padding: const EdgeInsets.only(top: Insets.xs),
+                  child: IconButton(
+                    icon: const Icon(Icons.folder_open_rounded, size: 20),
+                    tooltip: l10n.browseFile,
+                    onPressed: _pickExecutable,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
       actions: [
         TextButton(
@@ -94,17 +127,8 @@ class _ShortcutEditDialogState extends State<ShortcutEditDialog> {
           child: Text(l10n.cancel),
         ),
         FilledButton(
-          onPressed: _valid
-              ? () => Navigator.pop(
-                    context,
-                    AppShortcut(
-                      name: _nameCtrl.text.trim(),
-                      executablePath: _pathCtrl.text.trim(),
-                      order: widget.initial?.order ?? 0,
-                    ),
-                  )
-              : null,
-          child: Text(l10n.confirm),
+          onPressed: _submit,
+          child: Text(l10n.save),
         ),
       ],
     );

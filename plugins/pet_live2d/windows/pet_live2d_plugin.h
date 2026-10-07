@@ -36,29 +36,8 @@ class PetLive2DPlugin : public flutter::Plugin {
       std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
 
  private:
-  /// Queues `modelReady`: the Dart side swaps a warmed-up instance in only once
-  /// it can actually draw, so a resize never shows a blank frame.
-  ///
-  /// Called from the runtime's RENDER thread. A platform-channel message may only
-  /// be sent from the platform thread (otherwise the engine logs "sent a message
-  /// on a non-platform thread" and may drop it), so this only enqueues and posts
-  /// a window message; [FlushModelReady] does the actual send.
-  void SendModelReady(const std::string& pet_id);
-
-  /// Drains queued pet ids on the platform thread and invokes the channel.
-  void FlushModelReady();
-
-  flutter::PluginRegistrarWindows* registrar_ = nullptr;
-
-  /// Top-level window that receives the posted `modelReady` notification.
-  HWND ready_window_ = nullptr;
-  int window_proc_id_ = -1;
-
-  std::mutex ready_mutex_;
-  std::vector<std::string> ready_queue_;
-
   /// Kept alive (unlike the usual plugin template, which lets the channel die
-  /// after registration) because we also call INTO Dart.
+  /// after registration) so its Dart→native method-call handler stays installed.
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> channel_;
   std::unique_ptr<Live2DRuntime> runtime_;
 };

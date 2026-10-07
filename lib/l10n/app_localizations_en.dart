@@ -15,7 +15,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cancel => 'Cancel';
 
   @override
-  String get confirm => 'OK';
+  String get dismiss => 'Dismiss';
 
   @override
   String get delete => 'Delete';
@@ -60,14 +60,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sectionLanguage => 'Language';
 
   @override
-  String globalOpacity(int percent) {
-    return 'Global opacity — $percent%';
-  }
+  String get globalOpacityLabel => 'Global opacity';
 
   @override
-  String globalScale(String scale) {
-    return 'Global scale — ${scale}x';
-  }
+  String get globalScaleLabel => 'Global scale';
 
   @override
   String scaleLimitExceeded(String limit) {
@@ -153,8 +149,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deletePetTitle => 'Delete pet';
 
   @override
-  String deletePetBody(String name, int scale, int opacity) {
-    return 'Delete \"$name\"?\n\nScale: $scale%\nOpacity: $opacity%';
+  String deletePetBody(String name, String scale, int opacity) {
+    return 'Delete \"$name\"?\n\nScale: ${scale}x\nOpacity: $opacity%';
   }
 
   @override
@@ -162,6 +158,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get editPet => 'Edit pet';
+
+  @override
+  String get unsavedChanges => 'You have unsaved changes';
+
+  @override
+  String get discardChanges => 'Discard changes';
 
   @override
   String get preview => 'Preview';
@@ -180,6 +182,30 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get l2dParamsSection => 'Parameters';
+
+  @override
+  String get mouseFollowSection => 'Mouse follow';
+
+  @override
+  String get mouseFollowX => 'Horizontally';
+
+  @override
+  String get mouseFollowY => 'Vertically';
+
+  @override
+  String get mouseFollowParamsSection => 'Cursor-follow parameters';
+
+  @override
+  String get mouseFollowNone => 'Don\'t follow';
+
+  @override
+  String get mouseFollowAxisX => 'X';
+
+  @override
+  String get mouseFollowAxisY => 'Y';
+
+  @override
+  String get mouseFollowAxisXY => 'XY';
 
   @override
   String get petPack => 'Pet pack';
@@ -233,6 +259,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'No valid pet pack (with pet.json) in this directory';
 
   @override
+  String get loadingPetPacks => 'Reading pet packs';
+
+  @override
   String get petPackSourceImported => 'Source: imported pet pack';
 
   @override
@@ -269,6 +298,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get browseFile => 'Browse file';
+
+  @override
+  String get requiredField => 'Required';
 
   @override
   String get hotkeyTitle => 'Set shortcut';

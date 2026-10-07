@@ -16,7 +16,8 @@ import 'tray_manager.dart';
 /// 装配：窗口防误关、托盘、全局输入。
 ///
 /// 桌宠窗口与环形菜单子窗口都不再存在，故这里原先的"创建 ring 窗口 / 批量创建
-/// 桌宠窗口"整段被删除；设置窗口则改由 [SettingsWindowHost] 按需懒创建。
+/// 桌宠窗口"整段被删除；设置窗口则由 [SettingsWindowHost] 在首帧后**延迟预热**并
+/// 保持隐藏（见 [start] 末尾）。
 class AppHost {
   AppHost._();
 
@@ -28,6 +29,14 @@ class AppHost {
   /// 所以先透明、过一拍再揭示。透明度本身仍由原生在 Install 时置 0
   ///(见 `windows/runner/overlay_window.cpp`),这里只决定"何时打开"。
   static const Duration _revealDelay = Duration(milliseconds: 200);
+
+  /// 首帧之后、预热设置窗口之前的等待。
+  ///
+  /// 设置窗口的子引擎（另一进程 + Flutter 引擎）启动时会在约 1.8s 内持续抢占
+  /// 平台线程——实测这段里所有平台通道调用（全局输入 `arm`、宠物取屏幕矩形）都要
+  /// 排队等它，宠物首载被硬生生拖后 ~2s。所以预热推迟到启动稳定之后：
+  /// 用户若在此之前就点"设置"，`show()` 会等同一个创建 Future，行为不变。
+  static const Duration _settingsWarmUpDelay = Duration(seconds: 5);
 
   /// 最近一次已应用到托盘的语言（见 [_refreshTrayLocale]）。
   static String? _appliedTrayLocale;
@@ -69,16 +78,6 @@ class AppHost {
     //（见 OverlayScene._setupStorageChannel）。
     StorageService.addSettingsListener(_refreshTrayLocale);
 
-    // 设置窗口不再懒创建：等到用户点"设置"才拉起子引擎，会把"新进程 + 启动引擎
-    // + 首帧"整段开销压在那一刻，首次打开必然卡一下。这里在启动阶段就建好并保持
-    // 隐藏，之后每次打开都是即时的。
-    //
-    // 刻意**不 await**：子引擎启动（另一个进程 + Flutter 引擎）不该拖住悬浮窗首帧
-    // ——窗口此刻已经显示，等太久会先露出一块空白（见 overlay_window.cpp 里
-    // WM_SHOWWINDOW 的揭示时序）。用户点"设置"时若它还在启动，show() 会等同一个
-    // 创建 Future，不会重复拉起。
-    unawaited(SettingsWindowHost.warmUp());
-
     // 预热快捷启动的工人 isolate：它做"检查目标 + 拉起进程"这类同步阻塞调用，
     // 必须在装钩子之前就绪——否则第一次命中扇区松手会在钩子回调里同步启动
     // isolate（debug 构建可达数百毫秒），钩子超时会被系统摘掉。见 ShortcutLauncher。
@@ -93,10 +92,11 @@ class AppHost {
     // Dart 触发，原生不再持有任何显示时机策略。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future<void>.delayed(_revealDelay, () => windowManager.setOpacity(1));
+      // 先建好设置窗口、保持隐藏，首次打开才不卡；但子引擎启动会抢占平台线程
+      // 约 1.8s（见 [_settingsWarmUpDelay]），所以等启动稳定后再预热。仍"不 await"。
+      Future<void>.delayed(_settingsWarmUpDelay,
+          () => unawaited(SettingsWindowHost.warmUp()));
     });
-
-    // 注：设置窗口不在此创建。它由托盘"设置"触发、懒创建一次并热机保留
-    //（见 settings_window_host.dart）。
   }
 
   /// 语言变了才重建托盘菜单与悬停提示（其它设置写入不碰托盘）。

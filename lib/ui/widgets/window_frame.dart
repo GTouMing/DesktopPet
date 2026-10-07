@@ -5,6 +5,8 @@ import 'package:desktop_pet/platform/windows/settings_window.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../theme/app_theme.dart';
+
 /// Windows 窗口框架组件。
 ///
 /// 包裹在所有页面的最外层，提供自定义标题栏（关闭按钮）。
@@ -21,6 +23,8 @@ class WindowFrame extends StatelessWidget {
 
   final Widget child;
 
+  static const double _titleBarHeight = 44;
+
   @override
   Widget build(BuildContext context) {
     if (!Platform.isWindows) return child;
@@ -34,31 +38,29 @@ class WindowFrame extends StatelessWidget {
   }
 
   Widget _buildTitleBar(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     return Material(
-      type: MaterialType.transparency,
+      color: scheme.surface,
       child: GestureDetector(
         onPanStart: (_) => windowManager.startDragging(),
         child: Container(
-          height: 40,
+          height: _titleBarHeight,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            border: Border(
-              bottom: BorderSide(color: Colors.grey.shade300),
-            ),
+            border: Border(bottom: BorderSide(color: scheme.outlineVariant)),
           ),
           child: Row(
             children: [
-              const SizedBox(width: 12),
-              Text(AppLocalizations.of(context).appName,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w600, fontSize: 14)),
-              const Spacer(),
-              _WindowButton(
-                icon: Icons.close,
-                onPressed: () async {
-                  await SettingsWindow.hide();
-                },
+              const SizedBox(width: Insets.md),
+              Icon(Icons.pets_rounded, size: 16, color: scheme.primary),
+              const SizedBox(width: Insets.sm),
+              Text(
+                AppLocalizations.of(context).appName,
+                style: theme.textTheme.titleSmall,
               ),
+              const Spacer(),
+              _CloseButton(onPressed: () => SettingsWindow.hide()),
             ],
           ),
         ),
@@ -67,30 +69,33 @@ class WindowFrame extends StatelessWidget {
   }
 }
 
-class _WindowButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onPressed;
+/// 关闭键：悬停时转成危险色，明确"这一下会关掉窗口"。
+class _CloseButton extends StatelessWidget {
+  const _CloseButton({required this.onPressed});
 
-  const _WindowButton({
-    required this.icon,
-    required this.onPressed,
-  });
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 46,
-      height: 40,
-      child: InkWell(
-        onTap: onPressed,
-        hoverColor:
-            Colors.red.withValues(alpha: 0.15),
-        child: Center(
-          child: Icon(
-            icon,
-            size: 16,
-            color: Colors.red.shade400,
-          ),
+    final scheme = Theme.of(context).colorScheme;
+    return IconButton(
+      icon: const Icon(Icons.close_rounded, size: 16),
+      onPressed: onPressed,
+      style: ButtonStyle(
+        minimumSize: const WidgetStatePropertyAll<Size>(
+          Size(WindowFrame._titleBarHeight, WindowFrame._titleBarHeight),
+        ),
+        padding: const WidgetStatePropertyAll<EdgeInsets>(EdgeInsets.zero),
+        shape: const WidgetStatePropertyAll<OutlinedBorder>(
+          RoundedRectangleBorder(),
+        ),
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.hovered)
+              ? scheme.error
+              : scheme.onSurfaceVariant;
+        }),
+        overlayColor: WidgetStatePropertyAll<Color>(
+          scheme.error.withValues(alpha: 0.12),
         ),
       ),
     );

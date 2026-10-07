@@ -9,6 +9,7 @@ import '../petpack/live2d/l2d_param_group.dart';
 import '../petpack/live2d_pet_pack.dart';
 import '../petpack/state/state_define.dart';
 import 'live2d/live2d_channel.dart';
+import 'live2d/model_parameter.dart';
 import 'pet_visual.dart';
 
 /// Live2D 渲染实现（自研渲染器，见 `plugins/pet_live2d`）。
@@ -68,6 +69,9 @@ class Live2DPetVisual implements PetVisual {
   /// 动作 `sets` 改动了参数时回调宿主，把新的选择写回 `PetConfig`。
   void Function(Map<String, int> choices)? onChoicesChanged;
 
+  /// 模型参数元数据就绪时回调宿主（构建光标跟随映射，见 `mouse_follow.dart`）。
+  void Function(List<ModelParameter> parameters)? onModelParameters;
+
   /// Generation counter: each instance gets its own native key so a warm-up does
   /// not disturb the instance still on screen.
   int _generation = 0;
@@ -75,6 +79,9 @@ class Live2DPetVisual implements PetVisual {
   /// Instance being warmed up at a new size; swapped in when it reports ready.
   Live2DSession? _warming;
   Timer? _resizeDebounce;
+  /// Polls the platform side for model readiness + parameter metadata (see
+  /// [_pollReady]); the native `modelReady` push does not reach child engines.
+  Timer? _readyTimer;
   int? _pendingBoxWidthPx;
   int? _pendingBoxHeightPx;
 
@@ -256,6 +263,8 @@ class Live2DPetVisual implements PetVisual {
     _disposed = true;
     _resizeDebounce?.cancel();
     _resizeDebounce = null;
+    _readyTimer?.cancel();
+    _readyTimer = null;
     _warming?.dispose();
     _warming = null;
     _actionTimer?.cancel();
@@ -331,12 +340,14 @@ class Live2DPetVisual implements PetVisual {
 
     if (warmUp) {
       _warming = session;
-      session.onReady = _swapToWarm;
+      _pollReady(session, warmUp: true);
       return;
     }
 
     _session = session;
     _textureId.value = session.textureId;
+    _emitModelParameters(session);
+    _pollReady(session, warmUp: false);
     final state = _pendingState ?? _pack.initialState;
     _play(_pack.states[state], state);
     _applyParams();
@@ -350,13 +361,48 @@ class Live2DPetVisual implements PetVisual {
     _warming = null;
     final old = _session;
     _session = warm;
-    warm.onReady = null;
     _textureId.value = warm.textureId;
+    // 新实例是一份新模型：参数元数据与状态都要重发。
+    _emitModelParameters(warm);
     // The new instance is a fresh model: re-apply the current state.
     final state = _pendingState ?? _pack.initialState;
     _play(_pack.states[state], state);
     _applyParams();
     old?.dispose();
+  }
+
+  /// 会话就绪后把模型参数元数据交给宿主（构建光标跟随映射）。
+  void _emitModelParameters(Live2DSession session) {
+    if (_disposed) return;
+    final parameters = session.parameters;
+    if (parameters.isEmpty) return;
+    onModelParameters?.call(parameters);
+  }
+
+  /// 轮询平台侧直到模型就绪，然后取参数元数据并触发就绪动作。
+  ///
+  /// 原生 `modelReady` 推送到不了子窗口引擎（其窗口过程不转发给引擎的 proc 委托），
+  /// 所以改成拉取：平台侧返回渲染线程存下的参数快照。见 `pet_live2d_plugin.cpp`。
+  /// **不设短上限**：模型加载可能很慢（首次 D3D/着色器初始化），轮询到就绪或销毁为止。
+  void _pollReady(Live2DSession session, {required bool warmUp}) {
+    _readyTimer?.cancel();
+    _readyTimer =
+        Timer.periodic(const Duration(milliseconds: 100), (timer) async {
+      if (_disposed) {
+        timer.cancel();
+        return;
+      }
+      final info = await Live2DChannel.getModelInfo(session.petId);
+      if (info == null || !info.ready) return; // 还没好：等下一拍
+      timer.cancel();
+      _readyTimer = null;
+      session.parameters = info.parameters;
+      if (warmUp) {
+        _swapToWarm();
+      } else {
+        _emitModelParameters(session);
+      }
+    });
   }
 
   void _onActionFinished() {

@@ -18,9 +18,17 @@
 ///   "whale_top": {
 ///     "label": "头顶鲸", "type": "bool", "default": false,
 ///     "params": { "jingyu": 1 }
+///   },
+///   "ear": {
+///     "label": "猫耳", "type": "bool", "default": false,
+///     "params": { "Param23": 1 }, "offParams": { "Param23": 0 }
 ///   }
 /// }
 /// ```
+///
+/// bool 组默认「开 = 写 `params`、关 = 复位模型默认值」。但有的部件模型默认值本身就是
+/// "开"（例如猫耳 `Param23` 默认 `1`），复位默认值 = 又开回来、关不掉；此时用可选的
+/// `offParams` 显式给出"关"态要写的参数。
 library;
 
 /// 组内的一个互斥选项：选择它时写入 [params]（空 = "无"，不写任何参数）。
@@ -82,12 +90,13 @@ class L2dParamGroup {
         (spec.containsKey('params') && !spec.containsKey('options'));
     if (isBool) {
       final on = _parseParams(spec['params']);
+      final off = _parseParams(spec['offParams']);
       return L2dParamGroup(
         id: id,
         label: label,
         isBool: true,
         options: [
-          const L2dParamOption(label: '', params: {}),
+          L2dParamOption(label: '', params: off),
           L2dParamOption(label: '', params: on),
         ],
         defaultIndex: spec['default'] == true ? 1 : 0,

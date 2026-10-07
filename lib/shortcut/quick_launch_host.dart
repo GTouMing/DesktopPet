@@ -192,11 +192,22 @@ class QuickLaunchInputHost {
       return;
     }
 
-    // 环心 = 目标桌宠中心(场景坐标)。半径上限收敛到屏幕较短边,保证环完整落屏。
+    // 环心 = 目标桌宠中心(场景坐标)。半径上限收敛到屏幕较短边。
     final geometry = ringGeometry(
       center: target.rect.center,
       petSize: target.rect.size,
       screen: scene.size,
+    );
+
+    // 贴边/贴角时整圈装不下:半径不变,改用"能完整落屏的那段弧"平分启动区
+    // (见 [ringFittingArc]);弧窄到点不中(fitting == null)则退回整圈,
+    // 与不贴边时行为一致。
+    final fitting = ringFittingArc(
+      center: target.rect.center,
+      scene: scene,
+      solidRadius: geometry.solidRadius,
+      totalRadius: geometry.totalRadius,
+      count: _items.length,
     );
 
     // 展开期间冻结目标宠物移动,避免环与宠物错位;收起时恢复。
@@ -205,9 +216,11 @@ class QuickLaunchInputHost {
       centerInWindow: target.rect.center,
       totalRadius: geometry.totalRadius,
       solidRadius: geometry.solidRadius,
+      startAngle: fitting?.start ?? 0,
+      spanAngle: fitting?.span ?? ringFullSpan,
       items: _items,
     );
-    _hk('present delivered');
+    _hk('present delivered (arc=$fitting)');
     _phase = _Phase.presented;
 
     // 兜底: down 后长时间未 up → 收起(防卡死)。

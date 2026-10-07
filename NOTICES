@@ -43,7 +43,7 @@ https://www.live2d.com/en/sdk/license/
 ------------------------------
 The remaining runtime dependencies are declared in pubspec.yaml (flutter_riverpod,
 mmkv, window_manager, system_tray, path_provider, archive, file_picker, win32,
-ffi, desktop_multi_window, flutter_alone, audioplayers, styled_widget, intl, and
+ffi, desktop_multi_window, flutter_alone, audioplayers, intl, and
 their transitive dependencies). Each is used under its own license; consult
 `flutter pub deps` and the individual package pages for details.
 

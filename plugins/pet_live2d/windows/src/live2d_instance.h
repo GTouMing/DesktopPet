@@ -70,6 +70,17 @@ class Live2DInstance {
   /// Restores a parameter to the model's own default (see `Live2DModel::ResetParameter`).
   void ResetParameter(const std::string& parameter_id);
   void ClearParameters();
+
+  /// Thread-safe snapshot for the PLATFORM thread: whether the model finished
+  /// loading and its parameter metadata. The metadata is captured on the render
+  /// thread right after load; the platform thread reads a copy (it cannot touch
+  /// the model). Dart polls this because the native `modelReady` push does not
+  /// reach child (multi-window) engines.
+  struct ModelInfo {
+    bool ready = false;
+    std::vector<Live2DModel::ParameterInfo> parameters;
+  };
+  ModelInfo GetModelInfo() const;
   void SetMotionSpeed(double speed);
   void SetDragging(double x, double y);
   bool RenderFrame(float delta_time);
@@ -127,6 +138,12 @@ class Live2DInstance {
   std::unique_ptr<Live2DTextureManager> texture_manager_;
   std::unique_ptr<Live2DModel> model_;
   bool model_loaded_ = false;
+
+  /// Parameter metadata snapshot + readiness, written on the render thread after
+  /// a successful load and read by the platform thread (see [GetModelInfo]).
+  mutable std::mutex info_mutex_;
+  bool model_ready_ = false;
+  std::vector<Live2DModel::ParameterInfo> parameter_info_;
 };
 
 }  // namespace pet_live2d

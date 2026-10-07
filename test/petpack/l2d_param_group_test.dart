@@ -74,6 +74,26 @@ void main() {
     expect(groups[1].defaultIndex, 1);
   });
 
+  test('bool 组：offParams 显式给出"关"态参数（默认值本身是开时才能关掉）', () {
+    final groups = L2dParamGroup.parse({
+      'ear': {
+        'label': '猫耳',
+        'type': 'bool',
+        'default': false,
+        'params': {'Param23': 1},
+        'offParams': {'Param23': 0},
+      },
+    });
+
+    final ear = groups.single;
+    expect(ear.isBool, isTrue);
+    expect(ear.options.length, 2);
+    expect(ear.options[0].params, {'Param23': 0.0});
+    expect(ear.options[1].params, {'Param23': 1.0});
+    expect(ear.defaultIndex, 0);
+    expect(ear.allParamIds, {'Param23'});
+  });
+
   test('跳过无法识别的组', () {
     final groups = L2dParamGroup.parse({
       'empty_options': {'options': []},

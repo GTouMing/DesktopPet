@@ -1,5 +1,8 @@
-import 'package:desktop_pet/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
+
+import '../../l10n/app_localizations.dart';
+import '../theme/app_theme.dart';
+import '../widgets/keycap_row.dart';
 
 /// 快捷键选择对话框。
 ///
@@ -44,85 +47,66 @@ class _HotkeyPickerDialogState extends State<HotkeyPickerDialog> {
     return list;
   }
 
-  String _displayValue(AppLocalizations l10n) {
-    if (_key.isEmpty) return l10n.hotkeyPlaceholder;
-    final parts = [
-      ..._modifiers
-          .map((m) => m[0].toUpperCase() + m.substring(1)),
-      _key.toUpperCase(),
-    ];
-    return parts.join(' + ');
-  }
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final l10n = AppLocalizations.of(context);
+
     return AlertDialog(
       title: Text(l10n.hotkeyTitle),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 当前选择显示
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              _displayValue(l10n),
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // 修饰键勾选
-          Text(l10n.modifiersLabel,
-              style: const TextStyle(fontSize: 13, color: Colors.grey)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 12,
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              FilterChip(
-                label: const Text('Alt'),
-                selected: _alt,
-                onSelected: (v) => setState(() => _alt = v),
-              ),
-              FilterChip(
-                label: const Text('Ctrl'),
-                selected: _ctrl,
-                onSelected: (v) => setState(() => _ctrl = v),
-              ),
-              FilterChip(
-                label: const Text('Shift'),
-                selected: _shift,
-                onSelected: (v) => setState(() => _shift = v),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          // 键名选择
-          Text(l10n.keyLabel,
-              style: const TextStyle(fontSize: 13, color: Colors.grey)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final k in _commonKeys)
-                ActionChip(
-                  label: Text(k.toUpperCase(),
-                      style: const TextStyle(fontSize: 12)),
-                  onPressed: () => setState(() => _key = k),
-                  backgroundColor: _key == k
-                      ? Theme.of(context).colorScheme.primaryContainer
-                      : null,
+              // 当前选择：以键帽呈现，与设置页里的显示保持一致。
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: Insets.lg, vertical: Insets.xl),
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(Radii.control),
                 ),
+                child: Center(
+                  child: KeycapRow(
+                    keys: _key.isEmpty ? const [] : [..._modifiers, _key],
+                    placeholder: l10n.hotkeyPlaceholder,
+                  ),
+                ),
+              ),
+              const SizedBox(height: Insets.xl),
+              _label(theme, l10n.modifiersLabel),
+              const SizedBox(height: Insets.sm),
+              Wrap(
+                spacing: Insets.sm,
+                children: [
+                  _modifier('Alt', _alt, (v) => setState(() => _alt = v)),
+                  _modifier('Ctrl', _ctrl, (v) => setState(() => _ctrl = v)),
+                  _modifier('Shift', _shift, (v) => setState(() => _shift = v)),
+                ],
+              ),
+              const SizedBox(height: Insets.xl),
+              _label(theme, l10n.keyLabel),
+              const SizedBox(height: Insets.sm),
+              Wrap(
+                spacing: Insets.sm,
+                runSpacing: Insets.sm,
+                children: [
+                  for (final key in _commonKeys)
+                    ChoiceChip(
+                      label: Text(key.toUpperCase()),
+                      selected: _key == key,
+                      onSelected: (_) => setState(() => _key = key),
+                    ),
+                ],
+              ),
             ],
           ),
-        ],
+        ),
       ),
       actions: [
         TextButton(
@@ -136,9 +120,20 @@ class _HotkeyPickerDialogState extends State<HotkeyPickerDialog> {
                   widget.onConfirm(_key, _modifiers);
                   Navigator.pop(context);
                 },
-          child: Text(l10n.confirm),
+          child: Text(l10n.setShortcut),
         ),
       ],
+    );
+  }
+
+  Widget _label(ThemeData theme, String text) =>
+      Text(text, style: theme.textTheme.labelSmall);
+
+  Widget _modifier(String name, bool selected, ValueChanged<bool> onSelected) {
+    return FilterChip(
+      label: Text(name),
+      selected: selected,
+      onSelected: onSelected,
     );
   }
 }

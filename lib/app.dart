@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'main.dart';
 import 'ui/common/main_screen.dart';
+import 'ui/theme/app_theme.dart';
 import 'ui/widgets/window_frame.dart';
 
 /// 设置界面。
@@ -27,10 +28,7 @@ class MainApp extends ConsumerWidget {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: Colors.pink,
-        useMaterial3: true,
-      ),
+      theme: AppTheme.light(),
       locale: settingsLocale(locale),
       supportedLocales: appSupportedLocales,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -61,6 +59,7 @@ class PetApp extends StatelessWidget {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      theme: AppTheme.light(),
       locale: settingsLocale(locale),
       supportedLocales: appSupportedLocales,
       localizationsDelegates: AppLocalizations.localizationsDelegates,

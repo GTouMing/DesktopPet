@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'model_parameter.dart';
+
 /// Dart side of the in-repo Live2D renderer (`plugins/pet_live2d`).
 ///
 /// Three deliberate differences from `live2d_flutter`, each fixing a defect we
@@ -24,19 +26,22 @@ class Live2DChannel {
       MethodChannel('desktop_pet/live2d');
 
   static final Map<String, Live2DSession> _sessions = {};
-  static bool _handlerInstalled = false;
 
-  /// The native side pushes this whenever the render target was re-registered.
-  static void _ensureHandler() {
-    if (_handlerInstalled) return;
-    _handlerInstalled = true;
-    methodChannel.setMethodCallHandler((call) async {
-      if (call.method == 'modelReady') {
-        final petId = call.arguments;
-        if (petId is String) _sessions[petId]?.handleModelReady();
-      }
-      return null;
-    });
+  static List<ModelParameter> _parseParameters(Object? raw) {
+    if (raw is! List) return const [];
+    final out = <ModelParameter>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final id = item['id'];
+      if (id is! String || id.isEmpty) continue;
+      out.add(ModelParameter(
+        id: id,
+        minimum: (item['min'] as num?)?.toDouble() ?? 0,
+        maximum: (item['max'] as num?)?.toDouble() ?? 0,
+        defaultValue: (item['default'] as num?)?.toDouble() ?? 0,
+      ));
+    }
+    return out;
   }
 
   /// Diagnostic snapshot of the native runtime (device / Cubism init state).
@@ -44,6 +49,28 @@ class Live2DChannel {
     try {
       return await methodChannel
           .invokeMethod<Map<Object?, Object?>>('getStatus');
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  /// 模型就绪状态 + 参数元数据（Dart 侧轮询）。
+  ///
+  /// 原生那条 `modelReady` 推送**到不了子窗口引擎**——`desktop_multi_window` 的
+  /// 窗口过程不把消息转给引擎的 `TopLevelWindowProcDelegate`，于是推送永远被丢。
+  /// 改成由这里轮询：平台侧返回渲染线程存好的参数快照（见 `pet_live2d_plugin.cpp`）。
+  static Future<({bool ready, List<ModelParameter> parameters})?> getModelInfo(
+      String petId) async {
+    try {
+      final reply = await methodChannel.invokeMethod<Map<Object?, Object?>>(
+          'getModelInfo', {'petId': petId});
+      if (reply == null) return null;
+      return (
+        ready: reply['ready'] == true,
+        parameters: _parseParameters(reply['parameters']),
+      );
     } on PlatformException {
       return null;
     } on MissingPluginException {
@@ -81,7 +108,6 @@ class Live2DChannel {
     double fitOffsetY = 0,
     double breathScale = 1,
   }) async {
-    _ensureHandler();
     try {
       final reply =
           await methodChannel.invokeMethod<Map<Object?, Object?>>('create', {
@@ -128,6 +154,9 @@ class Live2DSession {
   /// renderer cannot be resized in place.
   final int textureId;
 
+  /// 模型参数元数据（`modelReady` 时由原生回传）；就绪前为空表。
+  List<ModelParameter> parameters = const [];
+
   bool _disposed = false;
 
   /// Plays a motion group. [loop] is what makes an idle motion keep playing; the
@@ -162,16 +191,6 @@ class Live2DSession {
 
   void setDragging(double x, double y) =>
       _invoke('setDragging', {'x': x, 'y': y});
-
-  /// Called by the caller once the native model finished loading. A warmed-up
-  /// instance is swapped in here, which is what makes a resize blank-free.
-  VoidCallback? onReady;
-
-  /// Native → Dart, from the channel's `modelReady` handler.
-  void handleModelReady() {
-    if (_disposed) return;
-    onReady?.call();
-  }
 
   void dispose() {
     if (_disposed) return;

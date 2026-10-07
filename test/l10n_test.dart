@@ -21,7 +21,7 @@ void main() {
 
     expect(zh.myPets(3), '我的桌宠 (3)');
     expect(en.myPets(3), 'My pets (3)');
-    expect(zh.globalOpacity(50), '全局透明度 — 50%');
+    expect(zh.globalOpacityLabel, '全局透明度');
     expect(en.petPackLabel('foo'), 'Pet pack: foo');
   });
 

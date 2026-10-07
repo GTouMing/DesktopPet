@@ -199,51 +199,19 @@ Map<String, String> parsePetPackKeyParams(Map<String, dynamic> json) {
   return params;
 }
 
-/// 解析一个轴的映射组：允许
-/// - 单个参数名字符串（`scale` 取 1），或
-/// - `{ "param": ..., "scale": ... }` 组成的列表。
-List<MouseAxisMapping> _parseMouseAxis(Object? raw) {
-  final out = <MouseAxisMapping>[];
-  void add(Object? value) {
-    if (value is String && value.isNotEmpty) {
-      out.add(MouseAxisMapping(param: value));
-    } else if (value is Map) {
-      final param = value['param'];
-      if (param is String && param.isNotEmpty) {
-        out.add(MouseAxisMapping(
-          param: param,
-          scale: (value['scale'] as num?)?.toDouble() ?? 1.0,
-          raw: value['raw'] == true,
-        ));
-      }
-    }
-  }
-
-  if (raw is List) {
-    for (final item in raw) {
-      add(item);
-    }
-  } else {
-    add(raw);
-  }
-  return out;
-}
-
-/// 解析清单顶层的 `mouseParams`（见 [MouseParams]）。全空时返回 null。
+/// 解析清单顶层的 `mouseParams`（见 [MouseParams]）。空表返回 null。
+///
+/// 光标跟随的参数与幅度**读自模型**，不在清单里；这里只取鼠标按键与缓动。
 MouseParams? parsePetPackMouseParams(Map<String, dynamic> json) {
   final raw = json['mouseParams'];
-  if (raw is! Map) return null;
+  if (raw is! Map || raw.isEmpty) return null;
 
   String? str(Object? v) => (v is String && v.isNotEmpty) ? v : null;
-  final params = MouseParams(
-    x: _parseMouseAxis(raw['x']),
-    y: _parseMouseAxis(raw['y']),
-    xy: _parseMouseAxis(raw['xy']),
+  return MouseParams(
     left: str(raw['left']),
     right: str(raw['right']),
-    smooth: (raw['smooth'] as num?)?.toDouble() ?? 0,
+    smooth: (raw['smooth'] as num?)?.toDouble() ?? 1.0,
   );
-  return params.enabled ? params : null;
 }
 
 /// 判别宠物包类型。

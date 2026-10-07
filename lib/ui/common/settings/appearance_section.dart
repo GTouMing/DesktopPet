@@ -4,6 +4,8 @@ import '../../../core/constants.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../storage/models/settings_model.dart';
 import '../../widgets/info_overlay.dart';
+import '../../widgets/section_panel.dart';
+import '../../widgets/slider_field.dart';
 import 'settings_common.dart';
 
 /// 外观分区：全局缩放 / 不透明度（对所有桌宠生效）。
@@ -33,30 +35,36 @@ class _AppearanceSectionState extends State<AppearanceSection> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Column(
-      children: [
-        SectionHeader(title: l10n.sectionAppearance),
-        SliderTile(
-          icon: Icons.opacity,
-          label: l10n.globalOpacity((_opacity * 100).round()),
-          value: _opacity,
-          min: 0.2,
-          max: 1.0,
-          divisions: 8,
-          onChanged: (v) => setState(() => _opacity = v),
-          onChangeEnd: (v) => applySettings((s) => s.copyWith(baseOpacity: v)),
-        ),
-        SliderTile(
-          icon: Icons.zoom_in,
-          label: l10n.globalScale(_scale.toStringAsFixed(1)),
-          value: _scale,
-          min: 0.3,
-          max: 3.0,
-          divisions: 27,
-          onChanged: (v) => setState(() => _scale = v),
-          onChangeEnd: _commitScale,
-        ),
-      ],
+    return SectionPanel(
+      label: l10n.sectionAppearance,
+      child: Column(
+        children: [
+          SliderField(
+            icon: Icons.opacity_rounded,
+            label: l10n.globalOpacityLabel,
+            valueLabel: '${(_opacity * 100).round()}%',
+            value: _opacity,
+            min: 0.2,
+            max: 1.0,
+            divisions: 8,
+            onChanged: (v) => setState(() => _opacity = v),
+            onChangeEnd: (v) =>
+                applySettings((s) => s.copyWith(baseOpacity: v)),
+          ),
+          const Divider(height: 1),
+          SliderField(
+            icon: Icons.zoom_in_rounded,
+            label: l10n.globalScaleLabel,
+            valueLabel: '${_scale.toStringAsFixed(1)}x',
+            value: _scale,
+            min: 0.3,
+            max: 3.0,
+            divisions: 27,
+            onChanged: (v) => setState(() => _scale = v),
+            onChangeEnd: _commitScale,
+          ),
+        ],
+      ),
     );
   }
 
@@ -70,45 +78,5 @@ class _AppearanceSectionState extends State<AppearanceSection> {
       return;
     }
     applySettings((s) => s.copyWith(baseScale: value));
-  }
-}
-
-/// 统一的「图标 + 标题 + 滑杆」行。
-class SliderTile extends StatelessWidget {
-  const SliderTile({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.min,
-    required this.max,
-    required this.divisions,
-    required this.onChanged,
-    required this.onChangeEnd,
-  });
-
-  final IconData icon;
-  final String label;
-  final double value;
-  final double min;
-  final double max;
-  final int divisions;
-  final ValueChanged<double> onChanged;
-  final ValueChanged<double> onChangeEnd;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(label),
-      subtitle: Slider(
-        value: value,
-        min: min,
-        max: max,
-        divisions: divisions,
-        onChanged: onChanged,
-        onChangeEnd: onChangeEnd,
-      ),
-    );
   }
 }
