@@ -1,10 +1,16 @@
 /.codemoss/
 
+# Command Code 本地 agent 配置（taste / design / settings）
+/.commandcode/
+
 # Miscellaneous
 *.class
 *.log
 *.pyc
 *.swp
+
+# 本地调试小工具（如 moc3 参数探针）的编译产物
+/probe_moc3.obj
 .DS_Store
 .atom/
 .build/
